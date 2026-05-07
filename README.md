@@ -29,6 +29,7 @@ For SD-card image generation:
 - Linux host
 - `sudo`
 - `curl`, `xz`, `tar`, `losetup`, `mount`, `openssl`, and `sha256sum`
+- kernel support for mounting `vfat` filesystems, because the Raspberry Pi boot partition is FAT
 - enough disk space for the downloaded and expanded Raspberry Pi OS image
 
 ## Quick start
@@ -94,3 +95,7 @@ ssh <PI_USERNAME>@<PI_HOSTNAME>.local
 ## Notes for Raspberry Pi 4 2GB
 
 The default image URL targets Raspberry Pi OS Lite 64-bit Bookworm, which works on a Raspberry Pi 4 with 2GB RAM. If you later need maximum memory headroom or a dependency is only packaged for 32-bit Raspberry Pi OS, switch `PI_IMAGE_URL` to an official 32-bit Lite image and rebuild.
+
+## Troubleshooting
+
+If `make pi-image` reports that the host cannot mount `vfat` boot partitions, run the image build on a Linux machine with FAT filesystem support enabled. On many Linux distributions this is available by default; on minimal VMs you may need to install/load the `vfat` kernel module first.

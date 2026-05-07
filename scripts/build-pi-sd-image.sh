@@ -18,6 +18,18 @@ require_root() {
   [[ "${EUID:-$(id -u)}" -eq 0 ]] || die "run with sudo: sudo $0 $ENV_FILE"
 }
 
+ensure_vfat_mount_support() {
+  if grep -qw vfat /proc/filesystems; then
+    return
+  fi
+
+  if command -v modprobe >/dev/null 2>&1 && modprobe vfat >/dev/null 2>&1 && grep -qw vfat /proc/filesystems; then
+    return
+  fi
+
+  die "host cannot mount vfat boot partitions. Enable the vfat kernel module or run this on a Linux host with FAT filesystem support."
+}
+
 load_config() {
   [[ -f "$ENV_FILE" ]] || die "missing config file: $ENV_FILE. Copy config/pi-image.env.example first."
   # shellcheck disable=SC1090
@@ -324,6 +336,7 @@ finalize_image() {
 main() {
   require_root
   require_cmd curl
+  require_cmd grep
   require_cmd losetup
   require_cmd mount
   require_cmd mountpoint
@@ -346,6 +359,7 @@ main() {
   mkdir -p "$DOWNLOAD_DIR" "$WORK_DIR" "$DIST_DIR" "$ROOT_MOUNT" "$BOOT_MOUNT"
   trap cleanup EXIT
 
+  ensure_vfat_mount_support
   download_image
   mount_image_with_fallback
   install_repo
