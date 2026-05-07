@@ -62,6 +62,7 @@ cleanup() {
     umount "$ROOT_MOUNT"
   fi
   if [[ -n "${LOOPDEV:-}" ]]; then
+    partx --delete "$LOOPDEV" >/dev/null 2>&1 || true
     losetup -d "$LOOPDEV"
   fi
 }
@@ -96,19 +97,26 @@ download_image() {
 }
 
 mount_image() {
-  LOOPDEV="$(losetup --find --show --partscan "$RAW_IMAGE")"
+  LOOPDEV="$(losetup --find --show "$RAW_IMAGE")"
+  partx --add "$LOOPDEV"
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle
   fi
 
-  local boot_part root_part
-  if [[ -b "${LOOPDEV}p1" ]]; then
-    boot_part="${LOOPDEV}p1"
-    root_part="${LOOPDEV}p2"
-  else
-    boot_part="${LOOPDEV}1"
-    root_part="${LOOPDEV}2"
-  fi
+  local boot_part="" root_part=""
+  for _ in {1..50}; do
+    if [[ -b "${LOOPDEV}p1" ]]; then
+      boot_part="${LOOPDEV}p1"
+      root_part="${LOOPDEV}p2"
+      break
+    fi
+    if [[ -b "${LOOPDEV}1" ]]; then
+      boot_part="${LOOPDEV}1"
+      root_part="${LOOPDEV}2"
+      break
+    fi
+    sleep 0.1
+  done
 
   [[ -b "$boot_part" ]] || die "could not find boot partition for $LOOPDEV"
   [[ -b "$root_part" ]] || die "could not find root partition for $LOOPDEV"
@@ -282,7 +290,9 @@ main() {
   require_cmd curl
   require_cmd losetup
   require_cmd mount
+  require_cmd mountpoint
   require_cmd openssl
+  require_cmd partx
   require_cmd sha256sum
   require_cmd tar
   require_cmd truncate
