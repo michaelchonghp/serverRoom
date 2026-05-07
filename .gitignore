@@ -1,0 +1,6 @@
+.pi-build/
+dist/
+config/pi-image.env
+.env
+*.img
+*.img.xz
