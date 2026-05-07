@@ -117,11 +117,11 @@ mount_partition_by_offset() {
 
   offset_bytes=$((start_sector * 512))
   size_bytes=$((sectors * 512))
-  mount -o "loop,offset=$offset_bytes,sizelimit=$size_bytes" "$RAW_IMAGE" "$mount_point"
+  mount -o "loop,offset=$offset_bytes,sizelimit=$size_bytes" "$RAW_IMAGE" "$mount_point" || return 1
 }
 
 mount_image() {
-  LOOPDEV="$(losetup --find --show "$RAW_IMAGE")"
+  LOOPDEV="$(losetup --find --show "$RAW_IMAGE")" || return 1
   partx --add "$LOOPDEV" || return 1
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle
@@ -157,8 +157,8 @@ mount_image_with_fallback() {
   printf 'Falling back to offset-based partition mounts.\n'
   cleanup
   LOOPDEV=""
-  mount_partition_by_offset 2 "$ROOT_MOUNT"
-  mount_partition_by_offset 1 "$BOOT_MOUNT"
+  mount_partition_by_offset 2 "$ROOT_MOUNT" || die "could not mount root partition from $RAW_IMAGE"
+  mount_partition_by_offset 1 "$BOOT_MOUNT" || die "could not mount boot partition from $RAW_IMAGE"
 }
 
 install_repo() {
