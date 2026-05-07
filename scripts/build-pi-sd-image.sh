@@ -96,9 +96,33 @@ download_image() {
   fi
 }
 
+partition_value() {
+  local partition_number="$1"
+  local field="$2"
+
+  partx --pairs "$RAW_IMAGE" \
+    | sed -n "s/^NR=\"$partition_number\" .*${field}=\"\\([0-9][0-9]*\\)\".*/\\1/p" \
+    | sed -n '1p'
+}
+
+mount_partition_by_offset() {
+  local partition_number="$1"
+  local mount_point="$2"
+  local start_sector sectors offset_bytes size_bytes
+
+  start_sector="$(partition_value "$partition_number" START)"
+  sectors="$(partition_value "$partition_number" SECTORS)"
+  [[ -n "$start_sector" ]] || die "could not read START for partition $partition_number"
+  [[ -n "$sectors" ]] || die "could not read SECTORS for partition $partition_number"
+
+  offset_bytes=$((start_sector * 512))
+  size_bytes=$((sectors * 512))
+  mount -o "loop,offset=$offset_bytes,sizelimit=$size_bytes" "$RAW_IMAGE" "$mount_point"
+}
+
 mount_image() {
   LOOPDEV="$(losetup --find --show "$RAW_IMAGE")"
-  partx --add "$LOOPDEV"
+  partx --add "$LOOPDEV" || return 1
   if command -v udevadm >/dev/null 2>&1; then
     udevadm settle
   fi
@@ -118,11 +142,23 @@ mount_image() {
     sleep 0.1
   done
 
-  [[ -b "$boot_part" ]] || die "could not find boot partition for $LOOPDEV"
-  [[ -b "$root_part" ]] || die "could not find root partition for $LOOPDEV"
+  [[ -b "$boot_part" ]] || return 1
+  [[ -b "$root_part" ]] || return 1
 
-  mount "$root_part" "$ROOT_MOUNT"
-  mount "$boot_part" "$BOOT_MOUNT"
+  mount "$root_part" "$ROOT_MOUNT" || return 1
+  mount "$boot_part" "$BOOT_MOUNT" || return 1
+}
+
+mount_image_with_fallback() {
+  if mount_image; then
+    return
+  fi
+
+  printf 'Falling back to offset-based partition mounts.\n'
+  cleanup
+  LOOPDEV=""
+  mount_partition_by_offset 2 "$ROOT_MOUNT"
+  mount_partition_by_offset 1 "$BOOT_MOUNT"
 }
 
 install_repo() {
@@ -293,6 +329,7 @@ main() {
   require_cmd mountpoint
   require_cmd openssl
   require_cmd partx
+  require_cmd sed
   require_cmd sha256sum
   require_cmd tar
   require_cmd truncate
@@ -310,7 +347,7 @@ main() {
   trap cleanup EXIT
 
   download_image
-  mount_image
+  mount_image_with_fallback
   install_repo
   configure_boot
   install_firstboot
