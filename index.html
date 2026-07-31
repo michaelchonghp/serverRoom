@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>42U — Equipment Rack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0a0c10;
+      --steel: #8b939e;
+      --mist: #c5ccd6;
+      --amber: #e8a54b;
+      --signal: #3dd68c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--ink);
+      color: var(--mist);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background:
+        radial-gradient(ellipse 80% 55% at 50% 18%, #1a2230 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 70% 80%, #121820 0%, transparent 50%),
+        linear-gradient(165deg, #0d1016 0%, #07080b 45%, #0b0e14 100%);
+    }
+
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      padding: clamp(1.25rem, 3vw, 2.5rem);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .brand {
+      justify-self: start;
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .brand h1 {
+      font-family: "Archivo Black", sans-serif;
+      font-size: clamp(3.5rem, 12vw, 7.5rem);
+      line-height: 0.88;
+      letter-spacing: -0.04em;
+      color: #f2f4f7;
+      text-transform: uppercase;
+    }
+
+    .brand p {
+      margin-top: 0.75rem;
+      max-width: 28ch;
+      font-size: 0.8rem;
+      line-height: 1.55;
+      color: var(--steel);
+      letter-spacing: 0.02em;
+    }
+
+    .meta {
+      align-self: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem 2rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--steel);
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+    }
+
+    .meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .meta i {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--signal) 70%, transparent);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    .hint {
+      position: fixed;
+      right: clamp(1.25rem, 3vw, 2.5rem);
+      bottom: clamp(1.25rem, 3vw, 2.5rem);
+      z-index: 2;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--steel) 75%, transparent);
+      pointer-events: none;
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.25); }
+    }
+
+    @media (max-width: 640px) {
+      .brand h1 { font-size: clamp(2.8rem, 18vw, 4.2rem); }
+      .brand p { max-width: 34ch; }
+      .hint { max-width: 14ch; text-align: right; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Interactive 3D model of a 42U equipment rack"></canvas>
+
+  <div class="hud">
+    <header class="brand">
+      <h1>42U</h1>
+      <p>Full-height EIA-310 equipment rack. Drag to orbit. Scroll to zoom.</p>
+    </header>
+    <div></div>
+    <footer class="meta">
+      <span><i></i> Live render</span>
+      <span>19″ rails · 42 units</span>
+      <span>Depth 1000 mm</span>
+    </footer>
+  </div>
+  <div class="hint">Orbit · Zoom · Pan</div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+    // --- EIA-310 proportions (scene units ≈ centimeters) ---
+    const U = 4.445;           // 1.75 in
+    const UNITS = 42;
+    const RAIL_WIDTH = 48.26;  // 19 in usable
+    const OUTER_W = 60;
+    const OUTER_D = 100;
+    const FRAME_T = 2.2;
+    const INNER_H = UNITS * U;
+    const BASE_H = 8;
+    const TOP_H = 4;
+    const TOTAL_H = BASE_H + INNER_H + TOP_H;
+
+    const canvas = document.getElementById("stage");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a0c10, 0.0045);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 1, 800);
+    camera.position.set(95, 55, 130);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(0, TOTAL_H * 0.42, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 55;
+    controls.maxDistance = 260;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.55;
+    controls.update();
+
+    // Soft stop of auto-rotate after interaction
+    let idleTimer;
+    const kickIdle = () => {
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
+    };
+    controls.addEventListener("start", kickIdle);
+
+    // --- Materials ---
+    const matFrame = new THREE.MeshStandardMaterial({
+      color: 0x1c2129,
+      metalness: 0.85,
+      roughness: 0.38,
+    });
+    const matRail = new THREE.MeshStandardMaterial({
+      color: 0x2a303a,
+      metalness: 0.9,
+      roughness: 0.32,
+    });
+    const matPanel = new THREE.MeshStandardMaterial({
+      color: 0x15191f,
+      metalness: 0.55,
+      roughness: 0.48,
+    });
+    const matServer = new THREE.MeshStandardMaterial({
+      color: 0x1a1f27,
+      metalness: 0.7,
+      roughness: 0.42,
+    });
+    const matFace = new THREE.MeshStandardMaterial({
+      color: 0x0e1116,
+      metalness: 0.4,
+      roughness: 0.55,
+    });
+    const matAccent = new THREE.MeshStandardMaterial({
+      color: 0x243040,
+      metalness: 0.65,
+      roughness: 0.4,
+    });
+    const matBlank = new THREE.MeshStandardMaterial({
+      color: 0x12161c,
+      metalness: 0.5,
+      roughness: 0.6,
+    });
+    const matCaster = new THREE.MeshStandardMaterial({
+      color: 0x0b0d10,
+      metalness: 0.3,
+      roughness: 0.7,
+    });
+    const matFloor = new THREE.MeshStandardMaterial({
+      color: 0x0c0e12,
+      metalness: 0.2,
+      roughness: 0.92,
+    });
+    const matLedOn = new THREE.MeshStandardMaterial({
+      color: 0x3dd68c,
+      emissive: 0x3dd68c,
+      emissiveIntensity: 1.8,
+      metalness: 0.2,
+      roughness: 0.35,
+    });
+    const matLedAmber = new THREE.MeshStandardMaterial({
+      color: 0xe8a54b,
+      emissive: 0xe8a54b,
+      emissiveIntensity: 1.4,
+      metalness: 0.2,
+      roughness: 0.35,
+    });
+    const matLedDim = new THREE.MeshStandardMaterial({
+      color: 0x1a2218,
+      emissive: 0x0a1208,
+      emissiveIntensity: 0.2,
+      metalness: 0.2,
+      roughness: 0.5,
+    });
+
+    const rack = new THREE.Group();
+    scene.add(rack);
+
+    function box(w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.set(rx, ry, rz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function rounded(w, h, d, r, mat, x, y, z) {
+      const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, r), mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    // Floor plate
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(180, 64), matFloor);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(42, 78, 64),
+      new THREE.MeshBasicMaterial({ color: 0x1a222c, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    scene.add(ring);
+
+    // Base
+    rack.add(rounded(OUTER_W + 2, BASE_H, OUTER_D + 2, 0.4, matFrame, 0, BASE_H / 2, 0));
+
+    // Casters
+    const casterY = 1.2;
+    [[-24, -40], [24, -40], [-24, 40], [24, 40]].forEach(([cx, cz]) => {
+      rack.add(box(5, 2.4, 5, matCaster, cx, casterY, cz));
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.4, 1.4, 1.6, 16),
+        matCaster
+      );
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(cx, 0.7, cz);
+      rack.add(wheel);
+    });
+
+    // Vertical posts (4 corners)
+    const postH = INNER_H + TOP_H;
+    const postY = BASE_H + postH / 2;
+    const px = OUTER_W / 2 - FRAME_T / 2;
+    const pz = OUTER_D / 2 - FRAME_T / 2;
+    [[-px, -pz], [px, -pz], [-px, pz], [px, pz]].forEach(([x, z]) => {
+      rack.add(box(FRAME_T, postH, FRAME_T, matFrame, x, postY, z));
+    });
+
+    // Side panels
+    const sideH = INNER_H - 1;
+    const sideY = BASE_H + INNER_H / 2;
+    rack.add(box(0.8, sideH, OUTER_D - FRAME_T * 2 - 2, matPanel, -OUTER_W / 2 + 0.6, sideY, 0));
+    rack.add(box(0.8, sideH, OUTER_D - FRAME_T * 2 - 2, matPanel, OUTER_W / 2 - 0.6, sideY, 0));
+
+    // Rear door / panel
+    rack.add(box(OUTER_W - FRAME_T * 2 - 1, sideH, 0.7, matPanel, 0, sideY, OUTER_D / 2 - 0.8));
+
+    // Top cap
+    rack.add(rounded(OUTER_W + 1, TOP_H, OUTER_D + 1, 0.3, matFrame, 0, BASE_H + INNER_H + TOP_H / 2, 0));
+
+    // Front & rear mounting rails
+    const railInsetX = RAIL_WIDTH / 2;
+    const railDepth = 2.4;
+    const railZFront = -OUTER_D / 2 + 8;
+    const railZRear = OUTER_D / 2 - 14;
+    [-railInsetX, railInsetX].forEach((x) => {
+      rack.add(box(1.6, INNER_H, railDepth, matRail, x, sideY, railZFront));
+      rack.add(box(1.6, INNER_H, railDepth, matRail, x, sideY, railZRear));
+    });
+
+    // U-space hole pattern on front rails
+    const holeGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.35, 8);
+    const holeMat = new THREE.MeshStandardMaterial({ color: 0x0a0c10, metalness: 0.2, roughness: 0.8 });
+    for (let u = 0; u < UNITS; u++) {
+      const yBase = BASE_H + u * U;
+      for (let n = 0; n < 3; n++) {
+        const hy = yBase + 0.63 + n * 1.59;
+        [-railInsetX, railInsetX].forEach((x) => {
+          const hole = new THREE.Mesh(holeGeo, holeMat);
+          hole.rotation.z = Math.PI / 2;
+          hole.position.set(x + (x > 0 ? -0.85 : 0.85), hy, railZFront);
+          rack.add(hole);
+        });
+      }
+    }
+
+    // Equipment layout: [startU (from bottom, 0-based), heightU, type]
+    const layout = [
+      [0, 1, "blank"],
+      [1, 1, "pdu"],
+      [2, 2, "server"],
+      [4, 2, "server"],
+      [6, 1, "switch"],
+      [7, 1, "blank"],
+      [8, 1, "server1"],
+      [9, 1, "server1"],
+      [10, 1, "server1"],
+      [11, 1, "blank"],
+      [12, 2, "server"],
+      [14, 1, "switch"],
+      [15, 1, "blank"],
+      [16, 1, "server1"],
+      [17, 1, "server1"],
+      [18, 2, "storage"],
+      [20, 1, "blank"],
+      [21, 1, "switch"],
+      [22, 2, "server"],
+      [24, 1, "server1"],
+      [25, 1, "server1"],
+      [26, 1, "blank"],
+      [27, 1, "pdu"],
+      [28, 2, "server"],
+      [30, 1, "switch"],
+      [31, 1, "blank"],
+      [32, 1, "server1"],
+      [33, 1, "server1"],
+      [34, 2, "storage"],
+      [36, 1, "blank"],
+      [37, 1, "server1"],
+      [38, 2, "server"],
+      [40, 1, "switch"],
+      [41, 1, "blank"],
+    ];
+
+    const leds = [];
+    const equipDepth = 72;
+    const equipZ = railZFront + equipDepth / 2 + 1.2;
+    const faceW = RAIL_WIDTH - 1.2;
+
+    function addLeds(group, count, y, z, spacing = 1.1) {
+      const startX = -((count - 1) * spacing) / 2;
+      for (let i = 0; i < count; i++) {
+        const on = Math.random() > 0.18;
+        const amber = on && Math.random() > 0.82;
+        const mat = !on ? matLedDim : amber ? matLedAmber : matLedOn;
+        const led = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.2), mat);
+        led.position.set(startX + i * spacing, y, z);
+        group.add(led);
+        if (on) leds.push({ mesh: led, phase: Math.random() * Math.PI * 2, amber });
+      }
+    }
+
+    function makeBezel(h, type) {
+      const g = new THREE.Group();
+      const body = box(faceW, h - 0.25, equipDepth, matServer, 0, 0, 0);
+      g.add(body);
+
+      const face = box(faceW - 0.2, h - 0.45, 0.5, matFace, 0, 0, -equipDepth / 2 - 0.15);
+      g.add(face);
+
+      if (type === "blank") {
+        g.children[0].material = matBlank;
+        g.children[1].material = matBlank;
+        const slot = box(faceW * 0.55, 0.35, 0.2, matAccent, 0, 0, -equipDepth / 2 - 0.4);
+        g.add(slot);
+        return g;
+      }
+
+      if (type === "pdu") {
+        const strip = box(faceW * 0.92, h * 0.35, 0.25, matAccent, 0, 0, -equipDepth / 2 - 0.4);
+        g.add(strip);
+        addLeds(g, 6, 0, -equipDepth / 2 - 0.55, 1.4);
+        return g;
+      }
+
+      if (type === "switch") {
+        // Port row suggestion
+        for (let row = 0; row < 2; row++) {
+          for (let p = 0; p < 12; p++) {
+            const port = box(0.9, 0.7, 0.35, matAccent,
+              -faceW / 2 + 3.5 + p * 2.9,
+              (row === 0 ? 0.55 : -0.55) * Math.min(1, h / U),
+              -equipDepth / 2 - 0.4
+            );
+            g.add(port);
+          }
+        }
+        addLeds(g, 4, h * 0.28, -equipDepth / 2 - 0.55, 1.0);
+        return g;
+      }
+
+      if (type === "storage") {
+        for (let i = 0; i < 8; i++) {
+          const bay = box(4.2, h * 0.62, 0.4, matAccent,
+            -faceW / 2 + 5 + i * 5.2,
+            0,
+            -equipDepth / 2 - 0.4
+          );
+          g.add(bay);
+        }
+        addLeds(g, 3, h * 0.3, -equipDepth / 2 - 0.55);
+        return g;
+      }
+
+      // server / server1 — drive bay grille
+      const bays = type === "server1" ? 4 : 8;
+      const bayW = (faceW - 8) / bays - 0.4;
+      for (let i = 0; i < bays; i++) {
+        const bay = box(bayW, h * 0.55, 0.35, matAccent,
+          -faceW / 2 + 4 + i * (bayW + 0.4) + bayW / 2,
+          0.1,
+          -equipDepth / 2 - 0.4
+        );
+        g.add(bay);
+        // grille lines
+        for (let s = 0; s < 3; s++) {
+          const slit = box(bayW * 0.7, 0.12, 0.15, matFace,
+            bay.position.x,
+            -h * 0.12 + s * 0.35,
+            -equipDepth / 2 - 0.6
+          );
+          g.add(slit);
+        }
+      }
+      // handle
+      g.add(box(1.2, h * 0.7, 0.6, matRail, -faceW / 2 + 1.2, 0, -equipDepth / 2 - 0.5));
+      g.add(box(1.2, h * 0.7, 0.6, matRail, faceW / 2 - 1.2, 0, -equipDepth / 2 - 0.5));
+      addLeds(g, type === "server1" ? 2 : 3, h * 0.28, -equipDepth / 2 - 0.55);
+      return g;
+    }
+
+    layout.forEach(([startU, heightU, type]) => {
+      const h = heightU * U - 0.15;
+      const y = BASE_H + startU * U + h / 2 + 0.05;
+      const unit = makeBezel(h, type);
+      unit.position.set(0, y, equipZ);
+      rack.add(unit);
+    });
+
+    // Front door frame (open / swung)
+    const door = new THREE.Group();
+    const doorW = OUTER_W - 4;
+    const doorH = INNER_H - 2;
+    const doorPanel = box(doorW, doorH, 0.6, matPanel, doorW / 2, 0, 0);
+    door.add(doorPanel);
+    // perforated look — grid of small dark punches
+    const punchGeo = new THREE.CircleGeometry(0.55, 8);
+    const punchMat = new THREE.MeshBasicMaterial({ color: 0x07090c });
+    for (let row = -14; row <= 14; row++) {
+      for (let col = -6; col <= 6; col++) {
+        if ((row + col) % 2 !== 0) continue;
+        const punch = new THREE.Mesh(punchGeo, punchMat);
+        punch.position.set(doorW / 2 + col * 2.8, row * 4.2, -0.35);
+        door.add(punch);
+      }
+    }
+    door.position.set(-OUTER_W / 2 + 1.5, sideY, -OUTER_D / 2 + 1);
+    door.rotation.y = -Math.PI * 0.42;
+    rack.add(door);
+
+    // Vertical U labels (every 5U) as thin ticks on rail
+    for (let u = 0; u <= UNITS; u += 5) {
+      const ty = BASE_H + u * U;
+      const tick = box(0.5, 0.2, 0.5, matAccent, -railInsetX - 1.4, ty, railZFront);
+      rack.add(tick);
+    }
+
+    // --- Lighting ---
+    scene.add(new THREE.AmbientLight(0x6a7a8c, 0.35));
+
+    const key = new THREE.DirectionalLight(0xf0e6d8, 1.35);
+    key.position.set(60, 140, -40);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 10;
+    key.shadow.camera.far = 300;
+    key.shadow.camera.left = -80;
+    key.shadow.camera.right = 80;
+    key.shadow.camera.top = 120;
+    key.shadow.camera.bottom = -20;
+    key.shadow.bias = -0.0002;
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight(0x7ec8e3, 0.45);
+    fill.position.set(-80, 60, 50);
+    scene.add(fill);
+
+    const rim = new THREE.DirectionalLight(0xe8a54b, 0.35);
+    rim.position.set(20, 40, 100);
+    scene.add(rim);
+
+    const floorGlow = new THREE.PointLight(0x3d5a80, 30, 120, 2);
+    floorGlow.position.set(0, 8, -20);
+    scene.add(floorGlow);
+
+    // Center rack on origin already; slight lift for casters already modeled
+    rack.position.y = 0;
+
+    // --- Animate ---
+    const clock = new THREE.Clock();
+
+    function onResize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", onResize);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      leds.forEach(({ mesh, phase, amber }) => {
+        const pulse = 0.85 + Math.sin(t * 2.2 + phase) * 0.35;
+        mesh.material.emissiveIntensity = amber ? 1.1 * pulse : 1.5 * pulse;
+      });
+
+      // Subtle ring breathe
+      ring.material.opacity = 0.28 + Math.sin(t * 0.7) * 0.08;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
