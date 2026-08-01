@@ -1754,7 +1754,7 @@
     syncDoorButton(btnRear, true, "rear doors");
     syncRackButtons();
 
-    // Deep-link helpers: ?focus=Rack6&info=ups
+    // Deep-link helpers: ?focus=Rack6&info=ups|battery
     const bootParams = new URLSearchParams(location.search);
     const bootFocus = bootParams.get("focus");
     const bootInfo = bootParams.get("info");
