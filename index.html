@@ -210,6 +210,14 @@
       pointer-events: none;
       z-index: 4;
       overflow: visible;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.18s ease, visibility 0.18s ease;
+    }
+
+    .info-leader.show {
+      opacity: 1;
+      visibility: visible;
     }
 
     .info-leader line {
@@ -1591,6 +1599,16 @@
       infoTarget = null;
       infoLeader.classList.remove("show");
       infoPanel.classList.remove("show");
+      // Clear inline dash so CSS can fully hide the stroke
+      infoLine.style.strokeDashoffset = "1";
+      infoLine.removeAttribute("x2");
+      infoLine.removeAttribute("y2");
+      infoLine.setAttribute("x1", "0");
+      infoLine.setAttribute("y1", "0");
+      infoLine.setAttribute("x2", "0");
+      infoLine.setAttribute("y2", "0");
+      infoAnchor.setAttribute("cx", "-20");
+      infoAnchor.setAttribute("cy", "-20");
       window.setTimeout(() => {
         if (!infoPanel.classList.contains("show")) {
           infoPanel.hidden = true;
@@ -1749,8 +1767,8 @@
       infoPanel.hidden = false;
       infoPanel.classList.remove("show");
       infoLeader.classList.remove("show");
-      // pathLength=1 → dash uses normalized 0..1 units
-      infoLine.style.strokeDasharray = "1";
+      // pathLength=1 → dash uses normalized 0..1 units; prefer class over sticky inline 0
+      infoLine.style.removeProperty("stroke-dasharray");
       infoLine.style.strokeDashoffset = "1";
 
       layoutInfoCallout();
@@ -1760,7 +1778,8 @@
         requestAnimationFrame(() => {
           infoLeader.classList.add("show");
           infoPanel.classList.add("show");
-          infoLine.style.strokeDashoffset = "0";
+          // Let CSS .show drive dashoffset; clear inline so hide can re-cover
+          infoLine.style.removeProperty("stroke-dashoffset");
         });
       });
     }
