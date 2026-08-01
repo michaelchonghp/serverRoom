@@ -117,13 +117,15 @@
     .door-controls {
       position: fixed;
       left: 50%;
-      bottom: max(clamp(1rem, 3vw, 2.25rem), env(safe-area-inset-bottom));
+      bottom: max(clamp(0.65rem, 2vw, 1.25rem), env(safe-area-inset-bottom));
       transform: translateX(-50%);
       z-index: 3;
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 0.6rem;
+      align-items: stretch;
+      gap: 0.35rem;
+      max-width: min(96vw, 42rem);
       pointer-events: auto;
       animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
     }
@@ -136,11 +138,11 @@
       -webkit-backdrop-filter: blur(10px);
       color: var(--ink);
       font-family: inherit;
-      font-size: 0.72rem;
+      font-size: 0.58rem;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      padding: 0.85rem 1.1rem;
-      min-width: 9.5rem;
+      padding: 0.45rem 0.55rem;
+      min-width: 4.5rem;
       cursor: pointer;
       touch-action: manipulation;
       transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
@@ -161,10 +163,10 @@
 
     .door-controls button .label {
       display: block;
-      font-size: 0.62rem;
-      letter-spacing: 0.14em;
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
       opacity: 0.55;
-      margin-bottom: 0.2rem;
+      margin-bottom: 0.1rem;
     }
 
     .door-controls button.open .label {
@@ -175,6 +177,22 @@
     .door-controls button .action {
       display: block;
       font-weight: 500;
+      font-size: 0.62rem;
+    }
+
+    .door-controls button.rack-btn {
+      min-width: 2.4rem;
+      padding: 0.45rem 0.65rem;
+      font-family: "Archivo Black", sans-serif;
+      font-size: 0.95rem;
+      letter-spacing: 0;
+      line-height: 1.1;
+    }
+
+    .door-controls button.rack-btn.active {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
     }
 
     @keyframes rise {
@@ -193,15 +211,20 @@
       .meta { display: none; }
       .hint { display: none; }
       .door-controls {
-        left: clamp(0.75rem, 3vw, 1.5rem);
-        right: clamp(0.75rem, 3vw, 1.5rem);
+        left: clamp(0.5rem, 2vw, 1rem);
+        right: clamp(0.5rem, 2vw, 1rem);
         transform: none;
         width: auto;
+        gap: 0.3rem;
       }
       .door-controls button {
-        flex: 1 1 calc(50% - 0.3rem);
-        min-width: 0;
-        padding: 0.75rem 0.7rem;
+        flex: 1 1 auto;
+        min-width: 3.6rem;
+        padding: 0.4rem 0.45rem;
+      }
+      .door-controls button.rack-btn {
+        flex: 0 0 auto;
+        min-width: 2.25rem;
       }
     }
   </style>
@@ -223,15 +246,16 @@
     </footer>
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
-  <div class="door-controls" role="group" aria-label="Door controls">
+  <div class="door-controls" role="group" aria-label="Scene controls">
     <button type="button" id="btn-front" aria-pressed="true">
-      <span class="label">Front doors</span>
+      <span class="label">Front</span>
       <span class="action">Close</span>
     </button>
     <button type="button" id="btn-rear" aria-pressed="true">
-      <span class="label">Rear doors</span>
+      <span class="label">Rear</span>
       <span class="action">Close</span>
     </button>
+    <button type="button" class="rack-btn" id="btn-rack-6" aria-label="Zoom to Rack 6">6</button>
   </div>
 
   <script type="importmap">
@@ -1141,6 +1165,9 @@
 
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
+    const btnRack6 = document.getElementById("btn-rack-6");
+
+    let viewMode = "overview"; // "overview" | "Rack6" | …
 
     function syncDoorButton(btn, isOpen, noun) {
       btn.classList.toggle("open", isOpen);
@@ -1152,6 +1179,8 @@
     function nudgeIdle() {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
+      // Don't auto-rotate while focused on a single rack
+      if (viewMode !== "overview") return;
       idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
     }
 
@@ -1170,11 +1199,59 @@
       nudgeIdle();
     }
 
+    function syncRackButtons() {
+      btnRack6.classList.toggle("active", viewMode === "Rack6");
+    }
+
+    /** Zoom to a rack's front so the full cabinet fills the phone's vertical view */
+    function focusRackFront(name) {
+      const unit = racks.find((r) => r.group.name === name);
+      if (!unit) return;
+
+      viewMode = name;
+      syncRackButtons();
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+
+      camera.fov = mobile ? 48 : 36;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      unit.group.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(unit.group);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      // Local front is -Z; transform into world
+      const worldFront = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(unit.group.getWorldQuaternion(new THREE.Quaternion()))
+        .normalize();
+
+      // Fit full rack height in the vertical FOV (phone portrait)
+      const padY = mobile ? 1.08 : 1.15;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const dist = (size.y * padY * 0.5) / Math.tan(vFov / 2);
+
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(worldFront, dist);
+      controls.minDistance = Math.max(20, dist * 0.45);
+      controls.maxDistance = Math.max(800, dist * 4);
+      controls.update();
+    }
+
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
+    btnRack6.addEventListener("click", () => focusRackFront("Rack6"));
     document.querySelector(".door-controls").addEventListener("pointerdown", (e) => e.stopPropagation());
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
+    syncRackButtons();
 
     // Lighting
     // Stronger key/fill separation so metal edges and door mesh read on phone
@@ -1212,6 +1289,11 @@
 
     const framingBox = new THREE.Box3();
     function frameScene(forceReset = true) {
+      if (viewMode !== "overview") {
+        focusRackFront(viewMode);
+        return;
+      }
+
       const w = window.innerWidth;
       const h = window.innerHeight;
       const mobile = isMobile();
@@ -1246,6 +1328,7 @@
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
+      syncRackButtons();
     }
 
     frameScene(true);
@@ -1254,10 +1337,11 @@
 
     function onResize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
-      frameScene(true);
+      if (viewMode === "overview") frameScene(true);
+      else focusRackFront(viewMode);
     }
     window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", () => setTimeout(() => frameScene(true), 200));
+    window.addEventListener("orientationchange", () => setTimeout(onResize, 200));
 
     function animate() {
       requestAnimationFrame(animate);
