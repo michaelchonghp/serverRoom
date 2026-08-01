@@ -589,19 +589,19 @@
     ring.position.y = 0.05;
     scene.add(ring);
 
-    // Two rows face-to-face across a cold aisle
-    const AISLE = 120; // cm clear between front doors
+    // Two rows face-to-face across a cold aisle (extra clearance for inward-opening doors)
+    const AISLE = 220; // cm clear between front doors
     const ROW_SEP = OUTER_D + AISLE;
     const bay = new THREE.Group();
     scene.add(bay);
 
     const racks = [];
 
-    function placeRow(names, z, rotY) {
+    function placeRow(names, z, rotY, xShift = 0) {
       names.forEach((name, i) => {
         const unit = createRack(name);
-        // Same world-X for opposites: Rack1↔Rack4, Rack2↔Rack5, Rack3↔Rack6
-        const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH;
+        // Base LTR layout, plus optional row shift
+        const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH + xShift;
         unit.group.position.set(x, 0, z);
         unit.group.rotation.y = rotY;
         bay.add(unit.group);
@@ -609,10 +609,11 @@
       });
     }
 
-    // Row A — fronts face the aisle (-Z)
-    placeRow(["Rack1", "Rack2", "Rack3"], ROW_SEP / 2, 0);
-    // Row B — turned 180°, fronts face the aisle (+Z)
-    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI);
+    // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
+    placeRow(["Rack1", "Rack2", "Rack3"], ROW_SEP / 2, 0, 0);
+    // Row B — turned 180°, shifted one bay so:
+    //   Rack1 → empty | Rack2 ↔ Rack4 | Rack3 ↔ Rack5 | empty ← Rack6
+    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI, -RACK_PITCH);
 
     // Door controls drive all six cabinets
     const doorState = {
