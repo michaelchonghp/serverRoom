@@ -748,6 +748,57 @@
     //   Rack1 → empty | Rack2 ↔ Rack4 | Rack3 ↔ Rack5 | empty ← Rack6
     placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI, -RACK_PITCH);
 
+    // Floor aisle markings — blue cold aisle, red hot aisles
+    function makeFloorMark(text, fillColor, widthCm, depthCm) {
+      const pw = 1024;
+      const ph = 256;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      // Soft lane paint under text for contrast on grey tiles
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillRect(0, ph * 0.18, pw, ph * 0.64);
+      ctx.fillStyle = fillColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.5)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        roughness: 0.85,
+        metalness: 0.05,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      return mesh;
+    }
+
+    const markY = FLOOR_H + 0.2;
+    // Cold aisle between the two rows (fronts face each other)
+    const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
+    coldMark.position.set(-RACK_PITCH / 2, markY, 0);
+    raisedFloor.add(coldMark);
+
+    // Hot aisles at the rear of each row
+    const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+    hotA.position.set(0, markY, ROW_SEP / 2 + OUTER_D / 2 + 28);
+    raisedFloor.add(hotA);
+
+    const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+    hotB.rotation.z = Math.PI; // readable when facing that row's rear
+    hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
+    raisedFloor.add(hotB);
+
     // Door controls drive all six cabinets
     const doorState = {
       frontOpen: true,
