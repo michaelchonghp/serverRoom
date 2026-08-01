@@ -505,37 +505,33 @@
 
     // Empty cabinet — rails only, no mounted equipment yet
 
-    // Brother-style laminated labels on top cover, front edge
-    // High contrast: warm white tape + near-black text on black cabinet
-    function makeBrotherLabel(text, widthCm, heightCm = 2.8) {
-      const pw = 512;
-      const ph = Math.max(96, Math.round(pw * (heightCm / widthCm)));
+    // Brother-style laminated labels stuck flat on the top cover (front edge)
+    // Large physical size so type stays readable on phone when fully zoomed out
+    function makeBrotherLabel(text, widthCm, depthCm) {
+      const pw = 1024;
+      const ph = 320;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
 
-      // Tape body
-      ctx.fillStyle = "#f4f1e8";
+      ctx.fillStyle = "#fff8e8";
       ctx.fillRect(0, 0, pw, ph);
-      // Soft edge / laminate sheen bands
       const sheen = ctx.createLinearGradient(0, 0, 0, ph);
       sheen.addColorStop(0, "rgba(255,255,255,0.55)");
-      sheen.addColorStop(0.35, "rgba(255,255,255,0)");
-      sheen.addColorStop(1, "rgba(0,0,0,0.06)");
+      sheen.addColorStop(0.4, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.07)");
       ctx.fillStyle = sheen;
       ctx.fillRect(0, 0, pw, ph);
-      // Border
-      ctx.strokeStyle = "rgba(20,24,30,0.18)";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(2, 2, pw - 4, ph - 4);
+      ctx.strokeStyle = "rgba(20,24,30,0.22)";
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, pw - 10, ph - 10);
 
-      ctx.fillStyle = "#111418";
+      ctx.fillStyle = "#0a0c10";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `700 ${Math.floor(ph * 0.48)}px "IBM Plex Mono", "Courier New", monospace`;
-      ctx.letterSpacing = "0.04em";
-      ctx.fillText(text, pw / 2, ph / 2 + 1);
+      ctx.font = `800 ${Math.floor(ph * 0.7)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText(text, pw / 2, ph / 2 + 4);
 
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -543,27 +539,36 @@
 
       const mat = new THREE.MeshStandardMaterial({
         map: tex,
-        roughness: 0.35,
-        metalness: 0.05,
+        roughness: 0.32,
+        metalness: 0.04,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
       });
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(widthCm, heightCm, 0.12), mat);
+
+      // Plane in XY; lay flat on top so text faces up
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
+      mesh.rotation.x = -Math.PI / 2;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       return mesh;
     }
 
-    const labelY = BASE_H + INNER_H + TOP_H - 0.15;
-    const labelZ = -OUTER_D / 2 + 1.1;
+    const labelY = BASE_H + INNER_H + TOP_H + 0.12;
+    // Stacked toward the front edge — wide enough to read when the whole rack is framed
+    const labelW = 56;
+    const labelD = 11;
+    const labelGap = 1.2;
     const labels = [
-      { text: "Rack1", w: 16, x: -24 },
-      { text: `W ${WIDTH_MM} mm`, w: 18, x: 0 },
-      { text: `D ${DEPTH_MM} mm`, w: 18, x: 24 },
+      `Rack1`,
+      `W ${WIDTH_MM} mm`,
+      `D ${DEPTH_MM} mm`,
     ];
-    labels.forEach(({ text, w, x }) => {
-      const tag = makeBrotherLabel(text, w, 2.9);
-      // Sit flat on top, readable from the front
-      tag.rotation.x = -Math.PI / 2;
-      tag.position.set(x, labelY, labelZ + 1.4);
+    labels.forEach((text, i) => {
+      const tag = makeBrotherLabel(text, labelW, labelD);
+      // Front-most label nearest the front door; text upright from front view
+      const z = -OUTER_D / 2 + 7 + i * (labelD + labelGap);
+      tag.position.set(0, labelY, z);
       rack.add(tag);
     });
 
