@@ -665,8 +665,14 @@
     key.shadow.bias = -0.0002;
     scene.add(key);
 
-    scene.add(Object.assign(new THREE.DirectionalLight(0xb9d4ef, 0.95), { position: new THREE.Vector3(-120, 80, 80) }));
-    scene.add(Object.assign(new THREE.DirectionalLight(0xffffff, 0.55), { position: new THREE.Vector3(40, 60, 150) }));
+    const fill = new THREE.DirectionalLight(0xb9d4ef, 0.95);
+    fill.position.set(-120, 80, 80);
+    scene.add(fill);
+
+    const rim = new THREE.DirectionalLight(0xffffff, 0.55);
+    rim.position.set(40, 60, 150);
+    scene.add(rim);
+
     const bounce = new THREE.PointLight(0xffffff, 55, 240, 2);
     bounce.position.set(0, 16, -40);
     scene.add(bounce);
