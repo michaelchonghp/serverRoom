@@ -589,13 +589,15 @@
     ring.position.y = 0.05;
     scene.add(ring);
 
-    // Row: Rack1, then Rack2 & Rack3 to its right
+    // Row facing the front doors: left → right = Rack1, Rack2, Rack3
     const bay = new THREE.Group();
     scene.add(bay);
 
-    const racks = ["Rack1", "Rack2", "Rack3"].map((name, i) => {
+    const rackNames = ["Rack1", "Rack2", "Rack3"];
+    const racks = rackNames.map((name, i) => {
       const unit = createRack(name);
-      unit.group.position.x = i * RACK_PITCH;
+      // Ascending X is screen-left when viewing the front, so place Rack1 at +X
+      unit.group.position.x = (rackNames.length - 1 - i) * RACK_PITCH;
       bay.add(unit.group);
       return unit;
     });
