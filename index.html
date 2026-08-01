@@ -677,11 +677,14 @@
     }
 
     /** Shared front-rail RU strip: 1 at bottom … 42 at top (EIA bottom-up) */
+    const RU_STRIP_W = 2.05;
     let ruRailTex = null;
     function getRuRailTexture() {
       if (ruRailTex) return ruRailTex;
-      const pxPerU = 48;
-      const pw = 96;
+      // Match canvas cell aspect to world strip cell (U tall × RU_STRIP_W wide)
+      // so glyphs are not vertically stretched when mapped onto the plane.
+      const pw = 128;
+      const pxPerU = Math.max(64, Math.round(pw * (U / RU_STRIP_W)));
       const ph = UNITS * pxPerU;
       const c = document.createElement("canvas");
       c.width = pw;
@@ -692,31 +695,49 @@
       ctx.textBaseline = "middle";
       for (let u = 0; u < UNITS; u++) {
         const ru = u + 1; // bottom = 1
-        // Canvas y=0 is top of texture → map bottom U to bottom of canvas
         const y = ph - (u + 0.5) * pxPerU;
-        // Subtle U band tick
-        ctx.fillStyle = "rgba(20, 28, 36, 0.22)";
-        ctx.fillRect(pw * 0.12, y + pxPerU * 0.42, pw * 0.76, 1.5);
-        ctx.fillStyle = "#1a222c";
-        ctx.font = `700 ${ru >= 10 ? 22 : 26}px "IBM Plex Mono", ui-monospace, monospace`;
-        ctx.fillText(String(ru), pw * 0.5, y);
+        // Compact label plate — keeps type from needing to fill the full U height
+        const plateW = pw * 0.78;
+        const plateH = Math.min(pxPerU * 0.38, pw * 0.55);
+        const px = (pw - plateW) / 2;
+        const py = y - plateH / 2;
+        ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
+        ctx.beginPath();
+        const r = Math.min(6, plateH * 0.2);
+        ctx.moveTo(px + r, py);
+        ctx.arcTo(px + plateW, py, px + plateW, py + plateH, r);
+        ctx.arcTo(px + plateW, py + plateH, px, py + plateH, r);
+        ctx.arcTo(px, py + plateH, px, py, r);
+        ctx.arcTo(px, py, px + plateW, py, r);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(30, 38, 48, 0.2)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = "#12181f";
+        const fs = Math.floor(plateH * (ru >= 10 ? 0.62 : 0.72));
+        ctx.font = `700 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
+        ctx.fillText(String(ru), pw * 0.5, y + 0.5);
       }
       ruRailTex = new THREE.CanvasTexture(c);
       ruRailTex.colorSpace = THREE.SRGBColorSpace;
       ruRailTex.anisotropy = 8;
+      ruRailTex.generateMipmaps = true;
+      ruRailTex.minFilter = THREE.LinearMipmapLinearFilter;
+      ruRailTex.magFilter = THREE.LinearFilter;
       ruRailTex.needsUpdate = true;
       return ruRailTex;
     }
 
     function makeRuRailLabel() {
-      const stripW = 1.55;
       const mat = new THREE.MeshBasicMaterial({
         map: getRuRailTexture(),
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
       });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(stripW, INNER_H), mat);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(RU_STRIP_W, INNER_H), mat);
       // PlaneGeometry faces +Z; rack front is −Z
       mesh.rotation.y = Math.PI;
       return mesh;
