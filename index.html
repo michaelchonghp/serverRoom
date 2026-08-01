@@ -302,73 +302,105 @@
       idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
     });
 
-    const matFrame = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, metalness: 0.55, roughness: 0.42 });
-    const matDoor = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, metalness: 0.5, roughness: 0.4 });
-    const matRail = new THREE.MeshStandardMaterial({ color: 0x1a1a1d, metalness: 0.7, roughness: 0.35 });
-    const matPanel = new THREE.MeshStandardMaterial({ color: 0x101012, metalness: 0.45, roughness: 0.5 });
-    const matAccent = new THREE.MeshStandardMaterial({ color: 0x2a3038, metalness: 0.55, roughness: 0.4 });
-    const matCaster = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.35, roughness: 0.65 });
-    const matChrome = new THREE.MeshStandardMaterial({ color: 0xc0c6ce, metalness: 0.95, roughness: 0.22 });
-    const matHandle = new THREE.MeshStandardMaterial({ color: 0x2b2e34, metalness: 0.8, roughness: 0.28 });
-    const matUps = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.45, roughness: 0.48 });
-    const matUpsFace = new THREE.MeshStandardMaterial({ color: 0x0e1014, metalness: 0.35, roughness: 0.55 });
+    // Distinct finishes so frame / doors / rails / gear don't read as one black mass
+    const matFrame = new THREE.MeshStandardMaterial({ color: 0x14171c, metalness: 0.75, roughness: 0.28 });
+    const matDoor = new THREE.MeshStandardMaterial({ color: 0x2a313a, metalness: 0.6, roughness: 0.36 });
+    const matRail = new THREE.MeshStandardMaterial({ color: 0xc5ced8, metalness: 0.85, roughness: 0.28 });
+    const matPanel = new THREE.MeshStandardMaterial({ color: 0x4a5562, metalness: 0.35, roughness: 0.55 });
+    const matAccent = new THREE.MeshStandardMaterial({ color: 0x6b7785, metalness: 0.45, roughness: 0.42 });
+    const matInterior = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.15, roughness: 0.75 });
+    const matCaster = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.4, roughness: 0.6 });
+    const matChrome = new THREE.MeshStandardMaterial({ color: 0xd7dde4, metalness: 0.95, roughness: 0.18 });
+    const matHandle = new THREE.MeshStandardMaterial({ color: 0xe8a54b, metalness: 0.7, roughness: 0.32 });
+    // UPS — cooler charcoal + lighter face so it separates from the rack shell
+    const matUps = new THREE.MeshStandardMaterial({ color: 0x2b3340, metalness: 0.4, roughness: 0.5 });
+    const matUpsFace = new THREE.MeshStandardMaterial({ color: 0x5c6a7a, metalness: 0.3, roughness: 0.48 });
     const matUpsLcd = new THREE.MeshStandardMaterial({
-      color: 0x1a3a2a, emissive: 0x1f8a4c, emissiveIntensity: 0.55, metalness: 0.2, roughness: 0.35,
+      color: 0x1a3a2a, emissive: 0x2dcc70, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.35,
     });
     const matUpsLed = new THREE.MeshStandardMaterial({
-      color: 0x3dd68c, emissive: 0x3dd68c, emissiveIntensity: 1.2, metalness: 0.2, roughness: 0.35,
+      color: 0x3dd68c, emissive: 0x3dd68c, emissiveIntensity: 1.6, metalness: 0.2, roughness: 0.35,
     });
-    const matUpsBadge = new THREE.MeshStandardMaterial({ color: 0xe8eef4, metalness: 0.1, roughness: 0.45 });
+    const matUpsBadge = new THREE.MeshStandardMaterial({ color: 0xfff7e8, metalness: 0.08, roughness: 0.4 });
+    const matUpsVent = new THREE.MeshStandardMaterial({ color: 0x1e2530, metalness: 0.5, roughness: 0.45 });
     const matSubfloor = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.05, roughness: 0.96 });
     const matFloorTile = new THREE.MeshStandardMaterial({ color: 0xd8dee6, metalness: 0.18, roughness: 0.72 });
     const matFloorTileAlt = new THREE.MeshStandardMaterial({ color: 0xcfd6df, metalness: 0.18, roughness: 0.74 });
     const matFloorEdge = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.4, roughness: 0.55 });
     const matPedestal = new THREE.MeshStandardMaterial({ color: 0x6a737c, metalness: 0.55, roughness: 0.45 });
 
-    function makeHexAlphaMap(w = 512, h = 1024, hexR = 8) {
-      const c = document.createElement("canvas");
-      c.width = w;
-      c.height = h;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, w, h);
+    // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
+    function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
+      const alpha = document.createElement("canvas");
+      const color = document.createElement("canvas");
+      alpha.width = color.width = w;
+      alpha.height = color.height = h;
+      const actx = alpha.getContext("2d");
+      const cctx = color.getContext("2d");
+      // Opaque steel field
+      actx.fillStyle = "#fff";
+      actx.fillRect(0, 0, w, h);
+      cctx.fillStyle = "#7a8794";
+      cctx.fillRect(0, 0, w, h);
       const dx = hexR * Math.sqrt(3);
       const dy = hexR * 1.5;
-      ctx.fillStyle = "#000";
       for (let row = 0, y = hexR; y < h + hexR; row++, y += dy) {
         const xOff = (row % 2) * (dx * 0.5);
         for (let x = hexR + xOff; x < w + hexR; x += dx) {
-          ctx.beginPath();
+          // Alpha punch
+          actx.fillStyle = "#000";
+          actx.beginPath();
           for (let i = 0; i < 6; i++) {
-            const a = Math.PI / 6 + (i * Math.PI) / 3;
-            const px = x + hexR * 0.88 * Math.cos(a);
-            const py = y + hexR * 0.88 * Math.sin(a);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
+            const ang = Math.PI / 6 + (i * Math.PI) / 3;
+            const px = x + hexR * 0.86 * Math.cos(ang);
+            const py = y + hexR * 0.86 * Math.sin(ang);
+            if (i === 0) actx.moveTo(px, py);
+            else actx.lineTo(px, py);
           }
-          ctx.closePath();
-          ctx.fill();
+          actx.closePath();
+          actx.fill();
+          // Dark hole ring on color map for edge definition
+          cctx.fillStyle = "#3a4450";
+          cctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const ang = Math.PI / 6 + (i * Math.PI) / 3;
+            const px = x + hexR * 0.95 * Math.cos(ang);
+            const py = y + hexR * 0.95 * Math.sin(ang);
+            if (i === 0) cctx.moveTo(px, py);
+            else cctx.lineTo(px, py);
+          }
+          cctx.closePath();
+          cctx.fill();
         }
       }
       const border = Math.max(14, Math.round(w * 0.045));
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, w, border);
-      ctx.fillRect(0, h - border, w, border);
-      ctx.fillRect(0, 0, border, h);
-      ctx.fillRect(w - border, 0, border, h);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.NoColorSpace;
-      tex.anisotropy = 8;
-      return tex;
+      actx.fillStyle = "#fff";
+      actx.fillRect(0, 0, w, border);
+      actx.fillRect(0, h - border, w, border);
+      actx.fillRect(0, 0, border, h);
+      actx.fillRect(w - border, 0, border, h);
+      cctx.fillStyle = "#5c6772";
+      cctx.fillRect(0, 0, w, border);
+      cctx.fillRect(0, h - border, w, border);
+      cctx.fillRect(0, 0, border, h);
+      cctx.fillRect(w - border, 0, border, h);
+      const alphaTex = new THREE.CanvasTexture(alpha);
+      alphaTex.colorSpace = THREE.NoColorSpace;
+      alphaTex.anisotropy = 8;
+      const colorTex = new THREE.CanvasTexture(color);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+      colorTex.anisotropy = 8;
+      return { alphaTex, colorTex };
     }
 
+    const doorMaps = makeHexDoorMaps();
     const matPerf = new THREE.MeshStandardMaterial({
-      color: 0x0c0c0e,
-      metalness: 0.55,
-      roughness: 0.38,
-      alphaMap: makeHexAlphaMap(),
+      map: doorMaps.colorTex,
+      alphaMap: doorMaps.alphaTex,
+      metalness: 0.7,
+      roughness: 0.32,
       transparent: true,
-      alphaTest: 0.45,
+      alphaTest: 0.4,
       side: THREE.DoubleSide,
       depthWrite: true,
     });
@@ -475,12 +507,14 @@
 
       g.add(box(w, h, d, matUps, 0, 0, 0));
       g.add(box(w - 0.4, h - 0.4, 0.6, matUpsFace, 0, 0, -d / 2 - 0.25));
+      // Contrast bezel around the face
+      g.add(box(w + 0.4, h + 0.4, 0.35, matChrome, 0, 0, -d / 2 + 0.15));
 
       // Front vent grille
       for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 6; col++) {
           g.add(box(
-            4.2, 1.6, 0.25, matAccent,
+            4.2, 1.6, 0.25, matUpsVent,
             -16 + col * 6.4,
             -h * 0.28 + row * 2.4,
             -d / 2 - 0.55
@@ -570,6 +604,17 @@
         rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZFront));
         rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZRear));
       });
+
+      // Light interior backplane — makes door perforations and gear read clearly
+      rack.add(box(
+        OUTER_W - FRAME_T * 2 - 2,
+        INNER_H - 2,
+        0.5,
+        matInterior,
+        0,
+        sideY,
+        OUTER_D / 2 - 8
+      ));
 
       for (let u = 0; u < UNITS; u++) {
         const yBase = BASE_H + u * U;
@@ -942,9 +987,10 @@
     syncDoorButton(btnRear, true, "rear doors");
 
     // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+    // Stronger key/fill separation so metal edges and door mesh read on phone
+    scene.add(new THREE.AmbientLight(0xdde5ee, 0.55));
 
-    const key = new THREE.DirectionalLight(0xfff6ea, 1.65);
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.85);
     key.position.set(140, 200, -40);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
@@ -957,17 +1003,22 @@
     key.shadow.bias = -0.0002;
     scene.add(key);
 
-    const fill = new THREE.DirectionalLight(0xb9d4ef, 0.95);
+    const fill = new THREE.DirectionalLight(0x9ec5ef, 1.15);
     fill.position.set(-140, 90, 60);
     scene.add(fill);
 
-    const rim = new THREE.DirectionalLight(0xffffff, 0.55);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.85);
     rim.position.set(20, 70, 160);
     scene.add(rim);
 
-    const bounce = new THREE.PointLight(0xffffff, 70, 320, 2);
-    bounce.position.set(0, 18, 0);
+    const bounce = new THREE.PointLight(0xffffff, 90, 340, 2);
+    bounce.position.set(0, FLOOR_H + 20, 0);
     scene.add(bounce);
+
+    // Aisle light to lift door faces and equipment bezels
+    const aisleLight = new THREE.PointLight(0xe8f2ff, 110, 280, 2);
+    aisleLight.position.set(0, FLOOR_H + 140, 0);
+    scene.add(aisleLight);
 
     const framingBox = new THREE.Box3();
     function frameScene(forceReset = true) {
