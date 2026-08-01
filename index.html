@@ -1657,26 +1657,39 @@
       const vh = window.innerHeight;
       const safeBottom = vh - bottomChrome;
 
-      // Pressed gear in lower half → panel at top (leave the UPS visible)
-      const equipmentLow = eq.cy >= vh * 0.4;
+      // Pressed gear in lower half → pin panel to the top (leave UPS visible)
+      const equipmentLow = eq.cy >= vh * 0.38 || eq.min.y >= vh * 0.35;
       const spaceAbove = Math.max(0, eq.min.y - topChrome - gap);
       const spaceBelow = Math.max(0, safeBottom - eq.max.y - gap);
       let placeAbove = equipmentLow ? true : spaceAbove >= spaceBelow;
 
       let px = Math.min(Math.max(margin, eq.cx - panelW * 0.5), vw - panelW - margin);
-      let py = placeAbove
-        ? Math.max(topChrome, eq.min.y - gap - panelH)
-        : Math.min(Math.max(topChrome, eq.max.y + gap), safeBottom - panelH);
+      let py;
+      if (equipmentLow) {
+        // Match phone Rack6 zoom: box at top, line down to the gear
+        py = topChrome;
+        placeAbove = true;
+      } else if (placeAbove) {
+        py = Math.max(topChrome, eq.min.y - gap - panelH);
+      } else {
+        py = Math.min(Math.max(topChrome, eq.max.y + gap), safeBottom - panelH);
+      }
 
-      // If "above" still lands on the gear (zoomed UPS), pin to the top safe band
       const overlaps = (x, y) =>
         x < eq.max.x + gap &&
         x + panelW > eq.min.x - gap &&
         y < eq.max.y + gap &&
         y + panelH > eq.min.y - gap;
 
-      if (placeAbove && (overlaps(px, py) || py + panelH > eq.min.y - gap * 0.5)) {
-        py = topChrome;
+      // If panel still intersects the gear, flip to the opposite free band
+      if (overlaps(px, py)) {
+        if (!equipmentLow && spaceBelow > spaceAbove) {
+          placeAbove = false;
+          py = Math.min(safeBottom - panelH, Math.max(topChrome, eq.max.y + gap));
+        } else {
+          placeAbove = true;
+          py = topChrome;
+        }
       }
       if (overlaps(px, py)) {
         const leftX = eq.min.x - gap - panelW;
