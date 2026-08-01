@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
-  <title>Rack1 — Austin Hughes UltraRack 42U</title>
+  <title>Rack1–3 — Austin Hughes UltraRack 42U</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -63,7 +63,7 @@
 
     .brand h1 {
       font-family: "Archivo Black", sans-serif;
-      font-size: clamp(2.4rem, 9vw, 6.2rem);
+      font-size: clamp(2.2rem, 8vw, 5.5rem);
       line-height: 0.9;
       letter-spacing: -0.04em;
       color: var(--ink);
@@ -72,7 +72,7 @@
 
     .brand p {
       margin-top: 0.65rem;
-      max-width: 34ch;
+      max-width: 36ch;
       font-size: 0.76rem;
       line-height: 1.55;
       color: var(--steel);
@@ -151,9 +151,7 @@
       border-color: color-mix(in srgb, var(--ink) 28%, transparent);
     }
 
-    .door-controls button:active {
-      transform: scale(0.98);
-    }
+    .door-controls button:active { transform: scale(0.98); }
 
     .door-controls button.open {
       background: var(--ink);
@@ -190,7 +188,7 @@
     }
 
     @media (max-width: 640px) {
-      .brand h1 { font-size: clamp(2rem, 12vw, 3.1rem); }
+      .brand h1 { font-size: clamp(1.8rem, 11vw, 2.8rem); }
       .brand p { max-width: 32ch; font-size: 0.7rem; }
       .meta { display: none; }
       .hint { display: none; }
@@ -209,25 +207,25 @@
   </style>
 </head>
 <body>
-  <canvas id="stage" aria-label="Rack1 Austin Hughes UltraRack 42U 800W cabinet"></canvas>
+  <canvas id="stage" aria-label="Austin Hughes UltraRack Rack1 Rack2 Rack3"></canvas>
 
   <div class="hud">
     <header class="brand">
       <div class="maker">Austin Hughes</div>
-      <h1>Rack1</h1>
-      <p>UltraRack SR 800W · 42U · RAL 9005 · empty cabinet.</p>
+      <h1>Rack1–3</h1>
+      <p>UltraRack SR 800W · 42U · 1072D · three empty cabinets.</p>
     </header>
     <div></div>
     <footer class="meta">
       <span><i></i> Live render</span>
-      <span>800 × 1072 mm</span>
+      <span>800W · 1072D</span>
       <span>19″ rails · 42U</span>
     </footer>
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
   <div class="door-controls" role="group" aria-label="Door controls">
     <button type="button" id="btn-front" aria-pressed="true">
-      <span class="label">Front door</span>
+      <span class="label">Front doors</span>
       <span class="action">Close</span>
     </button>
     <button type="button" id="btn-rear" aria-pressed="true">
@@ -253,15 +251,21 @@
     const U = 4.445;
     const UNITS = 42;
     const RAIL_WIDTH = 48.26;
-    const OUTER_W = 80;          // 800 mm
-    const OUTER_D = 107.2;       // 1072 mm
-    const WIDTH_MM = 800;
-    const DEPTH_MM = 1072;
+    const OUTER_W = 80;
+    const OUTER_D = 107.2;
     const FRAME_T = 2.4;
     const INNER_H = UNITS * U;
     const BASE_H = 7;
     const TOP_H = 5;
     const TOTAL_H = BASE_H + INNER_H + TOP_H;
+    const RACK_PITCH = OUTER_W + 12;
+
+    const FRONT_CLOSED = 0;
+    const FRONT_OPEN = 1.35;
+    const REAR_L_CLOSED = 0;
+    const REAR_L_OPEN = -1.35;
+    const REAR_R_CLOSED = 0;
+    const REAR_R_OPEN = 1.35;
 
     const canvas = document.getElementById("stage");
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -274,20 +278,20 @@
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xe8eef4, 300, 780);
+    scene.fog = new THREE.Fog(0xe8eef4, 420, 1100);
 
     const isMobile = () => window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
-    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 2000);
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 3000);
 
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
     controls.minDistance = 40;
-    controls.maxDistance = 900;
+    controls.maxDistance = 1400;
     controls.maxPolarAngle = Math.PI * 0.495;
     controls.minPolarAngle = 0.08;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.4;
+    controls.autoRotateSpeed = 0.35;
     controls.enablePan = true;
     controls.screenSpacePanning = true;
 
@@ -298,7 +302,6 @@
       idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
     });
 
-    // RAL 9005 Jet Black cabinet + equipment
     const matFrame = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, metalness: 0.55, roughness: 0.42 });
     const matDoor = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, metalness: 0.5, roughness: 0.4 });
     const matRail = new THREE.MeshStandardMaterial({ color: 0x1a1a1d, metalness: 0.7, roughness: 0.35 });
@@ -309,8 +312,7 @@
     const matHandle = new THREE.MeshStandardMaterial({ color: 0x2b2e34, metalness: 0.8, roughness: 0.28 });
     const matFloor = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, metalness: 0.08, roughness: 0.95 });
 
-    /** Honeycomb / hex perforation alpha map — Austin Hughes ~80% open area look */
-    function makeHexAlphaMap(w = 512, h = 1024, hexR = 9) {
+    function makeHexAlphaMap(w = 512, h = 1024, hexR = 8) {
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
@@ -335,7 +337,6 @@
           ctx.fill();
         }
       }
-      // Solid border frame kept opaque (white)
       const border = Math.max(14, Math.round(w * 0.045));
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, w, border);
@@ -348,20 +349,16 @@
       return tex;
     }
 
-    const hexAlpha = makeHexAlphaMap(512, 1024, 8);
     const matPerf = new THREE.MeshStandardMaterial({
       color: 0x0c0c0e,
       metalness: 0.55,
       roughness: 0.38,
-      alphaMap: hexAlpha,
+      alphaMap: makeHexAlphaMap(),
       transparent: true,
       alphaTest: 0.45,
       side: THREE.DoubleSide,
       depthWrite: true,
     });
-
-    const rack = new THREE.Group();
-    scene.add(rack);
 
     function box(w, h, d, mat, x, y, z) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -381,12 +378,8 @@
 
     function makeSwingHandle(length = 14) {
       const g = new THREE.Group();
-      // Mount plate
       g.add(box(3.2, length + 2, 0.6, matHandle, 0, 0, 0));
-      // Lever body
-      const lever = box(1.6, length * 0.55, 1.4, matChrome, 0.2, length * 0.08, 0.9);
-      g.add(lever);
-      // Pivot knob
+      g.add(box(1.6, length * 0.55, 1.4, matChrome, 0.2, length * 0.08, 0.9));
       const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.8, 16), matChrome);
       knob.rotation.x = Math.PI / 2;
       knob.position.set(0.2, -length * 0.22, 0.9);
@@ -397,116 +390,23 @@
 
     function makePerforatedDoorLeaf(width, height) {
       const g = new THREE.Group();
-      // Solid outer frame rim
       const t = 1.4;
       g.add(box(width, t, 1.0, matDoor, 0, height / 2 - t / 2, 0));
       g.add(box(width, t, 1.0, matDoor, 0, -height / 2 + t / 2, 0));
       g.add(box(t, height - t * 2, 1.0, matDoor, -width / 2 + t / 2, 0, 0));
       g.add(box(t, height - t * 2, 1.0, matDoor, width / 2 - t / 2, 0, 0));
-      // Honeycomb panel
-      const panel = new THREE.Mesh(
-        new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6),
-        matPerf
-      );
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6), matPerf);
       panel.position.z = 0.05;
       panel.castShadow = true;
       panel.receiveShadow = true;
       g.add(panel);
-      // Backing mesh so alpha looks denser from behind
-      const back = new THREE.Mesh(
-        new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6),
-        matPerf
-      );
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6), matPerf);
       back.rotation.y = Math.PI;
       back.position.z = -0.05;
       g.add(back);
       return g;
     }
 
-    // Floor
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(220, 64), matFloor);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(48, 92, 64),
-      new THREE.MeshBasicMaterial({ color: 0x9eb0c4, transparent: true, opacity: 0.26, side: THREE.DoubleSide })
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.05;
-    scene.add(ring);
-
-    // Base + leveling feet + casters
-    rack.add(rounded(OUTER_W + 1.5, BASE_H, OUTER_D + 1.5, 0.35, matFrame, 0, BASE_H / 2, 0));
-    [[-32, -42], [32, -42], [-32, 42], [32, 42]].forEach(([cx, cz]) => {
-      rack.add(box(4.5, 2.2, 4.5, matCaster, cx, 1.1, cz));
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.5, 16), matCaster);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(cx, 0.65, cz);
-      rack.add(wheel);
-      // Adjustable foot nearby
-      const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 2.2, 12), matChrome);
-      foot.position.set(cx + (cx > 0 ? -5 : 5), 1.1, cz + (cz > 0 ? -5 : 5));
-      rack.add(foot);
-    });
-
-    // Vertical posts
-    const postH = INNER_H + TOP_H;
-    const postY = BASE_H + postH / 2;
-    const px = OUTER_W / 2 - FRAME_T / 2;
-    const pz = OUTER_D / 2 - FRAME_T / 2;
-    [[-px, -pz], [px, -pz], [-px, pz], [px, pz]].forEach(([x, z]) => {
-      rack.add(box(FRAME_T, postH, FRAME_T, matFrame, x, postY, z));
-    });
-
-    // Split side panels (Austin Hughes style)
-    const sideH = INNER_H - 1;
-    const sideY = BASE_H + INNER_H / 2;
-    const sideD = (OUTER_D - FRAME_T * 2 - 3) / 2;
-    [-1, 1].forEach((side) => {
-      const x = side * (OUTER_W / 2 - 0.55);
-      rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, -sideD / 2 - 0.2));
-      rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, -sideD / 2 - 0.2));
-      rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, sideD / 2 + 0.2));
-      rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, sideD / 2 + 0.2));
-    });
-
-    // Top cover with cable access channel
-    rack.add(rounded(OUTER_W + 0.8, TOP_H, OUTER_D + 0.8, 0.25, matFrame, 0, BASE_H + INNER_H + TOP_H / 2, 0));
-    rack.add(box(OUTER_W * 0.55, 0.4, OUTER_D * 0.35, matAccent, 0, BASE_H + INNER_H + TOP_H - 0.5, 0));
-
-    // 19" rails front & rear with U marks
-    const railInsetX = RAIL_WIDTH / 2;
-    const railZFront = -OUTER_D / 2 + 10;
-    const railZRear = OUTER_D / 2 - 12;
-    [-railInsetX, railInsetX].forEach((x) => {
-      rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZFront));
-      rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZRear));
-    });
-
-    const holeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8);
-    const holeMat = new THREE.MeshStandardMaterial({ color: 0x050506, metalness: 0.2, roughness: 0.85 });
-    for (let u = 0; u < UNITS; u++) {
-      const yBase = BASE_H + u * U;
-      for (let n = 0; n < 3; n++) {
-        const hy = yBase + 0.63 + n * 1.59;
-        [-railInsetX, railInsetX].forEach((x) => {
-          const hole = new THREE.Mesh(holeGeo, holeMat);
-          hole.rotation.z = Math.PI / 2;
-          hole.position.set(x + (x > 0 ? -0.8 : 0.8), hy, railZFront);
-          rack.add(hole);
-        });
-      }
-      if (u % 5 === 0) {
-        rack.add(box(0.45, 0.18, 0.45, matChrome, -railInsetX - 1.3, yBase, railZFront));
-      }
-    }
-
-    // Empty cabinet — rails only, no mounted equipment yet
-
-    // Brother-style laminated labels stuck flat on the top cover (front edge)
-    // Large physical size so type stays readable on phone when fully zoomed out
     function makeBrotherLabel(text, widthCm, depthCm) {
       const pw = 1024;
       const ph = 320;
@@ -514,7 +414,6 @@
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
-
       ctx.fillStyle = "#fff8e8";
       ctx.fillRect(0, 0, pw, ph);
       const sheen = ctx.createLinearGradient(0, 0, 0, ph);
@@ -526,17 +425,14 @@
       ctx.strokeStyle = "rgba(20,24,30,0.22)";
       ctx.lineWidth = 10;
       ctx.strokeRect(5, 5, pw - 10, ph - 10);
-
       ctx.fillStyle = "#0a0c10";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.font = `800 ${Math.floor(ph * 0.7)}px "Archivo Black", "Arial Black", sans-serif`;
       ctx.fillText(text, pw / 2, ph / 2 + 4);
-
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
-
       const mat = new THREE.MeshStandardMaterial({
         map: tex,
         roughness: 0.32,
@@ -545,82 +441,169 @@
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
       });
-
-      // Plane in XY; lay flat on top so text faces up
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
       mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = Math.PI;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       return mesh;
     }
 
-    const labelY = BASE_H + INNER_H + TOP_H + 0.12;
-    // Stacked toward the front edge — wide enough to read when the whole rack is framed
-    const labelW = 56;
-    const labelD = 11;
-    const labelGap = 1.2;
-    const labels = [
-      `Rack1`,
-      `W ${WIDTH_MM} mm`,
-      `D ${DEPTH_MM} mm`,
-    ];
-    labels.forEach((text, i) => {
-      const tag = makeBrotherLabel(text, labelW, labelD);
-      // Front-most label nearest the front door; text upright from front view
-      const z = -OUTER_D / 2 + 7 + i * (labelD + labelGap);
-      tag.position.set(0, labelY, z);
-      rack.add(tag);
+    const holeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8);
+    const holeMat = new THREE.MeshStandardMaterial({ color: 0x050506, metalness: 0.2, roughness: 0.85 });
+
+    function createRack(name) {
+      const rack = new THREE.Group();
+      rack.name = name;
+
+      rack.add(rounded(OUTER_W + 1.5, BASE_H, OUTER_D + 1.5, 0.35, matFrame, 0, BASE_H / 2, 0));
+      [[-32, -42], [32, -42], [-32, 42], [32, 42]].forEach(([cx, cz]) => {
+        rack.add(box(4.5, 2.2, 4.5, matCaster, cx, 1.1, cz));
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.5, 16), matCaster);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(cx, 0.65, cz);
+        rack.add(wheel);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 2.2, 12), matChrome);
+        foot.position.set(cx + (cx > 0 ? -5 : 5), 1.1, cz + (cz > 0 ? -5 : 5));
+        rack.add(foot);
+      });
+
+      const postH = INNER_H + TOP_H;
+      const postY = BASE_H + postH / 2;
+      const px = OUTER_W / 2 - FRAME_T / 2;
+      const pz = OUTER_D / 2 - FRAME_T / 2;
+      [[-px, -pz], [px, -pz], [-px, pz], [px, pz]].forEach(([x, z]) => {
+        rack.add(box(FRAME_T, postH, FRAME_T, matFrame, x, postY, z));
+      });
+
+      const sideH = INNER_H - 1;
+      const sideY = BASE_H + INNER_H / 2;
+      const sideD = (OUTER_D - FRAME_T * 2 - 3) / 2;
+      [-1, 1].forEach((side) => {
+        const x = side * (OUTER_W / 2 - 0.55);
+        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, -sideD / 2 - 0.2));
+        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, -sideD / 2 - 0.2));
+        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, sideD / 2 + 0.2));
+        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, sideD / 2 + 0.2));
+      });
+
+      rack.add(rounded(OUTER_W + 0.8, TOP_H, OUTER_D + 0.8, 0.25, matFrame, 0, BASE_H + INNER_H + TOP_H / 2, 0));
+      rack.add(box(OUTER_W * 0.55, 0.4, OUTER_D * 0.35, matAccent, 0, BASE_H + INNER_H + TOP_H - 0.5, 0));
+
+      const railInsetX = RAIL_WIDTH / 2;
+      const railZFront = -OUTER_D / 2 + 10;
+      const railZRear = OUTER_D / 2 - 12;
+      [-railInsetX, railInsetX].forEach((x) => {
+        rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZFront));
+        rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZRear));
+      });
+
+      for (let u = 0; u < UNITS; u++) {
+        const yBase = BASE_H + u * U;
+        for (let n = 0; n < 3; n++) {
+          const hy = yBase + 0.63 + n * 1.59;
+          [-railInsetX, railInsetX].forEach((x) => {
+            const hole = new THREE.Mesh(holeGeo, holeMat);
+            hole.rotation.z = Math.PI / 2;
+            hole.position.set(x + (x > 0 ? -0.8 : 0.8), hy, railZFront);
+            rack.add(hole);
+          });
+        }
+        if (u % 5 === 0) {
+          rack.add(box(0.45, 0.18, 0.45, matChrome, -railInsetX - 1.3, yBase, railZFront));
+        }
+      }
+
+      // Brother labels on top — name, width, depth
+      const labelY = BASE_H + INNER_H + TOP_H + 0.12;
+      const labelW = 56;
+      const labelD = 11;
+      const labelGap = 1.2;
+      [`${name}`, "800W", "1072D"].forEach((text, i) => {
+        const tag = makeBrotherLabel(text, labelW, labelD);
+        tag.position.set(0, labelY, -OUTER_D / 2 + 7 + i * (labelD + labelGap));
+        rack.add(tag);
+      });
+
+      const doorW = OUTER_W - 3.2;
+      const doorH = INNER_H - 1.5;
+
+      const frontDoor = new THREE.Group();
+      const frontLeaf = makePerforatedDoorLeaf(doorW, doorH);
+      frontLeaf.position.x = doorW / 2;
+      frontDoor.add(frontLeaf);
+      const frontHandle = makeSwingHandle(16);
+      frontHandle.position.set(doorW - 3.2, 0, 0.9);
+      frontDoor.add(frontHandle);
+      frontDoor.position.set(-OUTER_W / 2 + 1.4, sideY, -OUTER_D / 2 + 0.6);
+      frontDoor.rotation.y = FRONT_OPEN;
+      rack.add(frontDoor);
+
+      const rearLeafW = (OUTER_W - 3.5) / 2;
+
+      const rearLeft = new THREE.Group();
+      const rearLeftLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
+      rearLeftLeaf.position.x = rearLeafW / 2;
+      rearLeft.add(rearLeftLeaf);
+      const rearLeftHandle = makeSwingHandle(14);
+      rearLeftHandle.position.set(rearLeafW - 2.6, 0, -0.9);
+      rearLeftHandle.rotation.y = Math.PI;
+      rearLeft.add(rearLeftHandle);
+      rearLeft.position.set(-OUTER_W / 2 + 1.5, sideY, OUTER_D / 2 - 0.6);
+      rearLeft.rotation.y = REAR_L_OPEN;
+      rack.add(rearLeft);
+
+      const rearRight = new THREE.Group();
+      const rearRightLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
+      rearRightLeaf.position.x = -rearLeafW / 2;
+      rearRight.add(rearRightLeaf);
+      const rearRightHandle = makeSwingHandle(14);
+      rearRightHandle.position.set(-(rearLeafW - 2.6), 0, -0.9);
+      rearRightHandle.rotation.y = Math.PI;
+      rearRight.add(rearRightHandle);
+      rearRight.position.set(OUTER_W / 2 - 1.5, sideY, OUTER_D / 2 - 0.6);
+      rearRight.rotation.y = REAR_R_OPEN;
+      rack.add(rearRight);
+
+      rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + INNER_H - 2, OUTER_D / 2 - 1.2));
+      rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + 2, OUTER_D / 2 - 1.2));
+
+      const interior = new THREE.PointLight(0xfff2dd, 22, 90, 2);
+      interior.position.set(0, sideY, 0);
+      rack.add(interior);
+
+      return { group: rack, frontDoor, rearLeft, rearRight };
+    }
+
+    // Floor
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(360, 64), matFloor);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(90, 160, 64),
+      new THREE.MeshBasicMaterial({ color: 0x9eb0c4, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    scene.add(ring);
+
+    // Row: Rack1, then Rack2 & Rack3 to its right
+    const bay = new THREE.Group();
+    scene.add(bay);
+
+    const racks = ["Rack1", "Rack2", "Rack3"].map((name, i) => {
+      const unit = createRack(name);
+      unit.group.position.x = i * RACK_PITCH;
+      bay.add(unit.group);
+      return unit;
     });
 
-    // --- Single full-height perforated FRONT door (hinged left, opens inward) ---
-    const FRONT_CLOSED = 0;
-    const FRONT_OPEN = 1.35;       // +Y = into the cabinet
-    const REAR_L_CLOSED = 0;
-    const REAR_L_OPEN = -1.35;     // into the cabinet
-    const REAR_R_CLOSED = 0;
-    const REAR_R_OPEN = 1.35;
+    // Center the bay on origin for framing
+    bay.position.x = -RACK_PITCH;
 
-    const doorW = OUTER_W - 3.2;
-    const doorH = INNER_H - 1.5;
-    const frontDoor = new THREE.Group();
-    const frontLeaf = makePerforatedDoorLeaf(doorW, doorH);
-    frontLeaf.position.x = doorW / 2;
-    frontDoor.add(frontLeaf);
-    const frontHandle = makeSwingHandle(16);
-    frontHandle.position.set(doorW - 3.2, 0, 0.9);
-    frontDoor.add(frontHandle);
-    frontDoor.position.set(-OUTER_W / 2 + 1.4, sideY, -OUTER_D / 2 + 0.6);
-    frontDoor.rotation.y = FRONT_OPEN;
-    rack.add(frontDoor);
-
-    // --- Perforated SPLIT REAR doors (middle split) ---
-    const rearLeafW = (OUTER_W - 3.5) / 2;
-
-    const rearLeft = new THREE.Group();
-    const rearLeftLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
-    rearLeftLeaf.position.x = rearLeafW / 2;
-    rearLeft.add(rearLeftLeaf);
-    const rearLeftHandle = makeSwingHandle(14);
-    rearLeftHandle.position.set(rearLeafW - 2.6, 0, -0.9);
-    rearLeftHandle.rotation.y = Math.PI;
-    rearLeft.add(rearLeftHandle);
-    rearLeft.position.set(-OUTER_W / 2 + 1.5, sideY, OUTER_D / 2 - 0.6);
-    rearLeft.rotation.y = REAR_L_OPEN;
-    rack.add(rearLeft);
-
-    const rearRight = new THREE.Group();
-    const rearRightLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
-    rearRightLeaf.position.x = -rearLeafW / 2;
-    rearRight.add(rearRightLeaf);
-    const rearRightHandle = makeSwingHandle(14);
-    rearRightHandle.position.set(-(rearLeafW - 2.6), 0, -0.9);
-    rearRightHandle.rotation.y = Math.PI;
-    rearRight.add(rearRightHandle);
-    rearRight.position.set(OUTER_W / 2 - 1.5, sideY, OUTER_D / 2 - 0.6);
-    rearRight.rotation.y = REAR_R_OPEN;
-    rack.add(rearRight);
-
-    // Door animation state
+    // Door controls drive all three cabinets
     const doorState = {
       frontOpen: true,
       rearOpen: true,
@@ -639,13 +622,17 @@
       btn.setAttribute("aria-label", `${isOpen ? "Close" : "Open"} ${noun}`);
     }
 
-    function setFrontDoor(open) {
-      doorState.frontOpen = open;
-      doorState.frontTarget = open ? FRONT_OPEN : FRONT_CLOSED;
-      syncDoorButton(btnFront, open, "front door");
+    function nudgeIdle() {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
+    }
+
+    function setFrontDoor(open) {
+      doorState.frontOpen = open;
+      doorState.frontTarget = open ? FRONT_OPEN : FRONT_CLOSED;
+      syncDoorButton(btnFront, open, "front doors");
+      nudgeIdle();
     }
 
     function setRearDoors(open) {
@@ -653,119 +640,98 @@
       doorState.rearLTarget = open ? REAR_L_OPEN : REAR_L_CLOSED;
       doorState.rearRTarget = open ? REAR_R_OPEN : REAR_R_CLOSED;
       syncDoorButton(btnRear, open, "rear doors");
-      controls.autoRotate = false;
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
+      nudgeIdle();
     }
 
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
-
-    // Keep orbit controls from eating button touches
-    document.querySelector(".door-controls").addEventListener("pointerdown", (e) => {
-      e.stopPropagation();
-    });
-
-    syncDoorButton(btnFront, true, "front door");
+    document.querySelector(".door-controls").addEventListener("pointerdown", (e) => e.stopPropagation());
+    syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
 
-    // Vertical mullion hint at rear center (closed-state meeting stile remnant on frame)
-    rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + INNER_H - 2, OUTER_D / 2 - 1.2));
-    rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + 2, OUTER_D / 2 - 1.2));
-
-    // Lighting — bright studio on black cabinet
+    // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.78));
 
     const key = new THREE.DirectionalLight(0xfff6ea, 1.65);
-    key.position.set(80, 170, -55);
+    key.position.set(120, 180, -70);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 10;
-    key.shadow.camera.far = 380;
-    key.shadow.camera.left = -110;
-    key.shadow.camera.right = 110;
-    key.shadow.camera.top = 150;
-    key.shadow.camera.bottom = -30;
+    key.shadow.camera.far = 520;
+    key.shadow.camera.left = -220;
+    key.shadow.camera.right = 220;
+    key.shadow.camera.top = 180;
+    key.shadow.camera.bottom = -40;
     key.shadow.bias = -0.0002;
     scene.add(key);
 
-    const fill = new THREE.DirectionalLight(0xb9d4ef, 0.95);
-    fill.position.set(-95, 75, 70);
-    scene.add(fill);
-
-    const rim = new THREE.DirectionalLight(0xffffff, 0.55);
-    rim.position.set(15, 55, 130);
-    scene.add(rim);
-
-    const bounce = new THREE.PointLight(0xffffff, 45, 170, 2);
-    bounce.position.set(0, 14, -35);
+    scene.add(Object.assign(new THREE.DirectionalLight(0xb9d4ef, 0.95), { position: new THREE.Vector3(-120, 80, 80) }));
+    scene.add(Object.assign(new THREE.DirectionalLight(0xffffff, 0.55), { position: new THREE.Vector3(40, 60, 150) }));
+    const bounce = new THREE.PointLight(0xffffff, 55, 240, 2);
+    bounce.position.set(0, 16, -40);
     scene.add(bounce);
 
-    // Interior glow so gear reads through perforations
-    const interior = new THREE.PointLight(0xfff2dd, 28, 90, 2);
-    interior.position.set(0, sideY, 0);
-    rack.add(interior);
-
     const framingBox = new THREE.Box3();
-    function frameRack(forceReset = true) {
+    function frameScene(forceReset = true) {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const mobile = isMobile();
 
-      camera.fov = mobile ? 52 : 40;
+      camera.fov = mobile ? 54 : 40;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
 
-      framingBox.setFromObject(rack);
+      framingBox.setFromObject(bay);
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
       framingBox.getSize(size);
       framingBox.getCenter(center);
 
-      const padX = mobile ? 1.4 : 1.25;
-      const padY = mobile ? 1.55 : 1.28;
+      const padX = mobile ? 1.35 : 1.2;
+      const padY = mobile ? 1.5 : 1.25;
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
       const distY = (size.y * padY * 0.5) / Math.tan(vFov / 2);
       const distX = (size.x * padX * 0.5) / Math.tan(hFov / 2);
       const distZ = (size.z * padX * 0.5) / Math.tan(hFov / 2);
-      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.12 : 1.06);
+      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.1 : 1.05);
 
       controls.target.copy(center);
       if (mobile) controls.target.y = center.y * 0.98;
-      controls.minDistance = Math.max(30, distance * 0.35);
-      controls.maxDistance = Math.max(900, distance * 3.5);
+      controls.minDistance = Math.max(40, distance * 0.3);
+      controls.maxDistance = Math.max(1400, distance * 3.5);
 
       if (forceReset) {
-        const dir = new THREE.Vector3(0.62, mobile ? 0.12 : 0.16, 0.78).normalize();
+        const dir = new THREE.Vector3(0.55, mobile ? 0.14 : 0.18, 0.82).normalize();
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
     }
 
-    frameRack(true);
+    frameScene(true);
 
     const clock = new THREE.Clock();
 
     function onResize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
-      frameRack(true);
+      frameScene(true);
     }
     window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", () => setTimeout(() => frameRack(true), 200));
+    window.addEventListener("orientationchange", () => setTimeout(() => frameScene(true), 200));
 
     function animate() {
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
       const t = clock.elapsedTime;
-
-      // Smooth door swings
       const ease = 1 - Math.exp(-dt * 7);
-      frontDoor.rotation.y += (doorState.frontTarget - frontDoor.rotation.y) * ease;
-      rearLeft.rotation.y += (doorState.rearLTarget - rearLeft.rotation.y) * ease;
-      rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
 
-      ring.material.opacity = 0.2 + Math.sin(t * 0.7) * 0.05;
+      racks.forEach(({ frontDoor, rearLeft, rearRight }) => {
+        frontDoor.rotation.y += (doorState.frontTarget - frontDoor.rotation.y) * ease;
+        rearLeft.rotation.y += (doorState.rearLTarget - rearLeft.rotation.y) * ease;
+        rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
+      });
+
+      ring.material.opacity = 0.18 + Math.sin(t * 0.7) * 0.05;
       controls.update();
       renderer.render(scene, camera);
     }
