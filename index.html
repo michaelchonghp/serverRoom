@@ -708,7 +708,8 @@
       controls.maxDistance = Math.max(1400, distance * 3.5);
 
       if (forceReset) {
-        const dir = new THREE.Vector3(0.55, mobile ? 0.14 : 0.18, 0.82).normalize();
+        // Stand in front of the doors (-Z) so left→right reads Rack1, Rack2, Rack3
+        const dir = new THREE.Vector3(0.42, mobile ? 0.14 : 0.18, -0.88).normalize();
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
