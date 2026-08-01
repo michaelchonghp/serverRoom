@@ -310,6 +310,15 @@
     const matCaster = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.35, roughness: 0.65 });
     const matChrome = new THREE.MeshStandardMaterial({ color: 0xc0c6ce, metalness: 0.95, roughness: 0.22 });
     const matHandle = new THREE.MeshStandardMaterial({ color: 0x2b2e34, metalness: 0.8, roughness: 0.28 });
+    const matUps = new THREE.MeshStandardMaterial({ color: 0x1a1c20, metalness: 0.45, roughness: 0.48 });
+    const matUpsFace = new THREE.MeshStandardMaterial({ color: 0x0e1014, metalness: 0.35, roughness: 0.55 });
+    const matUpsLcd = new THREE.MeshStandardMaterial({
+      color: 0x1a3a2a, emissive: 0x1f8a4c, emissiveIntensity: 0.55, metalness: 0.2, roughness: 0.35,
+    });
+    const matUpsLed = new THREE.MeshStandardMaterial({
+      color: 0x3dd68c, emissive: 0x3dd68c, emissiveIntensity: 1.2, metalness: 0.2, roughness: 0.35,
+    });
+    const matUpsBadge = new THREE.MeshStandardMaterial({ color: 0xe8eef4, metalness: 0.1, roughness: 0.45 });
     const matSubfloor = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.05, roughness: 0.96 });
     const matFloorTile = new THREE.MeshStandardMaterial({ color: 0xd8dee6, metalness: 0.18, roughness: 0.72 });
     const matFloorTileAlt = new THREE.MeshStandardMaterial({ color: 0xcfd6df, metalness: 0.18, roughness: 0.74 });
@@ -456,7 +465,67 @@
     const holeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8);
     const holeMat = new THREE.MeshStandardMaterial({ color: 0x050506, metalness: 0.2, roughness: 0.85 });
 
-    function createRack(name, extraLabels = []) {
+    /** APC Smart-UPS On-Line SRTG15KXLI — 15kVA/15kW, 7U, 440×700×306 mm */
+    function makeApcSrtg15() {
+      const heightU = 7;
+      const h = heightU * U - 0.2;
+      const w = 44;   // 440 mm EIA width
+      const d = 70;   // 700 mm depth
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+      g.add(box(w - 0.4, h - 0.4, 0.6, matUpsFace, 0, 0, -d / 2 - 0.25));
+
+      // Front vent grille
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 6; col++) {
+          g.add(box(
+            4.2, 1.6, 0.25, matAccent,
+            -16 + col * 6.4,
+            -h * 0.28 + row * 2.4,
+            -d / 2 - 0.55
+          ));
+        }
+      }
+
+      // LCD status panel (upper right)
+      g.add(box(10, 6.5, 0.35, matUpsLcd, 12, h * 0.28, -d / 2 - 0.6));
+      // Soft keys under LCD
+      for (let i = 0; i < 4; i++) {
+        g.add(box(1.6, 1.0, 0.3, matChrome, 8.5 + i * 2.3, h * 0.12, -d / 2 - 0.6));
+      }
+
+      // Status LEDs
+      [-1, 0, 1].forEach((i, idx) => {
+        const led = new THREE.Mesh(
+          new THREE.BoxGeometry(0.7, 0.7, 0.25),
+          idx === 0 ? matUpsLed : matAccent
+        );
+        led.position.set(-18 + i * 1.4, h * 0.32, d / -2 - 0.6);
+        g.add(led);
+      });
+
+      // APC / Smart-UPS badge strip
+      g.add(box(14, 2.2, 0.2, matUpsBadge, -10, h * 0.34, -d / 2 - 0.55));
+
+      // Handle ears
+      g.add(box(1.4, h * 0.85, 1.2, matRail, -w / 2 + 0.9, 0, -d / 2 - 0.2));
+      g.add(box(1.4, h * 0.85, 1.2, matRail, w / 2 - 0.9, 0, -d / 2 - 0.2));
+
+      // Rear terminal / fan hint
+      g.add(box(w * 0.7, h * 0.55, 0.5, matAccent, 0, 0, d / 2 + 0.2));
+      for (let i = 0; i < 3; i++) {
+        const fan = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.4, 16), matAccent);
+        fan.rotation.x = Math.PI / 2;
+        fan.position.set(-10 + i * 10, 0, d / 2 + 0.45);
+        g.add(fan);
+      }
+
+      g.userData.heightU = heightU;
+      return g;
+    }
+
+    function createRack(name, extraLabels = [], equipment = []) {
       const rack = new THREE.Group();
       rack.name = name;
 
@@ -527,6 +596,19 @@
         const tag = makeBrotherLabel(text, labelW, labelD);
         tag.position.set(0, labelY, -OUTER_D / 2 + 7 + i * (labelD + labelGap));
         rack.add(tag);
+      });
+
+      // Mounted equipment (bottom-up U positions)
+      const equipZ = railZFront + 35 + 1.0;
+      equipment.forEach(({ type, startU }) => {
+        let unit = null;
+        if (type === "ups-srtg15") unit = makeApcSrtg15();
+        if (!unit) return;
+        const heightU = unit.userData.heightU || 1;
+        const h = heightU * U - 0.2;
+        const y = BASE_H + startU * U + h / 2 + 0.05;
+        unit.position.set(0, y, equipZ);
+        rack.add(unit);
       });
 
       const doorW = OUTER_W - 3.2;
@@ -730,9 +812,13 @@
 
     const racks = [];
 
-    function placeRow(names, z, rotY, xShift = 0, extrasByName = {}) {
+    function placeRow(names, z, rotY, xShift = 0, extrasByName = {}, equipmentByName = {}) {
       names.forEach((name, i) => {
-        const unit = createRack(name, extrasByName[name] || []);
+        const unit = createRack(
+          name,
+          extrasByName[name] || [],
+          equipmentByName[name] || []
+        );
         // Base LTR layout, plus optional row shift
         const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH + xShift;
         unit.group.position.set(x, 0, z);
@@ -746,10 +832,17 @@
     placeRow(["Rack1", "Rack2", "Rack3"], ROW_SEP / 2, 0, 0);
     // Row B — turned 180°, shifted one bay so:
     //   Rack1 → empty | Rack2 ↔ Rack4 | Rack3 ↔ Rack5 | empty ← Rack6
-    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI, -RACK_PITCH, {
-      Rack5: ["ACS"],
-      Rack6: ["UPS"],
-    });
+    placeRow(
+      ["Rack4", "Rack5", "Rack6"],
+      -ROW_SEP / 2,
+      Math.PI,
+      -RACK_PITCH,
+      { Rack5: ["ACS"], Rack6: ["UPS"] },
+      {
+        // APC Smart-UPS On-Line SRTG15KXLI 15kVA — 7U at bottom of Rack6
+        Rack6: [{ type: "ups-srtg15", startU: 0 }],
+      }
+    );
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
