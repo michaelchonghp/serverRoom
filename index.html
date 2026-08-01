@@ -179,41 +179,6 @@
       font-weight: 500;
     }
 
-    .rack-label {
-      pointer-events: none;
-      text-align: center;
-      transform: translate(-50%, -100%);
-      white-space: nowrap;
-    }
-
-    .rack-label .name {
-      font-family: "Archivo Black", sans-serif;
-      font-size: 1.35rem;
-      letter-spacing: -0.02em;
-      color: var(--ink);
-      line-height: 1;
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
-    }
-
-    .rack-label .dims {
-      margin-top: 0.45rem;
-      display: flex;
-      gap: 0.75rem;
-      justify-content: center;
-      font-size: 0.68rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--steel);
-    }
-
-    .rack-label .dims span {
-      background: color-mix(in srgb, #ffffff 86%, transparent);
-      border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      padding: 0.35rem 0.55rem;
-    }
-
     @keyframes rise {
       from { opacity: 0; transform: translateY(18px); }
       to { opacity: 1; transform: translateY(0); }
@@ -283,7 +248,6 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
     import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-    import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
     // Proportions ≈ Austin Hughes SR-8042 (800W × 1072D × 42U), cm
     const U = 4.445;
@@ -308,14 +272,6 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-    const labelRenderer = new CSS2DRenderer();
-    labelRenderer.setSize(window.innerWidth, window.innerHeight);
-    labelRenderer.domElement.style.position = "fixed";
-    labelRenderer.domElement.style.inset = "0";
-    labelRenderer.domElement.style.pointerEvents = "none";
-    labelRenderer.domElement.style.zIndex = "1";
-    document.body.appendChild(labelRenderer.domElement);
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xe8eef4, 300, 780);
@@ -549,19 +505,67 @@
 
     // Empty cabinet — rails only, no mounted equipment yet
 
-    // Floating name + dimensions above the rack
-    const labelEl = document.createElement("div");
-    labelEl.className = "rack-label";
-    labelEl.innerHTML = `
-      <div class="name">Rack1</div>
-      <div class="dims">
-        <span>W ${WIDTH_MM} mm</span>
-        <span>D ${DEPTH_MM} mm</span>
-      </div>
-    `;
-    const rackLabel = new CSS2DObject(labelEl);
-    rackLabel.position.set(0, TOTAL_H + 10, 0);
-    rack.add(rackLabel);
+    // Brother-style laminated labels on top cover, front edge
+    // High contrast: warm white tape + near-black text on black cabinet
+    function makeBrotherLabel(text, widthCm, heightCm = 2.8) {
+      const pw = 512;
+      const ph = Math.max(96, Math.round(pw * (heightCm / widthCm)));
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Tape body
+      ctx.fillStyle = "#f4f1e8";
+      ctx.fillRect(0, 0, pw, ph);
+      // Soft edge / laminate sheen bands
+      const sheen = ctx.createLinearGradient(0, 0, 0, ph);
+      sheen.addColorStop(0, "rgba(255,255,255,0.55)");
+      sheen.addColorStop(0.35, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.06)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, pw, ph);
+      // Border
+      ctx.strokeStyle = "rgba(20,24,30,0.18)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, pw - 4, ph - 4);
+
+      ctx.fillStyle = "#111418";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `700 ${Math.floor(ph * 0.48)}px "IBM Plex Mono", "Courier New", monospace`;
+      ctx.letterSpacing = "0.04em";
+      ctx.fillText(text, pw / 2, ph / 2 + 1);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.35,
+        metalness: 0.05,
+      });
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(widthCm, heightCm, 0.12), mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    const labelY = BASE_H + INNER_H + TOP_H - 0.15;
+    const labelZ = -OUTER_D / 2 + 1.1;
+    const labels = [
+      { text: "Rack1", w: 16, x: -24 },
+      { text: `W ${WIDTH_MM} mm`, w: 18, x: 0 },
+      { text: `D ${DEPTH_MM} mm`, w: 18, x: 24 },
+    ];
+    labels.forEach(({ text, w, x }) => {
+      const tag = makeBrotherLabel(text, w, 2.9);
+      // Sit flat on top, readable from the front
+      tag.rotation.x = -Math.PI / 2;
+      tag.position.set(x, labelY, labelZ + 1.4);
+      rack.add(tag);
+    });
 
     // --- Single full-height perforated FRONT door (hinged left, opens inward) ---
     const FRONT_CLOSED = 0;
@@ -740,7 +744,6 @@
 
     function onResize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
-      labelRenderer.setSize(window.innerWidth, window.innerHeight);
       frameRack(true);
     }
     window.addEventListener("resize", onResize);
@@ -758,11 +761,8 @@
       rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
 
       ring.material.opacity = 0.2 + Math.sin(t * 0.7) * 0.05;
-      // Gentle hover bob for the overhead label
-      rackLabel.position.y = TOTAL_H + 10 + Math.sin(t * 1.4) * 1.2;
       controls.update();
       renderer.render(scene, camera);
-      labelRenderer.render(scene, camera);
     }
     animate();
   </script>
