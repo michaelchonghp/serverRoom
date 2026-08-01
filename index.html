@@ -1461,6 +1461,22 @@
     syncDoorButton(btnRear, true, "rear doors");
     syncRackButtons();
 
+    // Deep-link helpers: ?focus=Rack6&info=ups
+    const bootParams = new URLSearchParams(location.search);
+    const bootFocus = bootParams.get("focus");
+    const bootInfo = bootParams.get("info");
+    if (bootFocus) {
+      requestAnimationFrame(() => {
+        focusRackFront(bootFocus);
+        if (bootInfo) {
+          window.setTimeout(() => {
+            const hit = interactiveItems.find((o) => o.userData.kind === bootInfo);
+            if (hit) triggerPressFeedback(hit);
+          }, 700);
+        }
+      });
+    }
+
     // Lighting
     // Stronger key/fill separation so metal edges and door mesh read on phone
     scene.add(new THREE.AmbientLight(0xdde5ee, 0.55));
