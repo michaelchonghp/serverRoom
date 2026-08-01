@@ -310,7 +310,12 @@
     const matCaster = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.35, roughness: 0.65 });
     const matChrome = new THREE.MeshStandardMaterial({ color: 0xc0c6ce, metalness: 0.95, roughness: 0.22 });
     const matHandle = new THREE.MeshStandardMaterial({ color: 0x2b2e34, metalness: 0.8, roughness: 0.28 });
-    const matFloor = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, metalness: 0.08, roughness: 0.95 });
+    const matSubfloor = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.05, roughness: 0.96 });
+    const matFloorTile = new THREE.MeshStandardMaterial({ color: 0xd8dee6, metalness: 0.18, roughness: 0.72 });
+    const matFloorTileAlt = new THREE.MeshStandardMaterial({ color: 0xcfd6df, metalness: 0.18, roughness: 0.74 });
+    const matFloorPerf = new THREE.MeshStandardMaterial({ color: 0xbcc6d1, metalness: 0.35, roughness: 0.55 });
+    const matFloorEdge = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.4, roughness: 0.55 });
+    const matPedestal = new THREE.MeshStandardMaterial({ color: 0x6a737c, metalness: 0.55, roughness: 0.45 });
 
     function makeHexAlphaMap(w = 512, h = 1024, hexR = 8) {
       const c = document.createElement("canvas");
@@ -575,24 +580,153 @@
       return { group: rack, frontDoor, rearLeft, rearRight };
     }
 
-    // Floor
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(480, 64), matFloor);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
+    // --- Raised access floor (data hall) ---
+    const TILE = 60;           // 600 mm tiles
+    const FLOOR_H = 45;        // raised floor height
+    const FLOOR_TILE_T = 3.2;  // tile thickness
+    const FLOOR_COLS = 14;
+    const FLOOR_ROWS = 12;
+    const floorW = FLOOR_COLS * TILE;
+    const floorD = FLOOR_ROWS * TILE;
+    const floorOriginX = -floorW / 2 + TILE / 2;
+    const floorOriginZ = -floorD / 2 + TILE / 2;
 
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(120, 220, 64),
-      new THREE.MeshBasicMaterial({ color: 0x9eb0c4, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+    // Building slab under the void
+    const subfloor = new THREE.Mesh(
+      new THREE.CircleGeometry(520, 64),
+      matSubfloor
     );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.05;
-    scene.add(ring);
+    subfloor.rotation.x = -Math.PI / 2;
+    subfloor.position.y = -0.02;
+    subfloor.receiveShadow = true;
+    scene.add(subfloor);
+
+    const raisedFloor = new THREE.Group();
+    scene.add(raisedFloor);
+
+    // Void plenum / skirt so the raised height reads clearly
+    const plenum = new THREE.Mesh(
+      new THREE.BoxGeometry(floorW + 4, FLOOR_H - FLOOR_TILE_T, floorD + 4),
+      matFloorEdge
+    );
+    plenum.position.y = (FLOOR_H - FLOOR_TILE_T) / 2;
+    plenum.castShadow = true;
+    plenum.receiveShadow = true;
+    raisedFloor.add(plenum);
+
+    // Pedestals in the void (visible along the open edge)
+    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, FLOOR_H - FLOOR_TILE_T - 1, 8);
+    for (let c = 0; c <= FLOOR_COLS; c += 2) {
+      for (let r = 0; r <= FLOOR_ROWS; r += 2) {
+        const ped = new THREE.Mesh(pedGeo, matPedestal);
+        ped.position.set(
+          -floorW / 2 + c * TILE,
+          (FLOOR_H - FLOOR_TILE_T) / 2,
+          -floorD / 2 + r * TILE
+        );
+        ped.castShadow = true;
+        raisedFloor.add(ped);
+      }
+    }
+
+    // Perforation texture for airflow tiles in the cold aisle
+    function makePerfTileTexture() {
+      const s = 256;
+      const c = document.createElement("canvas");
+      c.width = s;
+      c.height = s;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#bcc6d1";
+      ctx.fillRect(0, 0, s, s);
+      ctx.fillStyle = "#2a3038";
+      const step = 14;
+      const rad = 3.2;
+      for (let y = step / 2; y < s; y += step) {
+        for (let x = step / 2; x < s; x += step) {
+          ctx.beginPath();
+          ctx.arc(x, y, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.strokeStyle = "rgba(40,48,58,0.35)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, s - 4, s - 4);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    const matFloorPerfMapped = new THREE.MeshStandardMaterial({
+      map: makePerfTileTexture(),
+      metalness: 0.35,
+      roughness: 0.55,
+    });
 
     // Two rows face-to-face across a cold aisle (extra clearance for inward-opening doors)
     const AISLE = 220; // cm clear between front doors
     const ROW_SEP = OUTER_D + AISLE;
+
+    // Cold-aisle Z band (between the two front door lines) → perforated tiles
+    const aisleZ0 = -AISLE / 2;
+    const aisleZ1 = AISLE / 2;
+
+    const tileGeo = new THREE.BoxGeometry(TILE - 0.7, FLOOR_TILE_T, TILE - 0.7);
+    const dummy = new THREE.Object3D();
+    const solidTiles = [];
+    const solidAltTiles = [];
+    const perfTiles = [];
+
+    for (let r = 0; r < FLOOR_ROWS; r++) {
+      for (let c = 0; c < FLOOR_COLS; c++) {
+        const x = floorOriginX + c * TILE;
+        const z = floorOriginZ + r * TILE;
+        const inAisle = z >= aisleZ0 && z <= aisleZ1;
+        const entry = { x, z };
+        if (inAisle) perfTiles.push(entry);
+        else if ((r + c) % 2 === 0) solidTiles.push(entry);
+        else solidAltTiles.push(entry);
+      }
+    }
+
+    function addTileInstances(list, material) {
+      if (!list.length) return null;
+      const mesh = new THREE.InstancedMesh(tileGeo, material, list.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      list.forEach((t, i) => {
+        dummy.position.set(t.x, FLOOR_H - FLOOR_TILE_T / 2, t.z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      raisedFloor.add(mesh);
+      return mesh;
+    }
+
+    addTileInstances(solidTiles, matFloorTile);
+    addTileInstances(solidAltTiles, matFloorTileAlt);
+    addTileInstances(perfTiles, matFloorPerfMapped);
+
+    // Edge trim / ramp lip
+    const lipH = FLOOR_H + 0.6;
+    const lipT = 3;
+    [
+      [floorW + lipT * 2, lipH, lipT, 0, lipH / 2, -floorD / 2 - lipT / 2],
+      [floorW + lipT * 2, lipH, lipT, 0, lipH / 2, floorD / 2 + lipT / 2],
+      [lipT, lipH, floorD, -floorW / 2 - lipT / 2, lipH / 2, 0],
+      [lipT, lipH, floorD, floorW / 2 + lipT / 2, lipH / 2, 0],
+    ].forEach(([w, h, d, x, y, z]) => {
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matFloorEdge);
+      lip.position.set(x, y, z);
+      lip.castShadow = true;
+      lip.receiveShadow = true;
+      raisedFloor.add(lip);
+    });
+
     const bay = new THREE.Group();
+    // Cabinets sit on the raised floor deck
+    bay.position.y = FLOOR_H;
     scene.add(bay);
 
     const racks = [];
@@ -750,7 +884,6 @@
         rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
       });
 
-      ring.material.opacity = 0.18 + Math.sin(t * 0.7) * 0.05;
       controls.update();
       renderer.render(scene, camera);
     }
