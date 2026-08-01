@@ -192,7 +192,7 @@
     @media (max-width: 640px) {
       .brand h1 { font-size: clamp(2rem, 12vw, 3.1rem); }
       .brand p { max-width: 32ch; font-size: 0.7rem; }
-      .meta { gap: 0.75rem 1.1rem; max-width: 72%; }
+      .meta { display: none; }
       .hint { display: none; }
       .door-controls {
         left: clamp(0.75rem, 3vw, 1.5rem);
@@ -215,7 +215,7 @@
     <header class="brand">
       <div class="maker">Austin Hughes</div>
       <h1>UltraRack<br />42U</h1>
-      <p>SR series · RAL 9005 · full perforated front · split perforated rear.</p>
+      <p>SR series · RAL 9005 · empty cabinet · doors open inward.</p>
     </header>
     <div></div>
     <footer class="meta">
@@ -301,23 +301,11 @@
     const matDoor = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, metalness: 0.5, roughness: 0.4 });
     const matRail = new THREE.MeshStandardMaterial({ color: 0x1a1a1d, metalness: 0.7, roughness: 0.35 });
     const matPanel = new THREE.MeshStandardMaterial({ color: 0x101012, metalness: 0.45, roughness: 0.5 });
-    const matServer = new THREE.MeshStandardMaterial({ color: 0x1c1f24, metalness: 0.6, roughness: 0.45 });
-    const matFace = new THREE.MeshStandardMaterial({ color: 0x12151a, metalness: 0.4, roughness: 0.55 });
     const matAccent = new THREE.MeshStandardMaterial({ color: 0x2a3038, metalness: 0.55, roughness: 0.4 });
-    const matBlank = new THREE.MeshStandardMaterial({ color: 0x16181c, metalness: 0.45, roughness: 0.55 });
     const matCaster = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, metalness: 0.35, roughness: 0.65 });
     const matChrome = new THREE.MeshStandardMaterial({ color: 0xc0c6ce, metalness: 0.95, roughness: 0.22 });
     const matHandle = new THREE.MeshStandardMaterial({ color: 0x2b2e34, metalness: 0.8, roughness: 0.28 });
     const matFloor = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, metalness: 0.08, roughness: 0.95 });
-    const matLedOn = new THREE.MeshStandardMaterial({
-      color: 0x1f9d62, emissive: 0x1f9d62, emissiveIntensity: 1.15, metalness: 0.2, roughness: 0.35,
-    });
-    const matLedAmber = new THREE.MeshStandardMaterial({
-      color: 0xd4892a, emissive: 0xd4892a, emissiveIntensity: 0.95, metalness: 0.2, roughness: 0.35,
-    });
-    const matLedDim = new THREE.MeshStandardMaterial({
-      color: 0x3a403c, emissive: 0x0a1008, emissiveIntensity: 0.05, metalness: 0.2, roughness: 0.5,
-    });
 
     /** Honeycomb / hex perforation alpha map — Austin Hughes ~80% open area look */
     function makeHexAlphaMap(w = 512, h = 1024, hexR = 9) {
@@ -513,104 +501,15 @@
       }
     }
 
-    // Equipment
-    const layout = [
-      [0, 1, "blank"], [1, 1, "pdu"], [2, 2, "server"], [4, 2, "server"],
-      [6, 1, "switch"], [7, 1, "blank"], [8, 1, "server1"], [9, 1, "server1"],
-      [10, 1, "server1"], [11, 1, "blank"], [12, 2, "server"], [14, 1, "switch"],
-      [15, 1, "blank"], [16, 1, "server1"], [17, 1, "server1"], [18, 2, "storage"],
-      [20, 1, "blank"], [21, 1, "switch"], [22, 2, "server"], [24, 1, "server1"],
-      [25, 1, "server1"], [26, 1, "blank"], [27, 1, "pdu"], [28, 2, "server"],
-      [30, 1, "switch"], [31, 1, "blank"], [32, 1, "server1"], [33, 1, "server1"],
-      [34, 2, "storage"], [36, 1, "blank"], [37, 1, "server1"], [38, 2, "server"],
-      [40, 1, "switch"], [41, 1, "blank"],
-    ];
+    // Empty cabinet — rails only, no mounted equipment yet
 
-    const leds = [];
-    const equipDepth = 75;
-    const equipZ = railZFront + equipDepth / 2 + 1.0;
-    const faceW = RAIL_WIDTH - 1.2;
-
-    function addLeds(group, count, y, z, spacing = 1.1) {
-      const startX = -((count - 1) * spacing) / 2;
-      for (let i = 0; i < count; i++) {
-        const on = Math.random() > 0.18;
-        const amber = on && Math.random() > 0.82;
-        const mat = !on ? matLedDim : amber ? matLedAmber : matLedOn;
-        const led = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.2), mat);
-        led.position.set(startX + i * spacing, y, z);
-        group.add(led);
-        if (on) leds.push({ mesh: led, phase: Math.random() * Math.PI * 2, amber });
-      }
-    }
-
-    function makeBezel(h, type) {
-      const g = new THREE.Group();
-      g.add(box(faceW, h - 0.25, equipDepth, matServer, 0, 0, 0));
-      g.add(box(faceW - 0.2, h - 0.45, 0.5, matFace, 0, 0, -equipDepth / 2 - 0.15));
-
-      if (type === "blank") {
-        g.children[0].material = matBlank;
-        g.children[1].material = matBlank;
-        g.add(box(faceW * 0.55, 0.35, 0.2, matAccent, 0, 0, -equipDepth / 2 - 0.4));
-        return g;
-      }
-      if (type === "pdu") {
-        g.add(box(faceW * 0.92, h * 0.35, 0.25, matAccent, 0, 0, -equipDepth / 2 - 0.4));
-        addLeds(g, 6, 0, -equipDepth / 2 - 0.55, 1.4);
-        return g;
-      }
-      if (type === "switch") {
-        for (let row = 0; row < 2; row++) {
-          for (let p = 0; p < 12; p++) {
-            g.add(box(
-              0.9, 0.7, 0.35, matAccent,
-              -faceW / 2 + 3.5 + p * 2.9,
-              (row === 0 ? 0.55 : -0.55) * Math.min(1, h / U),
-              -equipDepth / 2 - 0.4
-            ));
-          }
-        }
-        addLeds(g, 4, h * 0.28, -equipDepth / 2 - 0.55, 1.0);
-        return g;
-      }
-      if (type === "storage") {
-        for (let i = 0; i < 8; i++) {
-          g.add(box(4.2, h * 0.62, 0.4, matAccent, -faceW / 2 + 5 + i * 5.2, 0, -equipDepth / 2 - 0.4));
-        }
-        addLeds(g, 3, h * 0.3, -equipDepth / 2 - 0.55);
-        return g;
-      }
-      const bays = type === "server1" ? 4 : 8;
-      const bayW = (faceW - 8) / bays - 0.4;
-      for (let i = 0; i < bays; i++) {
-        const bx = -faceW / 2 + 4 + i * (bayW + 0.4) + bayW / 2;
-        g.add(box(bayW, h * 0.55, 0.35, matAccent, bx, 0.1, -equipDepth / 2 - 0.4));
-        for (let s = 0; s < 3; s++) {
-          g.add(box(bayW * 0.7, 0.12, 0.15, matFace, bx, -h * 0.12 + s * 0.35, -equipDepth / 2 - 0.6));
-        }
-      }
-      g.add(box(1.2, h * 0.7, 0.6, matRail, -faceW / 2 + 1.2, 0, -equipDepth / 2 - 0.5));
-      g.add(box(1.2, h * 0.7, 0.6, matRail, faceW / 2 - 1.2, 0, -equipDepth / 2 - 0.5));
-      addLeds(g, type === "server1" ? 2 : 3, h * 0.28, -equipDepth / 2 - 0.55);
-      return g;
-    }
-
-    layout.forEach(([startU, heightU, type]) => {
-      const h = heightU * U - 0.15;
-      const y = BASE_H + startU * U + h / 2 + 0.05;
-      const unit = makeBezel(h, type);
-      unit.position.set(0, y, equipZ);
-      rack.add(unit);
-    });
-
-    // --- Single full-height perforated FRONT door (hinged left) ---
+    // --- Single full-height perforated FRONT door (hinged left, opens inward) ---
     const FRONT_CLOSED = 0;
-    const FRONT_OPEN = -1.2;
+    const FRONT_OPEN = 1.35;       // +Y = into the cabinet
     const REAR_L_CLOSED = 0;
-    const REAR_L_OPEN = 1.15;
+    const REAR_L_OPEN = -1.35;     // into the cabinet
     const REAR_R_CLOSED = 0;
-    const REAR_R_OPEN = -1.15;
+    const REAR_R_OPEN = 1.35;
 
     const doorW = OUTER_W - 3.2;
     const doorH = INNER_H - 1.5;
@@ -788,8 +687,8 @@
 
     function animate() {
       requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
       const dt = Math.min(clock.getDelta(), 0.05);
+      const t = clock.elapsedTime;
 
       // Smooth door swings
       const ease = 1 - Math.exp(-dt * 7);
@@ -797,10 +696,6 @@
       rearLeft.rotation.y += (doorState.rearLTarget - rearLeft.rotation.y) * ease;
       rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
 
-      leds.forEach(({ mesh, phase, amber }) => {
-        const pulse = 0.85 + Math.sin(t * 2.2 + phase) * 0.3;
-        mesh.material.emissiveIntensity = amber ? 0.8 * pulse : 1.0 * pulse;
-      });
       ring.material.opacity = 0.2 + Math.sin(t * 0.7) * 0.05;
       controls.update();
       renderer.render(scene, camera);
