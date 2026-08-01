@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
-  <title>Austin Hughes UltraRack — 42U</title>
+  <title>Rack1 — Austin Hughes UltraRack 42U</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -179,6 +179,41 @@
       font-weight: 500;
     }
 
+    .rack-label {
+      pointer-events: none;
+      text-align: center;
+      transform: translate(-50%, -100%);
+      white-space: nowrap;
+    }
+
+    .rack-label .name {
+      font-family: "Archivo Black", sans-serif;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      line-height: 1;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+    }
+
+    .rack-label .dims {
+      margin-top: 0.45rem;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--steel);
+    }
+
+    .rack-label .dims span {
+      background: color-mix(in srgb, #ffffff 86%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 0.35rem 0.55rem;
+    }
+
     @keyframes rise {
       from { opacity: 0; transform: translateY(18px); }
       to { opacity: 1; transform: translateY(0); }
@@ -209,19 +244,19 @@
   </style>
 </head>
 <body>
-  <canvas id="stage" aria-label="3D Austin Hughes UltraRack 42U cabinet"></canvas>
+  <canvas id="stage" aria-label="Rack1 Austin Hughes UltraRack 42U 800W cabinet"></canvas>
 
   <div class="hud">
     <header class="brand">
       <div class="maker">Austin Hughes</div>
-      <h1>UltraRack<br />42U</h1>
-      <p>SR series · RAL 9005 · empty cabinet · doors open inward.</p>
+      <h1>Rack1</h1>
+      <p>UltraRack SR 800W · 42U · RAL 9005 · empty cabinet.</p>
     </header>
     <div></div>
     <footer class="meta">
       <span><i></i> Live render</span>
+      <span>800 × 1072 mm</span>
       <span>19″ rails · 42U</span>
-      <span>Depth 1072 mm</span>
     </footer>
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
@@ -248,13 +283,16 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
     import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+    import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
-    // Proportions ≈ Austin Hughes SR-6042 (600W × 1072D × 42U), cm
+    // Proportions ≈ Austin Hughes SR-8042 (800W × 1072D × 42U), cm
     const U = 4.445;
     const UNITS = 42;
     const RAIL_WIDTH = 48.26;
-    const OUTER_W = 60;
-    const OUTER_D = 107.2;
+    const OUTER_W = 80;          // 800 mm
+    const OUTER_D = 107.2;       // 1072 mm
+    const WIDTH_MM = 800;
+    const DEPTH_MM = 1072;
     const FRAME_T = 2.4;
     const INNER_H = UNITS * U;
     const BASE_H = 7;
@@ -270,6 +308,14 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.domElement.style.position = "fixed";
+    labelRenderer.domElement.style.inset = "0";
+    labelRenderer.domElement.style.pointerEvents = "none";
+    labelRenderer.domElement.style.zIndex = "1";
+    document.body.appendChild(labelRenderer.domElement);
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xe8eef4, 300, 780);
@@ -437,7 +483,7 @@
 
     // Base + leveling feet + casters
     rack.add(rounded(OUTER_W + 1.5, BASE_H, OUTER_D + 1.5, 0.35, matFrame, 0, BASE_H / 2, 0));
-    [[-24, -42], [24, -42], [-24, 42], [24, 42]].forEach(([cx, cz]) => {
+    [[-32, -42], [32, -42], [-32, 42], [32, 42]].forEach(([cx, cz]) => {
       rack.add(box(4.5, 2.2, 4.5, matCaster, cx, 1.1, cz));
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.5, 16), matCaster);
       wheel.rotation.z = Math.PI / 2;
@@ -502,6 +548,20 @@
     }
 
     // Empty cabinet — rails only, no mounted equipment yet
+
+    // Floating name + dimensions above the rack
+    const labelEl = document.createElement("div");
+    labelEl.className = "rack-label";
+    labelEl.innerHTML = `
+      <div class="name">Rack1</div>
+      <div class="dims">
+        <span>W ${WIDTH_MM} mm</span>
+        <span>D ${DEPTH_MM} mm</span>
+      </div>
+    `;
+    const rackLabel = new CSS2DObject(labelEl);
+    rackLabel.position.set(0, TOTAL_H + 10, 0);
+    rack.add(rackLabel);
 
     // --- Single full-height perforated FRONT door (hinged left, opens inward) ---
     const FRONT_CLOSED = 0;
@@ -680,6 +740,7 @@
 
     function onResize() {
       renderer.setSize(window.innerWidth, window.innerHeight);
+      labelRenderer.setSize(window.innerWidth, window.innerHeight);
       frameRack(true);
     }
     window.addEventListener("resize", onResize);
@@ -697,8 +758,11 @@
       rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
 
       ring.material.opacity = 0.2 + Math.sin(t * 0.7) * 0.05;
+      // Gentle hover bob for the overhead label
+      rackLabel.position.y = TOTAL_H + 10 + Math.sin(t * 1.4) * 1.2;
       controls.update();
       renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
     }
     animate();
   </script>
