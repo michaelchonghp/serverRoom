@@ -387,6 +387,16 @@
         flex: 0 0 auto;
         min-width: 2.25rem;
       }
+      .info-panel {
+        width: min(17.25rem, calc(100vw - 1.25rem));
+        padding: 0.7rem 0.8rem 0.8rem;
+        max-height: min(42vh, 320px);
+        overflow: auto;
+      }
+      .info-panel h2 { font-size: 0.95rem; }
+      .info-panel .model { margin-bottom: 0.45rem; }
+      .info-panel .rating { margin-bottom: 0.5rem; }
+      .info-panel dd { font-size: 0.62rem; }
     }
   </style>
 </head>
@@ -1575,36 +1585,107 @@
 
     const infoQuat = new THREE.Quaternion();
     const infoFront = new THREE.Vector3();
+    const infoBox = new THREE.Box3();
+    const infoCorner = new THREE.Vector3();
+    const infoScreen = { x: 0, y: 0 };
+
+    function projectWorldToScreen(v, out) {
+      infoProj.copy(v).project(camera);
+      const rect = canvas.getBoundingClientRect();
+      out.x = (infoProj.x * 0.5 + 0.5) * rect.width + rect.left;
+      out.y = (-infoProj.y * 0.5 + 0.5) * rect.height + rect.top;
+      return out;
+    }
+
+    function equipmentScreenBounds(obj) {
+      infoBox.setFromObject(obj);
+      const min = { x: Infinity, y: Infinity };
+      const max = { x: -Infinity, y: -Infinity };
+      const { min: bmin, max: bmax } = infoBox;
+      for (let i = 0; i < 8; i++) {
+        infoCorner.set(
+          i & 1 ? bmax.x : bmin.x,
+          i & 2 ? bmax.y : bmin.y,
+          i & 4 ? bmax.z : bmin.z
+        );
+        projectWorldToScreen(infoCorner, infoScreen);
+        min.x = Math.min(min.x, infoScreen.x);
+        min.y = Math.min(min.y, infoScreen.y);
+        max.x = Math.max(max.x, infoScreen.x);
+        max.y = Math.max(max.y, infoScreen.y);
+      }
+      return { min, max, cx: (min.x + max.x) * 0.5, cy: (min.y + max.y) * 0.5 };
+    }
 
     function layoutInfoCallout() {
       if (!infoTarget || infoPanel.hidden) return;
       infoTarget.updateWorldMatrix(true, true);
-      const box = new THREE.Box3().setFromObject(infoTarget);
-      box.getCenter(infoWorld);
-      // Prefer front-face bias so the leader starts on the visible side
+
+      // Anchor on front-biased center of the equipment
+      infoBox.setFromObject(infoTarget);
+      infoBox.getCenter(infoWorld);
       infoFront.set(0, 0, -1).applyQuaternion(infoTarget.getWorldQuaternion(infoQuat)).normalize();
       infoWorld.addScaledVector(infoFront, 8);
+      projectWorldToScreen(infoWorld, infoScreen);
+      const ax = infoScreen.x;
+      const ay = infoScreen.y;
 
-      infoProj.copy(infoWorld).project(camera);
-      const rect = canvas.getBoundingClientRect();
-      const ax = (infoProj.x * 0.5 + 0.5) * rect.width + rect.left;
-      const ay = (-infoProj.y * 0.5 + 0.5) * rect.height + rect.top;
-
+      const eq = equipmentScreenBounds(infoTarget);
       const panelW = infoPanel.offsetWidth || 280;
       const panelH = infoPanel.offsetHeight || 220;
       const margin = 12;
-      const preferRight = ax < window.innerWidth * 0.55;
-      let px = preferRight ? ax + 42 : ax - panelW - 42;
-      let py = ay - panelH * 0.28;
-      px = Math.max(margin, Math.min(window.innerWidth - panelW - margin, px));
-      py = Math.max(margin + 8, Math.min(window.innerHeight - panelH - 72, py));
+      const bottomChrome = 72; // door controls
+      const topChrome = isMobile() ? 10 : 56;
+      const gap = 20;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const safeBottom = vh - bottomChrome;
+
+      // Pressed gear in lower half → panel at top (leave the UPS visible)
+      const equipmentLow = eq.cy >= vh * 0.4;
+      const spaceAbove = Math.max(0, eq.min.y - topChrome - gap);
+      const spaceBelow = Math.max(0, safeBottom - eq.max.y - gap);
+      let placeAbove = equipmentLow ? true : spaceAbove >= spaceBelow;
+
+      let px = Math.min(Math.max(margin, eq.cx - panelW * 0.5), vw - panelW - margin);
+      let py = placeAbove
+        ? Math.max(topChrome, eq.min.y - gap - panelH)
+        : Math.min(Math.max(topChrome, eq.max.y + gap), safeBottom - panelH);
+
+      // If "above" still lands on the gear (zoomed UPS), pin to the top safe band
+      const overlaps = (x, y) =>
+        x < eq.max.x + gap &&
+        x + panelW > eq.min.x - gap &&
+        y < eq.max.y + gap &&
+        y + panelH > eq.min.y - gap;
+
+      if (placeAbove && (overlaps(px, py) || py + panelH > eq.min.y - gap * 0.5)) {
+        py = topChrome;
+      }
+      if (overlaps(px, py)) {
+        const leftX = eq.min.x - gap - panelW;
+        const rightX = eq.max.x + gap;
+        if (vw - margin - rightX >= panelW && (leftX < margin || ax >= eq.cx)) {
+          px = Math.min(vw - panelW - margin, rightX);
+        } else if (leftX >= margin) {
+          px = leftX;
+        }
+      }
+
+      px = Math.max(margin, Math.min(vw - panelW - margin, px));
+      py = Math.max(topChrome, Math.min(safeBottom - panelH, py));
 
       infoPanel.style.left = `${px}px`;
       infoPanel.style.top = `${py}px`;
-      infoPanel.classList.toggle("from-right", !preferRight);
 
-      const joinX = preferRight ? px : px + panelW;
-      const joinY = py + Math.min(panelH * 0.32, 52);
+      const preferRight = ax < px + panelW * 0.5;
+      infoPanel.classList.toggle("from-right", !preferRight);
+      infoPanel.style.transformOrigin = placeAbove
+        ? (preferRight ? "left bottom" : "right bottom")
+        : (preferRight ? "left top" : "right top");
+
+      const joinX = Math.min(Math.max(px + 16, ax), px + panelW - 16);
+      const joinY = placeAbove ? py + panelH : py;
 
       infoAnchor.setAttribute("cx", ax.toFixed(1));
       infoAnchor.setAttribute("cy", ay.toFixed(1));
