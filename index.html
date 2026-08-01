@@ -456,7 +456,7 @@
     const holeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8);
     const holeMat = new THREE.MeshStandardMaterial({ color: 0x050506, metalness: 0.2, roughness: 0.85 });
 
-    function createRack(name) {
+    function createRack(name, extraLabels = []) {
       const rack = new THREE.Group();
       rack.name = name;
 
@@ -523,7 +523,7 @@
       const labelW = 56;
       const labelD = 11;
       const labelGap = 1.2;
-      [`${name}`, "800W", "1072D"].forEach((text, i) => {
+      [`${name}`, "800W", "1072D", ...extraLabels].forEach((text, i) => {
         const tag = makeBrotherLabel(text, labelW, labelD);
         tag.position.set(0, labelY, -OUTER_D / 2 + 7 + i * (labelD + labelGap));
         rack.add(tag);
@@ -730,9 +730,9 @@
 
     const racks = [];
 
-    function placeRow(names, z, rotY, xShift = 0) {
+    function placeRow(names, z, rotY, xShift = 0, extrasByName = {}) {
       names.forEach((name, i) => {
-        const unit = createRack(name);
+        const unit = createRack(name, extrasByName[name] || []);
         // Base LTR layout, plus optional row shift
         const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH + xShift;
         unit.group.position.set(x, 0, z);
@@ -746,7 +746,9 @@
     placeRow(["Rack1", "Rack2", "Rack3"], ROW_SEP / 2, 0, 0);
     // Row B — turned 180°, shifted one bay so:
     //   Rack1 → empty | Rack2 ↔ Rack4 | Rack3 ↔ Rack5 | empty ← Rack6
-    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI, -RACK_PITCH);
+    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI, -RACK_PITCH, {
+      Rack5: ["ACS"],
+    });
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
