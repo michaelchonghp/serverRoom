@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
-  <title>Rack1–3 — Austin Hughes UltraRack 42U</title>
+  <title>Rack1–6 — Austin Hughes UltraRack 42U</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -207,13 +207,13 @@
   </style>
 </head>
 <body>
-  <canvas id="stage" aria-label="Austin Hughes UltraRack Rack1 Rack2 Rack3"></canvas>
+  <canvas id="stage" aria-label="Austin Hughes UltraRack Rack1 through Rack6 face to face"></canvas>
 
   <div class="hud">
     <header class="brand">
       <div class="maker">Austin Hughes</div>
-      <h1>Rack1–3</h1>
-      <p>UltraRack SR 800W · 42U · 1072D · three empty cabinets.</p>
+      <h1>Rack1–6</h1>
+      <p>UltraRack SR 800W · 42U · 1072D · two face-to-face rows.</p>
     </header>
     <div></div>
     <footer class="meta">
@@ -576,36 +576,45 @@
     }
 
     // Floor
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(360, 64), matFloor);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(480, 64), matFloor);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(90, 160, 64),
-      new THREE.MeshBasicMaterial({ color: 0x9eb0c4, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
+      new THREE.RingGeometry(120, 220, 64),
+      new THREE.MeshBasicMaterial({ color: 0x9eb0c4, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.05;
     scene.add(ring);
 
-    // Row facing the front doors: left → right = Rack1, Rack2, Rack3
+    // Two rows face-to-face across a cold aisle
+    const AISLE = 120; // cm clear between front doors
+    const ROW_SEP = OUTER_D + AISLE;
     const bay = new THREE.Group();
     scene.add(bay);
 
-    const rackNames = ["Rack1", "Rack2", "Rack3"];
-    const racks = rackNames.map((name, i) => {
-      const unit = createRack(name);
-      // Ascending X is screen-left when viewing the front, so place Rack1 at +X
-      unit.group.position.x = (rackNames.length - 1 - i) * RACK_PITCH;
-      bay.add(unit.group);
-      return unit;
-    });
+    const racks = [];
 
-    // Center the bay on origin for framing
-    bay.position.x = -RACK_PITCH;
+    function placeRow(names, z, rotY) {
+      names.forEach((name, i) => {
+        const unit = createRack(name);
+        // Same world-X for opposites: Rack1↔Rack4, Rack2↔Rack5, Rack3↔Rack6
+        const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH;
+        unit.group.position.set(x, 0, z);
+        unit.group.rotation.y = rotY;
+        bay.add(unit.group);
+        racks.push(unit);
+      });
+    }
 
-    // Door controls drive all three cabinets
+    // Row A — fronts face the aisle (-Z)
+    placeRow(["Rack1", "Rack2", "Rack3"], ROW_SEP / 2, 0);
+    // Row B — turned 180°, fronts face the aisle (+Z)
+    placeRow(["Rack4", "Rack5", "Rack6"], -ROW_SEP / 2, Math.PI);
+
+    // Door controls drive all six cabinets
     const doorState = {
       frontOpen: true,
       rearOpen: true,
@@ -655,28 +664,28 @@
     scene.add(new THREE.AmbientLight(0xffffff, 0.78));
 
     const key = new THREE.DirectionalLight(0xfff6ea, 1.65);
-    key.position.set(120, 180, -70);
+    key.position.set(140, 200, -40);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 10;
-    key.shadow.camera.far = 520;
-    key.shadow.camera.left = -220;
-    key.shadow.camera.right = 220;
-    key.shadow.camera.top = 180;
-    key.shadow.camera.bottom = -40;
+    key.shadow.camera.far = 700;
+    key.shadow.camera.left = -280;
+    key.shadow.camera.right = 280;
+    key.shadow.camera.top = 220;
+    key.shadow.camera.bottom = -80;
     key.shadow.bias = -0.0002;
     scene.add(key);
 
     const fill = new THREE.DirectionalLight(0xb9d4ef, 0.95);
-    fill.position.set(-120, 80, 80);
+    fill.position.set(-140, 90, 60);
     scene.add(fill);
 
     const rim = new THREE.DirectionalLight(0xffffff, 0.55);
-    rim.position.set(40, 60, 150);
+    rim.position.set(20, 70, 160);
     scene.add(rim);
 
-    const bounce = new THREE.PointLight(0xffffff, 55, 240, 2);
-    bounce.position.set(0, 16, -40);
+    const bounce = new THREE.PointLight(0xffffff, 70, 320, 2);
+    bounce.position.set(0, 18, 0);
     scene.add(bounce);
 
     const framingBox = new THREE.Box3();
@@ -710,8 +719,8 @@
       controls.maxDistance = Math.max(1400, distance * 3.5);
 
       if (forceReset) {
-        // Stand in front of the doors (-Z) so left→right reads Rack1, Rack2, Rack3
-        const dir = new THREE.Vector3(0.42, mobile ? 0.14 : 0.18, -0.88).normalize();
+        // Elevated view looking down the cold aisle between the two rows
+        const dir = new THREE.Vector3(0.75, mobile ? 0.42 : 0.48, 0.35).normalize();
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
