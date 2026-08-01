@@ -770,8 +770,14 @@
       }
 
       g.userData.heightU = heightU;
+      g.userData.interactive = true;
+      g.userData.kind = "ups";
+      g.userData.label = "APC SRTG15KXLI";
+      g.userData.frontMat = frontMat;
       return g;
     }
+
+    const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
       const rack = new THREE.Group();
@@ -864,10 +870,11 @@
         if (type === "ups-srtg15") unit = makeApcSrtg15();
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
-        const h = heightU * U - 0.2;
-        const y = BASE_H + startU * U + h / 2 + 0.05;
+        const eh = heightU * U - 0.2;
+        const y = BASE_H + startU * U + eh / 2 + 0.05;
         unit.position.set(0, y, equipZ);
         rack.add(unit);
+        if (unit.userData.interactive) interactiveItems.push(unit);
       });
 
       const doorW = OUTER_W - 3.2;
@@ -1333,6 +1340,83 @@
 
     frameScene(true);
 
+    // --- Tap / click feedback on equipment (UX probe; no action yet) ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    const pressPtr = { x: 0, y: 0, down: false, moved: false };
+    const pressFx = {
+      target: null,
+      frontMat: null,
+      t: 0,
+      duration: 0.32,
+      baseEmissive: 0.35,
+    };
+
+    function findInteractiveRoot(obj) {
+      let o = obj;
+      while (o) {
+        if (o.userData && o.userData.interactive) return o;
+        o = o.parent;
+      }
+      return null;
+    }
+
+    function triggerPressFeedback(root) {
+      if (pressFx.target && pressFx.target !== root) {
+        pressFx.target.scale.setScalar(1);
+        if (pressFx.frontMat) pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive;
+      }
+      pressFx.target = root;
+      pressFx.frontMat = root.userData.frontMat || null;
+      pressFx.baseEmissive = pressFx.frontMat ? (pressFx.frontMat.emissiveIntensity || 0.35) : 0.35;
+      pressFx.t = 0;
+      // Light haptic on supporting phones
+      if (navigator.vibrate) navigator.vibrate(12);
+    }
+
+    function pickInteractive(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(interactiveItems, true);
+      if (!hits.length) return null;
+      return findInteractiveRoot(hits[0].object);
+    }
+
+    canvas.addEventListener("pointerdown", (e) => {
+      if (e.button != null && e.button !== 0) return;
+      pressPtr.x = e.clientX;
+      pressPtr.y = e.clientY;
+      pressPtr.down = true;
+      pressPtr.moved = false;
+    });
+
+    canvas.addEventListener("pointermove", (e) => {
+      if (pressPtr.down) {
+        if (Math.hypot(e.clientX - pressPtr.x, e.clientY - pressPtr.y) > 10) {
+          pressPtr.moved = true;
+        }
+      }
+      // Desktop hover cursor when over equipment
+      const hit = pickInteractive(e.clientX, e.clientY);
+      canvas.style.cursor = hit ? "pointer" : "";
+    });
+
+    canvas.addEventListener("pointerup", (e) => {
+      if (!pressPtr.down) return;
+      const wasTap = !pressPtr.moved;
+      pressPtr.down = false;
+      if (!wasTap) return;
+      const root = pickInteractive(e.clientX, e.clientY);
+      if (root) triggerPressFeedback(root);
+    });
+
+    canvas.addEventListener("pointerleave", () => {
+      pressPtr.down = false;
+      canvas.style.cursor = "";
+    });
+
     const clock = new THREE.Clock();
 
     function onResize() {
@@ -1346,7 +1430,6 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
-      const t = clock.elapsedTime;
       const ease = 1 - Math.exp(-dt * 7);
 
       racks.forEach(({ frontDoor, rearLeft, rearRight }) => {
@@ -1354,6 +1437,23 @@
         rearLeft.rotation.y += (doorState.rearLTarget - rearLeft.rotation.y) * ease;
         rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
       });
+
+      // Equipment press feedback — quick scale pop + face flash
+      if (pressFx.target) {
+        pressFx.t += dt;
+        const u = Math.min(1, pressFx.t / pressFx.duration);
+        const pop = Math.sin(u * Math.PI); // 0 → 1 → 0
+        pressFx.target.scale.setScalar(1 + 0.05 * pop);
+        if (pressFx.frontMat) {
+          pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive + 1.4 * pop;
+        }
+        if (u >= 1) {
+          pressFx.target.scale.setScalar(1);
+          if (pressFx.frontMat) pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive;
+          pressFx.target = null;
+          pressFx.frontMat = null;
+        }
+      }
 
       controls.update();
       renderer.render(scene, camera);
