@@ -195,6 +195,167 @@
       border-color: var(--ink);
     }
 
+    /* Sci-fi equipment info callout */
+    :root {
+      --scan: #3dff9a;
+      --scan-dim: rgba(61, 255, 154, 0.22);
+      --scan-bg: rgba(6, 18, 14, 0.88);
+    }
+
+    .info-leader {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 4;
+      overflow: visible;
+    }
+
+    .info-leader line {
+      stroke: var(--scan);
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 5px var(--scan));
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      transition: stroke-dashoffset 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .info-leader.show line {
+      stroke-dashoffset: 0;
+    }
+
+    .info-leader .anchor-dot {
+      fill: var(--scan);
+      filter: drop-shadow(0 0 6px var(--scan));
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+
+    .info-leader.show .anchor-dot { opacity: 1; }
+
+    .info-panel {
+      position: fixed;
+      z-index: 5;
+      width: min(18.5rem, calc(100vw - 1.5rem));
+      padding: 0.85rem 0.95rem 0.95rem;
+      border: 1px solid var(--scan);
+      background: var(--scan-bg);
+      box-shadow:
+        0 0 0 1px var(--scan-dim) inset,
+        0 0 24px var(--scan-dim),
+        0 12px 40px rgba(0, 0, 0, 0.35);
+      color: var(--scan);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      pointer-events: auto;
+      transform-origin: left center;
+      opacity: 0;
+      transform: scaleX(0.08) scaleY(0.35);
+      clip-path: inset(0 100% 0 0);
+      transition:
+        opacity 0.18s ease 0.26s,
+        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s,
+        clip-path 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .info-panel.show {
+      opacity: 1;
+      transform: scaleX(1) scaleY(1);
+      clip-path: inset(0 0 0 0);
+    }
+
+    .info-panel.from-right {
+      transform-origin: right center;
+      clip-path: inset(0 0 0 100%);
+    }
+
+    .info-panel.from-right.show {
+      clip-path: inset(0 0 0 0);
+    }
+
+    .info-panel[hidden] { display: none; }
+
+    .info-panel .info-close {
+      position: absolute;
+      top: 0.35rem;
+      right: 0.4rem;
+      appearance: none;
+      border: 1px solid var(--scan-dim);
+      background: transparent;
+      color: var(--scan);
+      width: 1.6rem;
+      height: 1.6rem;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .info-panel .eyebrow {
+      font-size: 0.58rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 0.25rem;
+    }
+
+    .info-panel h2 {
+      font-family: "Archivo Black", sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      color: #e8fff2;
+      line-height: 1.15;
+      margin: 0 1.5rem 0.15rem 0;
+      text-transform: none;
+    }
+
+    .info-panel .model {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.7rem;
+      color: var(--scan);
+    }
+
+    .info-panel .rating {
+      display: inline-block;
+      border: 1px solid var(--scan);
+      padding: 0.2rem 0.45rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+      color: #e8fff2;
+      box-shadow: 0 0 12px var(--scan-dim);
+    }
+
+    .info-panel dl {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0;
+    }
+
+    .info-panel .block {
+      border-top: 1px solid var(--scan-dim);
+      padding-top: 0.45rem;
+    }
+
+    .info-panel dt {
+      font-size: 0.55rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 0.2rem;
+    }
+
+    .info-panel dd {
+      margin: 0;
+      font-size: 0.68rem;
+      line-height: 1.4;
+      color: #d7ffe9;
+    }
+
     @keyframes rise {
       from { opacity: 0; transform: translateY(18px); }
       to { opacity: 1; transform: translateY(0); }
@@ -257,6 +418,20 @@
     </button>
     <button type="button" class="rack-btn" id="btn-rack-6" aria-label="Zoom to Rack 6">6</button>
   </div>
+
+  <svg class="info-leader" id="info-leader" aria-hidden="true">
+    <circle class="anchor-dot" id="info-anchor" r="4" cx="0" cy="0" />
+    <line id="info-line" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  </svg>
+
+  <aside class="info-panel" id="info-panel" hidden>
+    <button type="button" class="info-close" id="info-close" aria-label="Close info">×</button>
+    <div class="eyebrow" id="info-eyebrow">Equipment</div>
+    <h2 id="info-title">Title</h2>
+    <div class="model" id="info-model">MODEL</div>
+    <div class="rating" id="info-rating">15 kVA</div>
+    <dl id="info-body"></dl>
+  </aside>
 
   <script type="importmap">
     {
@@ -774,6 +949,22 @@
       g.userData.kind = "ups";
       g.userData.label = "APC SRTG15KXLI";
       g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: "UPS · Rack6",
+        title: "APC Smart-UPS On-Line",
+        model: "SRTG15KXLI",
+        rating: "15 kVA / 15 kW",
+        blocks: [
+          {
+            label: "Input",
+            text: "220/230/240 V 1φ or 380/400/415 V 3φ · Hard-wire 3P+N+E / 1P+N+E · 40–70 Hz · up to 66 A",
+          },
+          {
+            label: "Output",
+            text: "220/230/240 V 1φ or 380/400/415 V 3φ · Pure sine · Unity PF · 50/60 Hz · Double-conversion online",
+          },
+        ],
+      };
       return g;
     }
 
@@ -1361,6 +1552,109 @@
       return null;
     }
 
+    const infoLeader = document.getElementById("info-leader");
+    const infoLine = document.getElementById("info-line");
+    const infoAnchor = document.getElementById("info-anchor");
+    const infoPanel = document.getElementById("info-panel");
+    const infoClose = document.getElementById("info-close");
+    let infoTarget = null;
+    const infoWorld = new THREE.Vector3();
+    const infoProj = new THREE.Vector3();
+
+    function hideInfoPanel() {
+      infoTarget = null;
+      infoLeader.classList.remove("show");
+      infoPanel.classList.remove("show");
+      window.setTimeout(() => {
+        if (!infoPanel.classList.contains("show")) {
+          infoPanel.hidden = true;
+          infoPanel.classList.remove("from-right");
+        }
+      }, 420);
+    }
+
+    const infoQuat = new THREE.Quaternion();
+    const infoFront = new THREE.Vector3();
+
+    function layoutInfoCallout() {
+      if (!infoTarget || infoPanel.hidden) return;
+      infoTarget.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(infoTarget);
+      box.getCenter(infoWorld);
+      // Prefer front-face bias so the leader starts on the visible side
+      infoFront.set(0, 0, -1).applyQuaternion(infoTarget.getWorldQuaternion(infoQuat)).normalize();
+      infoWorld.addScaledVector(infoFront, 8);
+
+      infoProj.copy(infoWorld).project(camera);
+      const rect = canvas.getBoundingClientRect();
+      const ax = (infoProj.x * 0.5 + 0.5) * rect.width + rect.left;
+      const ay = (-infoProj.y * 0.5 + 0.5) * rect.height + rect.top;
+
+      const panelW = infoPanel.offsetWidth || 280;
+      const panelH = infoPanel.offsetHeight || 220;
+      const margin = 12;
+      const preferRight = ax < window.innerWidth * 0.55;
+      let px = preferRight ? ax + 42 : ax - panelW - 42;
+      let py = ay - panelH * 0.28;
+      px = Math.max(margin, Math.min(window.innerWidth - panelW - margin, px));
+      py = Math.max(margin + 8, Math.min(window.innerHeight - panelH - 72, py));
+
+      infoPanel.style.left = `${px}px`;
+      infoPanel.style.top = `${py}px`;
+      infoPanel.classList.toggle("from-right", !preferRight);
+
+      const joinX = preferRight ? px : px + panelW;
+      const joinY = py + Math.min(panelH * 0.32, 52);
+
+      infoAnchor.setAttribute("cx", ax.toFixed(1));
+      infoAnchor.setAttribute("cy", ay.toFixed(1));
+      infoLine.setAttribute("x1", ax.toFixed(1));
+      infoLine.setAttribute("y1", ay.toFixed(1));
+      infoLine.setAttribute("x2", joinX.toFixed(1));
+      infoLine.setAttribute("y2", joinY.toFixed(1));
+    }
+
+    function showInfoPanel(root) {
+      const info = root.userData.info;
+      if (!info) return;
+
+      document.getElementById("info-eyebrow").textContent = info.eyebrow || "Equipment";
+      document.getElementById("info-title").textContent = info.title || root.userData.label || "Device";
+      document.getElementById("info-model").textContent = info.model || "";
+      document.getElementById("info-rating").textContent = info.rating || "";
+      const body = document.getElementById("info-body");
+      body.innerHTML = "";
+      (info.blocks || []).forEach((b) => {
+        const wrap = document.createElement("div");
+        wrap.className = "block";
+        const dt = document.createElement("dt");
+        dt.textContent = b.label;
+        const dd = document.createElement("dd");
+        dd.textContent = b.text;
+        wrap.append(dt, dd);
+        body.append(wrap);
+      });
+
+      infoTarget = root;
+      infoPanel.hidden = false;
+      infoPanel.classList.remove("show");
+      infoLeader.classList.remove("show");
+      // pathLength=1 → dash uses normalized 0..1 units
+      infoLine.style.strokeDasharray = "1";
+      infoLine.style.strokeDashoffset = "1";
+
+      layoutInfoCallout();
+      requestAnimationFrame(() => {
+        layoutInfoCallout();
+        infoLine.style.strokeDashoffset = "1";
+        requestAnimationFrame(() => {
+          infoLeader.classList.add("show");
+          infoPanel.classList.add("show");
+          infoLine.style.strokeDashoffset = "0";
+        });
+      });
+    }
+
     function triggerPressFeedback(root) {
       if (pressFx.target && pressFx.target !== root) {
         pressFx.target.scale.setScalar(1);
@@ -1370,9 +1664,15 @@
       pressFx.frontMat = root.userData.frontMat || null;
       pressFx.baseEmissive = pressFx.frontMat ? (pressFx.frontMat.emissiveIntensity || 0.35) : 0.35;
       pressFx.t = 0;
-      // Light haptic on supporting phones
       if (navigator.vibrate) navigator.vibrate(12);
+      showInfoPanel(root);
     }
+
+    infoClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hideInfoPanel();
+    });
+    infoPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
 
     function pickInteractive(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
@@ -1410,6 +1710,7 @@
       if (!wasTap) return;
       const root = pickInteractive(e.clientX, e.clientY);
       if (root) triggerPressFeedback(root);
+      else hideInfoPanel();
     });
 
     canvas.addEventListener("pointerleave", () => {
@@ -1454,6 +1755,9 @@
           pressFx.frontMat = null;
         }
       }
+
+      // Keep leader line glued to the equipment while orbiting
+      if (infoTarget) layoutInfoCallout();
 
       controls.update();
       renderer.render(scene, camera);
