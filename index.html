@@ -212,12 +212,13 @@
       overflow: visible;
       opacity: 0;
       visibility: hidden;
-      transition: opacity 0.18s ease, visibility 0.18s ease;
+      transition: opacity 0.14s ease, visibility 0.14s ease;
     }
 
     .info-leader.show {
       opacity: 1;
       visibility: visible;
+      transition: opacity 0.1s ease;
     }
 
     .info-leader line {
@@ -227,7 +228,7 @@
       filter: drop-shadow(0 0 5px var(--scan));
       stroke-dasharray: 1;
       stroke-dashoffset: 1;
-      transition: stroke-dashoffset 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+      transition: stroke-dashoffset 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .info-leader.show line {
@@ -261,10 +262,11 @@
       opacity: 0;
       transform: scaleX(0.08) scaleY(0.35);
       clip-path: inset(0 100% 0 0);
+      /* Dismiss: collapse immediately (no delay) — reverse of open */
       transition:
-        opacity 0.18s ease 0.26s,
-        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s,
-        clip-path 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s;
+        opacity 0.2s ease,
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        clip-path 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
     }
@@ -273,6 +275,11 @@
       opacity: 1;
       transform: scaleX(1) scaleY(1);
       clip-path: inset(0 0 0 0);
+      /* Appear: wait for leader line, then expand */
+      transition:
+        opacity 0.18s ease 0.26s,
+        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s,
+        clip-path 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s;
     }
 
     .info-panel.from-right {
@@ -1592,29 +1599,48 @@
     const infoPanel = document.getElementById("info-panel");
     const infoClose = document.getElementById("info-close");
     let infoTarget = null;
+    let infoHideTimers = [];
     const infoWorld = new THREE.Vector3();
     const infoProj = new THREE.Vector3();
 
-    function hideInfoPanel() {
-      infoTarget = null;
-      infoLeader.classList.remove("show");
-      infoPanel.classList.remove("show");
-      // Clear inline dash so CSS can fully hide the stroke
+    function clearInfoHideTimers() {
+      infoHideTimers.forEach((id) => window.clearTimeout(id));
+      infoHideTimers = [];
+    }
+
+    function resetLeaderGeometry() {
       infoLine.style.strokeDashoffset = "1";
-      infoLine.removeAttribute("x2");
-      infoLine.removeAttribute("y2");
       infoLine.setAttribute("x1", "0");
       infoLine.setAttribute("y1", "0");
       infoLine.setAttribute("x2", "0");
       infoLine.setAttribute("y2", "0");
       infoAnchor.setAttribute("cx", "-20");
       infoAnchor.setAttribute("cy", "-20");
-      window.setTimeout(() => {
+    }
+
+    function hideInfoPanel() {
+      if (infoPanel.hidden && !infoLeader.classList.contains("show")) return;
+      clearInfoHideTimers();
+
+      // 1) Collapse the panel first (CSS base transition has no delay)
+      infoPanel.classList.remove("show");
+
+      // 2) After panel closes, retract the leader line
+      infoHideTimers.push(window.setTimeout(() => {
+        infoLeader.classList.remove("show");
+        infoLine.style.strokeDashoffset = "1";
+      }, 300));
+
+      // 3) Cleanup after line finishes retracting
+      infoHideTimers.push(window.setTimeout(() => {
+        infoTarget = null;
+        resetLeaderGeometry();
         if (!infoPanel.classList.contains("show")) {
           infoPanel.hidden = true;
           infoPanel.classList.remove("from-right");
         }
-      }, 420);
+        infoHideTimers = [];
+      }, 620));
     }
 
     const infoQuat = new THREE.Quaternion();
@@ -1745,6 +1771,8 @@
     function showInfoPanel(root) {
       const info = root.userData.info;
       if (!info) return;
+
+      clearInfoHideTimers();
 
       document.getElementById("info-eyebrow").textContent = info.eyebrow || "Equipment";
       document.getElementById("info-title").textContent = info.title || root.userData.label || "Device";
