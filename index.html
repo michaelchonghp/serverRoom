@@ -2894,20 +2894,20 @@
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
-          // Dist D1/D3/D5 at RU 22 / 24 / 26
-          { type: "sw-ruijie-s6510", startU: 21, code: "D1" },
+          // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
+          { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
-          { type: "sw-ruijie-s6510", startU: 25, code: "D5" },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D1" },
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
           { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
         ],
         Rack2: [
-          // Dist D2/D4/D6 at RU 22 / 24 / 26
-          { type: "sw-ruijie-s6510", startU: 21, code: "D2" },
+          // Dist top→down: D2 (RU26), D4 (RU24), D6 (RU22)
+          { type: "sw-ruijie-s6510", startU: 21, code: "D6" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
-          { type: "sw-ruijie-s6510", startU: 25, code: "D6" },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D2" },
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
