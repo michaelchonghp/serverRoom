@@ -1898,6 +1898,16 @@
       });
     }
 
+    // C1 / C2 optic map — SM on 1–4, MM on 47–50 (no patch cords yet → linked false)
+    const CORE_XCVRS_C1C2 = [
+      ...[1, 2, 3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[47, 48, 49, 50].map((port) => ({
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
+      })),
+    ];
+
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
       ["Rack1", "Rack2", "Rack3"],
