@@ -1066,6 +1066,7 @@
       }
 
       g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.interactive = true;
       g.userData.kind = "ups";
       g.userData.label = "APC SRTG15KXLI";
@@ -1263,6 +1264,7 @@
       g.add(box(w * 0.9, h * 0.75, 0.45, matUpsVent, 0, 0, d / 2 + 0.2));
 
       g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.interactive = true;
       g.userData.kind = "battery";
       g.userData.label = "APC SRTG192XLBP2";
@@ -1557,6 +1559,7 @@
       }
 
       g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.interactive = true;
       g.userData.kind = "switch";
       g.userData.code = code;
@@ -1802,7 +1805,7 @@
         color: 0xb8bcc4, metalness: 0.55, roughness: 0.38,
       });
       g.add(box(w, h, d, matChassis, 0, 0, 0));
-      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.2));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
 
       const frontMat = new THREE.MeshStandardMaterial({
         map: makeHillstoneA3800FrontTexture(),
@@ -1813,7 +1816,8 @@
         emissiveIntensity: 0.08,
       });
       const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
-      face.position.set(0, 0, -d / 2 - 0.55);
+      // Same front-plane offsets as switches so ears/face share the rail mount plane
+      face.position.set(0, 0, -d / 2 - 0.85);
       face.rotation.y = Math.PI;
       face.castShadow = true;
       g.add(face);
@@ -1821,15 +1825,16 @@
       const tagText = code ? `FIREWALL ${code}` : "FIREWALL";
       const fieldTag = makeFieldLabel(tagText);
       const tagW = fieldTag.userData.labelW || 6.44;
-      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.68);
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
       fieldTag.rotation.z = -0.03;
       g.add(fieldTag);
 
-      g.add(box(1.6, h * 0.92, 1.0, matChrome, -w / 2 - 0.4, 0, -d / 2 - 0.25));
-      g.add(box(1.6, h * 0.92, 1.0, matChrome, w / 2 + 0.4, 0, -d / 2 - 0.25));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
       g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
 
       g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.interactive = true;
       g.userData.kind = "firewall";
       g.userData.code = code;
@@ -1950,8 +1955,9 @@
         rack.add(tag);
       });
 
-      // Mounted equipment (bottom-up U positions)
-      const equipZ = railZFront + 35 + 1.0;
+      // Mounted equipment — front faces flush to 19″ rail face (screwed to rails).
+      // Chassis depth varies; only the mount plane is shared, bodies extend rearward.
+      const railFrontFaceZ = railZFront - 1.1; // front face of rail extrusion (depth 2.2)
       equipment.forEach((spec) => {
         const { type, startU, code, transceivers } = spec;
         let unit = null;
@@ -1967,7 +1973,8 @@
         const heightU = unit.userData.heightU || 1;
         const eh = heightU * U - 0.2;
         const y = BASE_H + startU * U + eh / 2 + 0.05;
-        unit.position.set(0, y, equipZ);
+        const mountZ = unit.userData.mountZ ?? 0;
+        unit.position.set(0, y, railFrontFaceZ - mountZ);
         rack.add(unit);
         if (unit.userData.interactive) interactiveItems.push(unit);
       });
