@@ -510,7 +510,7 @@
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.minDistance = 40;
+    controls.minDistance = 32; // 20% closer than previous 40
     controls.maxDistance = 1400;
     controls.maxPolarAngle = Math.PI * 0.495;
     controls.minPolarAngle = 0.08;
@@ -1741,7 +1741,7 @@
 
       controls.target.copy(center);
       camera.position.copy(center).addScaledVector(worldFront, dist);
-      controls.minDistance = Math.max(20, dist * 0.45);
+      controls.minDistance = Math.max(16, dist * 0.36); // 20% more zoom-in
       controls.maxDistance = Math.max(800, dist * 4);
       controls.update();
     }
@@ -1836,7 +1836,7 @@
 
       controls.target.copy(center);
       if (mobile) controls.target.y = center.y * 0.98;
-      controls.minDistance = Math.max(40, distance * 0.3);
+      controls.minDistance = Math.max(32, distance * 0.24); // 20% more zoom-in
       controls.maxDistance = Math.max(1400, distance * 3.5);
 
       if (forceReset) {
