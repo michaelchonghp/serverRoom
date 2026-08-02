@@ -1429,11 +1429,11 @@
         }
       }
 
-      // Top-left module owns ports 1…18; others empty
+      // Sequential port map across 4 modules (9×2 each): 1–18, 19–36, 37–54, 55–72
       drawModule(gridX, gridY, 0);
-      drawModule(gridX + modW + gap, gridY, 100);
-      drawModule(gridX, gridY + modH + gap, 200);
-      drawModule(gridX + modW + gap, gridY + modH + gap, 300);
+      drawModule(gridX + modW + gap, gridY, 18);
+      drawModule(gridX, gridY + modH + gap, 36);
+      drawModule(gridX + modW + gap, gridY + modH + gap, 54);
 
       ctx.fillStyle = "#2b313a";
       ctx.fillRect(4, inset, 10, ph - inset * 2);
@@ -1539,11 +1539,18 @@
         },
       ];
       if (transceivers.length) {
+        const sm = transceivers.filter((t) => /single/i.test(t.kind)).map((t) => t.port);
+        const mm = transceivers.filter((t) => /multi/i.test(t.kind)).map((t) => t.port);
+        const parts = [];
+        if (sm.length) {
+          parts.push(`Ports ${sm.join(", ")}: XG-SFP-LR-SM1310 (single-mode)`);
+        }
+        if (mm.length) {
+          parts.push(`Ports ${mm.join(", ")}: XG-SFP-SR-MM850 (multimode)`);
+        }
         blocks.push({
           label: "Transceivers",
-          text: transceivers
-            .map((t) => `Port ${t.port}: ${t.model} (${t.kind})`)
-            .join(" · "),
+          text: parts.join(" · ") || transceivers.map((t) => `Port ${t.port}: ${t.model}`).join(" · "),
         });
       }
 
@@ -1903,19 +1910,11 @@
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
           { type: "sw-h3c-9850", startU: 27, code: "C3" },
-          {
-            type: "sw-h3c-9850",
-            startU: 32,
-            code: "C1",
-            transceivers: [
-              { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false },
-              { port: 2, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false },
-            ],
-          },
+          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
         ],
         Rack2: [
           { type: "sw-h3c-9850", startU: 27, code: "C4" },
-          { type: "sw-h3c-9850", startU: 32, code: "C2" },
+          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
         ],
       }
     );
