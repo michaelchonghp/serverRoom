@@ -705,8 +705,9 @@
       return g;
     }
 
-    /** Shared front-rail RU strip: 1 at bottom … 42 at top (EIA bottom-up) */
-    const RU_STRIP_W = 2.05;
+    /** Shared front-rail RU strip: 1 at bottom … 42 at top (EIA bottom-up).
+     *  Keep ≤ rail extrusion width (1.5) so labels don’t overhang into gear. */
+    const RU_STRIP_W = 1.35;
     let ruRailTex = null;
     function getRuRailTexture() {
       if (ruRailTex) return ruRailTex;
@@ -1952,13 +1953,14 @@
         rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZRear));
       });
 
-      // RU silk-screen on front 19″ rails — 1 bottom, 42 top (faces aisle)
+      // RU silk-screen on front 19″ rails — 1 bottom, 42 top (faces aisle).
+      // Centered on the rail face (not biased into the 19″ bay) to avoid z-fight with gear.
       const ruZ = railZFront - 1.2;
       const leftRu = makeRuRailLabel();
-      leftRu.position.set(-railInsetX + 0.15, sideY, ruZ);
+      leftRu.position.set(-railInsetX, sideY, ruZ);
       rack.add(leftRu);
       const rightRu = makeRuRailLabel();
-      rightRu.position.set(railInsetX - 0.15, sideY, ruZ);
+      rightRu.position.set(railInsetX, sideY, ruZ);
       rack.add(rightRu);
 
       // Light interior backplane — makes door perforations and gear read clearly
