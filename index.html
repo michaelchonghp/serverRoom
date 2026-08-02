@@ -1908,6 +1908,371 @@
       return g;
     }
 
+    /** Huawei NetEngine AR1600C front — silver faceplate, color-coded GE blocks, SIC slot, SFP */
+    let huaweiAr1600cFrontTex = null;
+    function makeHuaweiAr1600cFrontTexture() {
+      if (huaweiAr1600cFrontTex) return huaweiAr1600cFrontTex;
+
+      const pw = 2200;
+      const ph = 220;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Silver chassis face
+      const faceGrad = ctx.createLinearGradient(0, 0, 0, ph);
+      faceGrad.addColorStop(0, "#d8dde4");
+      faceGrad.addColorStop(0.5, "#c8ced6");
+      faceGrad.addColorStop(1, "#b4bac4");
+      ctx.fillStyle = faceGrad;
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#e8ebf0";
+      ctx.fillRect(8, 8, pw - 16, ph - 16);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.14;
+        const iw = w * 0.76;
+        const ih = h * 0.72;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        const ledgeY = invert ? iy + ih * 0.55 : iy + ih * 0.12;
+        ctx.fillRect(ix + iw * 0.18, ledgeY, iw * 0.64, ih * 0.22);
+        ctx.fillStyle = "#c9a227";
+        const gY = invert ? iy + ih * 0.62 : iy + ih * 0.18;
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1, iw * 0.035), ih * 0.1);
+        }
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawColorBar(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+      }
+
+      // —— Brand + LEDs (far left) ——
+      ctx.fillStyle = "#c7000b";
+      ctx.font = `800 28px "Archivo Black", sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText("HUAWEI", 28, 48);
+      ctx.fillStyle = "#2a3038";
+      ctx.font = `700 16px "IBM Plex Mono", monospace`;
+      ctx.fillText("AR1600 Series", 28, 78);
+
+      const ledLabs = ["SYS", "PWR", "USB", "WLAN", "GE"];
+      ledLabs.forEach((lab, i) => {
+        const lx = 28 + i * 36;
+        ctx.fillStyle = "#3a454f";
+        ctx.beginPath();
+        ctx.arc(lx + 10, 118, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 9px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(lab, lx + 10, 138);
+      });
+
+      // RST + USB×3 + DB9 console
+      let cx = 220;
+      ctx.fillStyle = "#4a5560";
+      ctx.beginPath();
+      ctx.arc(cx + 12, ph / 2, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a1e24";
+      ctx.beginPath();
+      ctx.arc(cx + 12, ph / 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText("RST", cx + 12, ph / 2 + 28);
+
+      cx += 40;
+      for (let i = 0; i < 3; i++) {
+        const uy = 42 + i * 48;
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(cx, uy, 26, 36, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(cx + 3, uy + 4, 20, 28);
+      }
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.fillText("USB", cx + 13, ph - 18);
+
+      cx += 44;
+      // DB9 console
+      ctx.fillStyle = "#2a3038";
+      roundRect(cx, 55, 48, 90, 3);
+      ctx.fill();
+      ctx.strokeStyle = "#a8b0ba";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "#c9a227";
+      for (let r = 0; r < 2; r++) {
+        for (let col = 0; col < 5; col++) {
+          if (r === 1 && (col === 0 || col === 4)) continue;
+          ctx.beginPath();
+          ctx.arc(cx + 10 + col * 7.5, 78 + r * 28, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.fillText("CON", cx + 24, ph - 18);
+
+      // —— Color-coded RJ45 blocks ——
+      cx += 70;
+      const portTop = 38;
+      const portH = 68;
+      const pW = 36;
+      const pH = 30;
+      const pGapX = 5;
+      const pGapY = 6;
+
+      function drawRjBlock(x, cols, barColor, barAlsoBottom = false) {
+        const blockW = cols * pW + (cols - 1) * pGapX + 12;
+        drawColorBar(x, portTop - 14, blockW, 10, barColor);
+        if (barAlsoBottom) drawColorBar(x, portTop + portH + 4, blockW, 8, barColor);
+        for (let r = 0; r < 2; r++) {
+          for (let col = 0; col < cols; col++) {
+            drawRj45Jack(
+              x + 6 + col * (pW + pGapX),
+              portTop + r * (pH + pGapY),
+              pW,
+              pH,
+              { invert: r === 1 }
+            );
+          }
+        }
+        return blockW;
+      }
+
+      // Red 2×2
+      let bw = drawRjBlock(cx, 2, "#c0392b", true);
+      cx += bw + 14;
+      // Blue 2×4
+      bw = drawRjBlock(cx, 4, "#2980b9", false);
+      cx += bw + 14;
+      // Yellow 2×1
+      bw = drawRjBlock(cx, 1, "#f1c40f", false);
+      cx += bw + 18;
+
+      // —— SIC / expansion blanking plate ——
+      const slotW = 380;
+      const slotH = 78;
+      const slotY = 22;
+      ctx.fillStyle = "#cfd4dc";
+      roundRect(cx, slotY, slotW, slotH, 3);
+      ctx.fill();
+      ctx.strokeStyle = "#9aa3ae";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Thumb screws
+      [18, slotW - 18].forEach((ox) => {
+        ctx.fillStyle = "#8a929c";
+        ctx.beginPath();
+        ctx.arc(cx + ox, slotY + slotH / 2, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#d8dde4";
+        ctx.beginPath();
+        ctx.arc(cx + ox, slotY + slotH / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#6a7380";
+      ctx.font = `600 14px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText("SIC", cx + slotW / 2, slotY + slotH / 2 + 1);
+
+      // Two SFP under / beside lower area of slot — GE9 / GE10
+      const sfpY = slotY + slotH + 8;
+      drawColorBar(cx, sfpY - 12, 120, 8, "#f1c40f");
+      drawSfpCage(cx + 4, sfpY, 52, 28);
+      drawSfpCage(cx + 62, sfpY, 52, 28);
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText("GE9", cx + 30, sfpY + 40);
+      ctx.fillText("GE10", cx + 88, sfpY + 40);
+
+      // Vent dots near SFPs
+      ctx.fillStyle = "rgba(120,128,138,0.55)";
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 6; col++) {
+          ctx.beginPath();
+          ctx.arc(cx + 140 + col * 10, sfpY + 6 + row * 10, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      cx += slotW + 16;
+
+      // —— Dual module bays (honeycomb + yellow pull tabs) ——
+      const bayW = 210;
+      const bayH = 48;
+      for (let i = 0; i < 2; i++) {
+        const by = 28 + i * (bayH + 10);
+        ctx.fillStyle = "#1a1e24";
+        roundRect(cx, by, bayW, bayH, 3);
+        ctx.fill();
+        // Honeycomb
+        ctx.fillStyle = "rgba(70, 78, 88, 0.9)";
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 14; col++) {
+            const hx = cx + 14 + col * 12 + (row % 2 ? 6 : 0);
+            const hy = by + 10 + row * 9;
+            ctx.beginPath();
+            ctx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        // Yellow pull tab
+        ctx.fillStyle = "#f1c40f";
+        roundRect(cx + bayW - 14, by + 8, 8, bayH - 16, 2);
+        ctx.fill();
+      }
+      // Side vent
+      ctx.fillStyle = "rgba(120,128,138,0.5)";
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 3; col++) {
+          ctx.beginPath();
+          ctx.arc(cx + bayW + 16 + col * 9, 40 + row * 16, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Rack-ear hints
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 6, ph - 16);
+      ctx.fillRect(pw - 6, 8, 6, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      huaweiAr1600cFrontTex = tex;
+      return tex;
+    }
+
+    /** Huawei NetEngine AR1600C — 1U enterprise router, ≈442×320×44 mm */
+    function makeHuaweiAr1600c({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.2;
+      const d = 32.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xc4c8d0, metalness: 0.52, roughness: 0.4,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeHuaweiAr1600cFrontTexture(),
+        metalness: 0.22,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("AR1600C");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "router";
+      g.userData.label = "Huawei NetEngine AR1600C";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `WAN Router · ${rackName}`,
+        title: "Huawei NetEngine AR1600 Series",
+        model: "AR1600C",
+        rating: "1U · Enterprise AR",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "Color-coded GE RJ45 blocks · 2× GE SFP (GE9/GE10) · Console (DB9) · 3× USB · RST · 1× SIC expansion slot",
+          },
+          {
+            label: "Modules",
+            text: "1× SIC slot (blanking plate fitted) · Dual front module bays with honeycomb vents",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · ≈ 442 × 320 × 44 mm · Silver front panel · NetEngine AR1600 Series",
+          },
+        ],
+      };
+      return g;
+    }
+
     const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
@@ -2014,6 +2379,9 @@
         }
         if (type === "fw-hillstone-a3800") {
           unit = makeHillstoneA3800({ rackName: name, code });
+        }
+        if (type === "rt-huawei-ar1600c") {
+          unit = makeHuaweiAr1600c({ rackName: name });
         }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
@@ -2274,6 +2642,7 @@
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
+          { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
         ],
         Rack2: [
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
