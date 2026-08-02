@@ -2657,14 +2657,14 @@
         });
       }
 
-      // Full-width zone layout
+      // Full-width zone layout — blanks stay large; ports get enough width to stay in scale
       const margin = 16;
       const usable = pw - margin * 2;
       const zones = {
-        brand: 0.14,
-        ports: 0.22,
-        nim: 0.14,
-        sm: 0.46,
+        brand: 0.11,
+        ports: 0.30,
+        nim: 0.13,
+        sm: 0.42,
         vent: 0.04,
       };
       let zx = margin;
@@ -2673,8 +2673,8 @@
         Z[k] = { x: zx, w: usable * f };
         zx += usable * f;
       }
-      const top = 18;
-      const contentH = ph - 36;
+      const top = 14;
+      const contentH = ph - 28;
 
       // —— Brand / CON / USB ——
       {
@@ -2712,41 +2712,51 @@
         ctx.fillRect(x + w * 0.7 + 3, top + contentH * 0.5 + 4, 16, 24);
       }
 
-      // —— MGT + 4× GE RJ45 + 2× SFP ——
+      // —— MGT + 4× GE RJ45 + 2× SFP — fill the ports zone (no tiny capped cages)
       {
         const { x, w } = Z.ports;
         clearPanel(x + 2, top, w - 4, contentH);
-        const pW = Math.min(42, (w - 28) / 4.2);
-        const pH = (contentH - 36) / 2;
-        const gap = 5;
-        // LED row
+        const padX = 10;
+        const padY = 10;
+        const ledH = 16;
+        const gapX = 8;
+        const gapY = 10;
+        const cols = 4; // MGT | GE | GE | SFP
+        const colW = (w - padX * 2 - gapX * (cols - 1)) / cols;
+        const pairH = contentH - padY * 2 - ledH;
+        const pH = (pairH - gapY) / 2;
+        const pW = colW;
+
+        // LED row above port field
         ctx.fillStyle = "#3a454f";
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 10; i++) {
           ctx.beginPath();
-          ctx.arc(x + 18 + i * 18, top + 14, 3, 0, Math.PI * 2);
+          ctx.arc(x + padX + 8 + i * ((w - padX * 2) / 10), top + padY + 6, 3.5, 0, Math.PI * 2);
           ctx.fill();
         }
-        let px = x + 10;
-        const py = top + 26;
-        // MGT (blue border)
-        drawRj45Jack(px, py + pH * 0.35, pW, pH * 0.85, { border: "#049fd9" });
+
+        const py = top + padY + ledH;
+        let px = x + padX;
+
+        // MGT — single jack, vertically centered, blue border
+        drawRj45Jack(px, py + (pairH - pH) * 0.5, pW, pH, { border: "#049fd9" });
         ctx.fillStyle = "#049fd9";
-        ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.font = `700 ${Math.floor(ph * 0.05)}px "IBM Plex Mono", monospace`;
         ctx.textAlign = "center";
-        ctx.fillText("MGT", px + pW / 2, py + pH * 0.35 - 6);
-        px += pW + gap + 4;
-        // 2 stacks × 2 GE
+        ctx.fillText("MGT", px + pW / 2, py + (pairH - pH) * 0.5 - 6);
+        px += pW + gapX;
+
+        // 2 stacks × 2 GE — full height of the port field
         for (let stack = 0; stack < 2; stack++) {
           for (let r = 0; r < 2; r++) {
-            drawRj45Jack(px, py + r * (pH + gap), pW, pH, { invert: r === 1 });
+            drawRj45Jack(px, py + r * (pH + gapY), pW, pH, { invert: r === 1 });
           }
-          px += pW + gap;
+          px += pW + gapX;
         }
-        // 2× SFP stacked
-        px += 4;
-        const sW = pW * 1.05;
+
+        // 2× SFP stacked — same scale as RJ45
         for (let r = 0; r < 2; r++) {
-          drawSfpCage(px, py + r * (pH + gap), sW, pH);
+          drawSfpCage(px, py + r * (pH + gapY), pW, pH);
         }
       }
 
