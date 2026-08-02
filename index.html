@@ -1446,7 +1446,7 @@
     }
 
     /** H3C LS-9850-4C-H1 — modular data-center switch, 2U, 440×660×88 mm */
-    function makeH3c9850() {
+    function makeH3c9850(rackName = "Rack1") {
       const heightU = 2;
       const h = heightU * U - 0.2;
       const w = 44;
@@ -1490,7 +1490,7 @@
       g.userData.label = "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
       g.userData.info = {
-        eyebrow: "Core Switch · Rack1",
+        eyebrow: `Core Switch · ${rackName}`,
         title: "H3C S9850 Data Center Switch",
         model: "LS-9850-4C-H1",
         rating: "2U · 6.4 Tbps",
@@ -1606,7 +1606,7 @@
         let unit = null;
         if (type === "ups-srtg15") unit = makeApcSrtg15();
         if (type === "batt-srtg192") unit = makeApcSrtgBatt();
-        if (type === "sw-h3c-9850") unit = makeH3c9850();
+        if (type === "sw-h3c-9850") unit = makeH3c9850(name);
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
         const eh = heightU * U - 0.2;
@@ -1839,10 +1839,14 @@
       ROW_SEP / 2,
       0,
       0,
-      { Rack1: ["CORE"] },
+      { Rack1: ["CORE"], Rack2: ["CORE"] },
       {
-        // Two H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
+        // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         Rack1: [
+          { type: "sw-h3c-9850", startU: 27 },
+          { type: "sw-h3c-9850", startU: 32 },
+        ],
+        Rack2: [
           { type: "sw-h3c-9850", startU: 27 },
           { type: "sw-h3c-9850", startU: 32 },
         ],
