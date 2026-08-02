@@ -1403,9 +1403,11 @@
         const pGapY = 6;
         const pW = (portAreaW - pGapX * (cols + 1)) / cols;
         const pH = (portAreaH - pGapY * (rows + 1)) / rows;
+        // Switch numbering is column-major: top then bottom per column, L→R
+        // (1 above 2, 3 above 4, …)
         for (let r = 0; r < rows; r++) {
           for (let col = 0; col < cols; col++) {
-            const portNum = portOffset + r * cols + col + 1;
+            const portNum = portOffset + col * rows + r + 1;
             const px = portAreaX + pGapX + col * (pW + pGapX);
             const py = portAreaY + pGapY + r * (pH + pGapY);
             ctx.fillStyle = "#12151a";
@@ -1429,7 +1431,7 @@
         }
       }
 
-      // Sequential port map across 4 modules (9×2 each): 1–18, 19–36, 37–54, 55–72
+      // Port map across 4 modules (9 cols × 2 rows, column-major): 1–18, 19–36, 37–54, 55–72
       drawModule(gridX, gridY, 0);
       drawModule(gridX + modW + gap, gridY, 18);
       drawModule(gridX, gridY + modH + gap, 36);
