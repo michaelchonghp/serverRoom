@@ -181,12 +181,18 @@
     }
 
     .door-controls button.rack-btn {
-      min-width: 2.4rem;
-      padding: 0.45rem 0.65rem;
+      min-width: 2.15rem;
+      padding: 0.45rem 0.55rem;
       font-family: "Archivo Black", sans-serif;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       letter-spacing: 0;
       line-height: 1.1;
+    }
+
+    .door-controls .rack-group {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.3rem;
     }
 
     .door-controls button.rack-btn.active {
@@ -400,7 +406,14 @@
       }
       .door-controls button.rack-btn {
         flex: 0 0 auto;
-        min-width: 2.25rem;
+        min-width: 1.9rem;
+        padding: 0.4rem 0.4rem;
+        font-size: 0.85rem;
+      }
+      .door-controls .rack-group {
+        flex: 1 1 100%;
+        justify-content: space-between;
+        order: 3;
       }
       .info-panel {
         width: min(17.25rem, calc(100vw - 1.25rem));
@@ -441,7 +454,14 @@
       <span class="label">Rear</span>
       <span class="action">Close</span>
     </button>
-    <button type="button" class="rack-btn" id="btn-rack-6" aria-label="Zoom to Rack 6">6</button>
+    <div class="rack-group" role="group" aria-label="Zoom to rack">
+      <button type="button" class="rack-btn" data-rack="Rack1" aria-label="Zoom to Rack 1">1</button>
+      <button type="button" class="rack-btn" data-rack="Rack2" aria-label="Zoom to Rack 2">2</button>
+      <button type="button" class="rack-btn" data-rack="Rack3" aria-label="Zoom to Rack 3">3</button>
+      <button type="button" class="rack-btn" data-rack="Rack4" aria-label="Zoom to Rack 4">4</button>
+      <button type="button" class="rack-btn" data-rack="Rack5" aria-label="Zoom to Rack 5">5</button>
+      <button type="button" class="rack-btn" data-rack="Rack6" aria-label="Zoom to Rack 6">6</button>
+    </div>
   </div>
 
   <svg class="info-leader" id="info-leader" aria-hidden="true">
@@ -1666,9 +1686,9 @@
 
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
-    const btnRack6 = document.getElementById("btn-rack-6");
+    const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
-    let viewMode = "overview"; // "overview" | "Rack6" | …
+    let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
 
     function syncDoorButton(btn, isOpen, noun) {
       btn.classList.toggle("open", isOpen);
@@ -1701,7 +1721,9 @@
     }
 
     function syncRackButtons() {
-      btnRack6.classList.toggle("active", viewMode === "Rack6");
+      rackButtons.forEach((btn) => {
+        btn.classList.toggle("active", viewMode === btn.dataset.rack);
+      });
     }
 
     /** Zoom to a rack's front so the full cabinet fills the phone's vertical view */
@@ -1748,7 +1770,9 @@
 
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
-    btnRack6.addEventListener("click", () => focusRackFront("Rack6"));
+    rackButtons.forEach((btn) => {
+      btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
+    });
     document.querySelector(".door-controls").addEventListener("pointerdown", (e) => e.stopPropagation());
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
