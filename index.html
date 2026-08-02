@@ -1656,16 +1656,68 @@
       // —— Management cluster: CON · USB×2 · MGT/HA ——
       const mgmtX = brandX + 250;
       const mgmtY = 36;
-      function drawRj45(x, y, w, h, label) {
+      /** RJ-45 jack — rectangular shell with latch-side corners recessed */
+      function drawRj45Jack(x, y, w, h, { invert = false, led = null } = {}) {
+        // Outer shell
         ctx.fillStyle = "#2a3038";
-        roundRect(x, y, w, h, 2);
+        roundRect(x, y, w, h, 1.5);
         ctx.fill();
-        ctx.fillStyle = "#0e1116";
-        ctx.fillRect(x + w * 0.18, y + h * 0.22, w * 0.64, h * 0.55);
-        ctx.fillStyle = "#8a929c";
-        ctx.font = `600 ${Math.max(9, h * 0.28)}px "IBM Plex Mono", monospace`;
-        ctx.textAlign = "center";
-        ctx.fillText(label, x + w / 2, y + h + 11);
+        ctx.strokeStyle = "#5a6572";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Inner opening — classic keystone: latch edge has both corners cut in
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.14;
+        const iw = w * 0.76;
+        const ih = h * 0.72;
+        const cut = Math.min(iw, ih) * 0.22; // recessed corner size
+        ctx.beginPath();
+        if (!invert) {
+          // Latch at bottom → bottom-left & bottom-right recessed
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          // Inverted row — latch at top
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        // Shallow contact ledge inside the bore
+        ctx.fillStyle = "#1a222c";
+        const ledgeY = invert ? iy + ih * 0.55 : iy + ih * 0.12;
+        ctx.fillRect(ix + iw * 0.18, ledgeY, iw * 0.64, ih * 0.22);
+        // Tiny gold contact hint
+        ctx.fillStyle = "#c9a227";
+        const gY = invert ? iy + ih * 0.62 : iy + ih * 0.18;
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1, iw * 0.035), ih * 0.1);
+        }
+        if (led) {
+          ctx.fillStyle = led;
+          ctx.beginPath();
+          ctx.arc(x + w * 0.86, y + h * (invert ? 0.78 : 0.22), Math.max(1.6, h * 0.1), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawRj45(x, y, w, h, label) {
+        drawRj45Jack(x, y, w, h);
+        if (label) {
+          ctx.fillStyle = "#8a929c";
+          ctx.font = `600 ${Math.max(9, h * 0.28)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "center";
+          ctx.fillText(label, x + w / 2, y + h + 11);
+        }
       }
       function drawUsb(x, y, w, h) {
         ctx.fillStyle = "#1a4a8a";
@@ -1732,16 +1784,11 @@
             const px = x + pad + col * (pW + gapX);
             const py = y + pad + r * (pH + gapY);
             if (kind === "copper") {
-              ctx.fillStyle = "#2f3540";
-              roundRect(px, py, pW, pH, 2);
-              ctx.fill();
-              ctx.fillStyle = "#0c0e12";
-              ctx.fillRect(px + pW * 0.15, py + pH * 0.2, pW * 0.7, pH * 0.55);
-              // Link LED
-              ctx.fillStyle = col % 3 === 0 ? "#2ecc71" : "#3a454f";
-              ctx.beginPath();
-              ctx.arc(px + pW * 0.82, py + pH * 0.22, Math.max(1.8, pH * 0.1), 0, Math.PI * 2);
-              ctx.fill();
+              // Bottom row inverted so latches face the center (common 2×N GE block)
+              drawRj45Jack(px, py, pW, pH, {
+                invert: r === 1,
+                led: col % 3 === 0 ? "#2ecc71" : "#3a454f",
+              });
             } else {
               // SFP cage
               ctx.fillStyle = "#1a1e24";
