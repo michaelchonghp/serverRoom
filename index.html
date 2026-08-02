@@ -1326,27 +1326,32 @@
       }
 
       function drawSfp(px, py, pW, pH, xcvr) {
-        const isLR = /LR|SM1310/i.test(xcvr.model);
-        // Module body seated in cage
-        ctx.fillStyle = "#2c333c";
+        // Industry tab colors: SM/LR = yellow, MM/SR = aqua
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked; // green when patch cord up; red when seated only
+        // Silver module body — reads clearly vs empty black cages
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
         roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
         ctx.fill();
-        ctx.strokeStyle = "#8a949e";
+        ctx.strokeStyle = "#6a7380";
         ctx.lineWidth = 1.2;
         ctx.stroke();
-        // Metal nose / optic face
-        ctx.fillStyle = "#0d1014";
-        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
-        // Dual LC bore hint
+        // Dark optic face / LC bore
         ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
         ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
         ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
-        // Color pull-tab: blue = SM/LR, beige = MM/SR
-        ctx.fillStyle = isLR ? "#2f6fe0" : "#c4a574";
+        // Pull-tab
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
         roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
         ctx.fill();
-        // Link LED on
-        ctx.fillStyle = "#3dd68c";
+        // Link LED — red idle / green when linked
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
         ctx.beginPath();
         ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
         ctx.fill();
@@ -1903,8 +1908,8 @@
             startU: 32,
             code: "C1",
             transceivers: [
-              { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode" },
-              { port: 2, model: "XG-SFP-SR-MM850", kind: "multimode" },
+              { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false },
+              { port: 2, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false },
             ],
           },
         ],
