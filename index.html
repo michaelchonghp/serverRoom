@@ -1408,6 +1408,43 @@
       return h3c9850FrontTex;
     }
 
+    /** Small field-tech adhesive label (readable when zoomed, faint from full rack) */
+    function makeFieldLabel(text) {
+      const pw = 768;
+      const ph = 160;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      // Matte white tape / laminated label
+      ctx.fillStyle = "#f4f1ea";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.strokeStyle = "rgba(20, 24, 30, 0.35)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, pw - 6, ph - 6);
+      // Soft edge wear
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      ctx.fillRect(0, ph - 18, pw, 18);
+      ctx.fillStyle = "#12161c";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.48)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.72,
+        metalness: 0.02,
+        side: THREE.DoubleSide,
+      });
+      // ~9.2 × 1.55 cm — tiny at full-rack distance, clear when close
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 1.55), mat);
+      label.rotation.y = Math.PI; // face rack front (−Z)
+      return label;
+    }
+
     /** H3C LS-9850-4C-H1 — modular data-center switch, 2U, 440×660×88 mm */
     function makeH3c9850() {
       const heightU = 2;
@@ -1435,6 +1472,12 @@
       face.rotation.y = Math.PI;
       face.castShadow = true;
       g.add(face);
+
+      // Engineer field label — top-left of face
+      const fieldTag = makeFieldLabel("CORE SWITCH");
+      fieldTag.position.set(-w / 2 + 5.4, h / 2 - 1.15, -d / 2 - 0.98);
+      fieldTag.rotation.z = 0.035; // slightly crooked, hand-applied
+      g.add(fieldTag);
 
       g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
       g.add(box(1.8, h * 0.96, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
