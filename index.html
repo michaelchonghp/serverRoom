@@ -2304,6 +2304,227 @@
       return g;
     }
 
+    /** Ruijie RG-S6510-48VX8CQ front — 48× SFP+ + 8× QSFP, full-width silver face */
+    let ruijieS6510FrontTex = null;
+    function makeRuijieS6510FrontTexture() {
+      if (ruijieS6510FrontTex) return ruijieS6510FrontTex;
+
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Light silver chassis
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#d5dae2");
+      gFace.addColorStop(0.45, "#c5ccd6");
+      gFace.addColorStop(1, "#b0b7c2");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#e4e8ee";
+      ctx.fillRect(5, 5, pw - 10, ph - 10);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawCage(x, y, w, h) {
+        // Silver metallic cage outline (empty — no optics seated)
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#c8ced8";
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.14, y + h * 0.22, w * 0.72, h * 0.56);
+        // Tiny dark LED hole (unlit)
+        ctx.fillStyle = "#2a3038";
+        ctx.beginPath();
+        ctx.arc(x + w * 0.82, y + h * 0.18, Math.max(1.4, h * 0.07), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Top honeycomb vent strip
+      const ventH = ph * 0.14;
+      ctx.fillStyle = "#9aa3ae";
+      ctx.fillRect(8, 8, pw - 16, ventH);
+      ctx.fillStyle = "rgba(60, 68, 78, 0.55)";
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 110; col++) {
+          const hx = 16 + col * 21 + (row % 2 ? 10 : 0);
+          const hy = 14 + row * 10;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Port field — nearly full width under the vent
+      const fieldX = 18;
+      const fieldY = 8 + ventH + 6;
+      const fieldW = pw - 36;
+      const fieldH = ph - fieldY - 42; // leave brand strip at bottom
+      const groupGap = 14;
+      // 4 SFP groups (each 6 cols) + 1 QSFP group (4 cols) → weight 6+6+6+6+8-ish
+      const sfpColsPerGroup = 6;
+      const qsfpCols = 4;
+      const sfpGroups = 4;
+      const totalUnits = sfpGroups * sfpColsPerGroup + qsfpCols * 1.35; // QSFP cages wider
+      const unitW = (fieldW - groupGap * sfpGroups) / totalUnits;
+      const sfpW = unitW;
+      const qsfpW = unitW * 1.35;
+      const rows = 2;
+      const pGapX = 3;
+      const pGapY = 6;
+      const pH = (fieldH - pGapY) / rows;
+
+      let cx = fieldX;
+      // Tiny port-number tick row above cages
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+
+      for (let gIdx = 0; gIdx < sfpGroups; gIdx++) {
+        const gW = sfpColsPerGroup * sfpW + (sfpColsPerGroup - 1) * pGapX;
+        const cageW = (gW - pGapX * (sfpColsPerGroup - 1)) / sfpColsPerGroup;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < sfpColsPerGroup; col++) {
+            const px = cx + col * (cageW + pGapX);
+            const py = fieldY + r * (pH + pGapY);
+            drawCage(px, py, cageW, pH);
+          }
+        }
+        // Group index hint
+        const portBase = gIdx * 12 + 1;
+        ctx.fillStyle = "#6a7380";
+        ctx.fillText(`${portBase}`, cx + 8, fieldY - 2);
+        cx += gW + groupGap;
+      }
+
+      // QSFP block (wider cages)
+      {
+        const gW = qsfpCols * qsfpW + (qsfpCols - 1) * pGapX;
+        const cageW = (gW - pGapX * (qsfpCols - 1)) / qsfpCols;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < qsfpCols; col++) {
+            const px = cx + col * (cageW + pGapX);
+            const py = fieldY + r * (pH + pGapY);
+            drawCage(px, py, cageW, pH * 0.98);
+          }
+        }
+        ctx.fillStyle = "#6a7380";
+        ctx.fillText("QSFP", cx + gW * 0.5, fieldY - 2);
+      }
+
+      // Bottom brand strip — Status / ID / Ruijie / model
+      const brandY = ph - 34;
+      ctx.fillStyle = "#3a454f";
+      ctx.beginPath();
+      ctx.arc(28, brandY + 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(48, brandY + 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      ctx.fillText("Status", 58, brandY + 4);
+      ctx.fillText("ID", 58, brandY + 18);
+
+      ctx.fillStyle = "#1a5fb4";
+      ctx.font = `800 ${Math.floor(ph * 0.09)}px "Archivo Black", sans-serif`;
+      ctx.fillText("Ruijie", 130, brandY + 12);
+      ctx.fillStyle = "#2a3038";
+      ctx.font = `700 ${Math.floor(ph * 0.065)}px "IBM Plex Mono", monospace`;
+      ctx.fillText("RG-S6510-48VX8CQ", 250, brandY + 12);
+
+      // Ear hints
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      ruijieS6510FrontTex = tex;
+      return tex;
+    }
+
+    /** Ruijie RG-S6510-48VX8CQ — 1U distribution switch, 48×25G + 8×100G */
+    function makeRuijieS6510({ rackName = "Rack1", code = "" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 42.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xb8bec8, metalness: 0.5, roughness: 0.42,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeRuijieS6510FrontTexture(),
+        metalness: 0.28,
+        roughness: 0.48,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.08,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const tagText = code ? `Dist. ${code}` : "Dist.";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "dist-switch";
+      g.userData.code = code;
+      g.userData.label = code ? `Ruijie RG-S6510-48VX8CQ (${code})` : "Ruijie RG-S6510-48VX8CQ";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: code ? `Distribution ${code} · ${rackName}` : `Distribution · ${rackName}`,
+        title: "Ruijie Data Center Switch",
+        model: "RG-S6510-48VX8CQ",
+        rating: "1U · 48×25G + 8×100G",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "48× 25GE SFP28 · 8× 100GE QSFP28 · Front-to-rear airflow · ToR / distribution",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · ≈ 440 × 420 × 44 mm · Silver front panel · Dual hot-swap PSU",
+          },
+        ],
+      };
+      return g;
+    }
+
     const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
@@ -2413,6 +2634,9 @@
         }
         if (type === "rt-huawei-ar1600c") {
           unit = makeHuaweiAr1600c({ rackName: name });
+        }
+        if (type === "sw-ruijie-s6510") {
+          unit = makeRuijieS6510({ rackName: name, code });
         }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
@@ -2670,12 +2894,20 @@
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
+          // Dist D1/D3/D5 at RU 22 / 24 / 26
+          { type: "sw-ruijie-s6510", startU: 21, code: "D1" },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D5" },
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
           { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
         ],
         Rack2: [
+          // Dist D2/D4/D6 at RU 22 / 24 / 26
+          { type: "sw-ruijie-s6510", startU: 21, code: "D2" },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D6" },
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
