@@ -1286,10 +1286,13 @@
       return g;
     }
 
-    /** H3C LS-9850-4C-H1 front — 2×2 modular line cards, blue latches, dense ports */
-    let h3c9850FrontTex = null;
-    function makeH3c9850FrontTexture() {
-      if (h3c9850FrontTex) return h3c9850FrontTex;
+    /** H3C LS-9850-4C-H1 front — 2×2 modular line cards; optional plugged SFPs on slot-1 */
+    const h3c9850FrontTexCache = new Map();
+    function makeH3c9850FrontTexture(transceivers = []) {
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
+      const key = [...byPort.keys()].sort((a, b) => a - b).map((p) => `${p}:${byPort.get(p).model}`).join("|") || "empty";
+      if (h3c9850FrontTexCache.has(key)) return h3c9850FrontTexCache.get(key);
+
       const pw = 1400;
       const ph = 560;
       const c = document.createElement("canvas");
@@ -1322,7 +1325,34 @@
         ctx.closePath();
       }
 
-      function drawModule(mx, my) {
+      function drawSfp(px, py, pW, pH, xcvr) {
+        const isLR = /LR|SM1310/i.test(xcvr.model);
+        // Module body seated in cage
+        ctx.fillStyle = "#2c333c";
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Metal nose / optic face
+        ctx.fillStyle = "#0d1014";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        // Dual LC bore hint
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        // Color pull-tab: blue = SM/LR, beige = MM/SR
+        ctx.fillStyle = isLR ? "#2f6fe0" : "#c4a574";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        // Link LED on
+        ctx.fillStyle = "#3dd68c";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawModule(mx, my, portOffset = 0) {
         // Silver faceplate
         const g = ctx.createLinearGradient(mx, my, mx, my + modH);
         g.addColorStop(0, "#d8dde4");
@@ -1353,7 +1383,7 @@
         ctx.textBaseline = "middle";
         ctx.fillText("H3C", lx + latchW / 2, ly + latchH / 2 + 1);
 
-        // Port field — two rows of dense QSFP-style cages
+        // Port field — two rows of dense cages (port 1 = top-left of first module)
         const portAreaX = mx + modW * 0.06;
         const portAreaY = my + modH * 0.26;
         const portAreaW = modW * 0.88;
@@ -1370,42 +1400,46 @@
         const pH = (portAreaH - pGapY * (rows + 1)) / rows;
         for (let r = 0; r < rows; r++) {
           for (let col = 0; col < cols; col++) {
+            const portNum = portOffset + r * cols + col + 1;
             const px = portAreaX + pGapX + col * (pW + pGapX);
             const py = portAreaY + pGapY + r * (pH + pGapY);
-            // Cage
             ctx.fillStyle = "#12151a";
             roundRect(px, py, pW, pH, 2);
             ctx.fill();
             ctx.strokeStyle = "#5a6572";
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            // Port mouth
-            ctx.fillStyle = "#0a0c10";
-            ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
-            // Tiny status LED
-            ctx.fillStyle = col % 3 === 0 ? "#3dd68c" : "#2a3540";
-            ctx.beginPath();
-            ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
-            ctx.fill();
+            const xcvr = byPort.get(portNum);
+            if (xcvr) {
+              drawSfp(px, py, pW, pH, xcvr);
+            } else {
+              ctx.fillStyle = "#0a0c10";
+              ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
+              ctx.fillStyle = "#2a3540";
+              ctx.beginPath();
+              ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+              ctx.fill();
+            }
           }
         }
       }
 
-      drawModule(gridX, gridY);
-      drawModule(gridX + modW + gap, gridY);
-      drawModule(gridX, gridY + modH + gap);
-      drawModule(gridX + modW + gap, gridY + modH + gap);
+      // Top-left module owns ports 1…18; others empty
+      drawModule(gridX, gridY, 0);
+      drawModule(gridX + modW + gap, gridY, 100);
+      drawModule(gridX, gridY + modH + gap, 200);
+      drawModule(gridX + modW + gap, gridY + modH + gap, 300);
 
-      // Thin chassis edge rails
       ctx.fillStyle = "#2b313a";
       ctx.fillRect(4, inset, 10, ph - inset * 2);
       ctx.fillRect(pw - 14, inset, 10, ph - inset * 2);
 
-      h3c9850FrontTex = new THREE.CanvasTexture(c);
-      h3c9850FrontTex.colorSpace = THREE.SRGBColorSpace;
-      h3c9850FrontTex.anisotropy = 8;
-      h3c9850FrontTex.needsUpdate = true;
-      return h3c9850FrontTex;
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      h3c9850FrontTexCache.set(key, tex);
+      return tex;
     }
 
     /** Small field-tech adhesive label (readable when zoomed, faint from full rack) */
@@ -1428,7 +1462,8 @@
       ctx.fillStyle = "#12161c";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `800 ${Math.floor(ph * 0.48)}px "IBM Plex Mono", ui-monospace, monospace`;
+      const long = text.length > 14;
+      ctx.font = `800 ${Math.floor(ph * (long ? 0.4 : 0.48))}px "IBM Plex Mono", ui-monospace, monospace`;
       ctx.fillText(text, pw / 2, ph / 2 + 2);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -1439,14 +1474,17 @@
         metalness: 0.02,
         side: THREE.DoubleSide,
       });
-      // ~6.4 × 1.1 cm (30% smaller) — faint at full-rack, clear when close
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(6.44, 1.085), mat);
+      // Slightly wider when code suffix is present
+      const labelW = long ? 7.8 : 6.44;
+      const labelH = 1.085;
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
       label.rotation.y = Math.PI; // face rack front (−Z)
+      label.userData.labelW = labelW;
       return label;
     }
 
     /** H3C LS-9850-4C-H1 — modular data-center switch, 2U, 440×660×88 mm */
-    function makeH3c9850(rackName = "Rack1") {
+    function makeH3c9850({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
       const heightU = 2;
       const h = heightU * U - 0.2;
       const w = 44;
@@ -1460,7 +1498,7 @@
       g.add(box(w + 0.25, h + 0.25, 0.3, matUpsFace, 0, 0, -d / 2 - 0.3));
 
       const frontMat = new THREE.MeshStandardMaterial({
-        map: makeH3c9850FrontTexture(),
+        map: makeH3c9850FrontTexture(transceivers),
         metalness: 0.25,
         roughness: 0.5,
         side: THREE.DoubleSide,
@@ -1474,36 +1512,48 @@
       g.add(face);
 
       // Engineer field label — top-left as seen from aisle
-      // (camera looks +Z at the front face, so screen-left is +X)
-      const fieldTag = makeFieldLabel("CORE SWITCH");
-      fieldTag.position.set(w / 2 - 3.7, h / 2 - 0.85, -d / 2 - 0.98);
-      fieldTag.rotation.z = -0.035; // slightly crooked, hand-applied
+      const tagText = code ? `CORE SWITCH ${code}` : "CORE SWITCH";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.85, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.035;
       g.add(fieldTag);
 
       g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
       g.add(box(1.8, h * 0.96, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
       g.add(box(w * 0.88, h * 0.7, 0.5, matUpsVent, 0, 0, d / 2 + 0.2));
 
+      const blocks = [
+        {
+          label: "Modules",
+          text: "4× interface module slots · Modular line cards · 2× 1G SFP · OOB mgmt (copper + fiber) · Console / USB",
+        },
+        {
+          label: "Physical",
+          text: "2U rackmount · 440 × 660 × 88.1 mm · ≤ 27 kg · Up to 4× power modules · Front-to-rear / rear-to-front airflow",
+        },
+      ];
+      if (transceivers.length) {
+        blocks.push({
+          label: "Transceivers",
+          text: transceivers
+            .map((t) => `Port ${t.port}: ${t.model} (${t.kind})`)
+            .join(" · "),
+        });
+      }
+
       g.userData.heightU = heightU;
       g.userData.interactive = true;
       g.userData.kind = "switch";
-      g.userData.label = "H3C LS-9850-4C-H1";
+      g.userData.code = code;
+      g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
       g.userData.info = {
-        eyebrow: `Core Switch · ${rackName}`,
+        eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
         title: "H3C S9850 Data Center Switch",
         model: "LS-9850-4C-H1",
         rating: "2U · 6.4 Tbps",
-        blocks: [
-          {
-            label: "Modules",
-            text: "4× interface module slots · Modular line cards · 2× 1G SFP · OOB mgmt (copper + fiber) · Console / USB",
-          },
-          {
-            label: "Physical",
-            text: "2U rackmount · 440 × 660 × 88.1 mm · ≤ 27 kg · Up to 4× power modules · Front-to-rear / rear-to-front airflow",
-          },
-        ],
+        blocks,
       };
       return g;
     }
@@ -1602,11 +1652,14 @@
 
       // Mounted equipment (bottom-up U positions)
       const equipZ = railZFront + 35 + 1.0;
-      equipment.forEach(({ type, startU }) => {
+      equipment.forEach((spec) => {
+        const { type, startU, code, transceivers } = spec;
         let unit = null;
         if (type === "ups-srtg15") unit = makeApcSrtg15();
         if (type === "batt-srtg192") unit = makeApcSrtgBatt();
-        if (type === "sw-h3c-9850") unit = makeH3c9850(name);
+        if (type === "sw-h3c-9850") {
+          unit = makeH3c9850({ rackName: name, code, transceivers: transceivers || [] });
+        }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
         const eh = heightU * U - 0.2;
@@ -1842,13 +1895,22 @@
       { Rack1: ["CORE"], Rack2: ["CORE"] },
       {
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
+        // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
-          { type: "sw-h3c-9850", startU: 27 },
-          { type: "sw-h3c-9850", startU: 32 },
+          { type: "sw-h3c-9850", startU: 27, code: "C3" },
+          {
+            type: "sw-h3c-9850",
+            startU: 32,
+            code: "C1",
+            transceivers: [
+              { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode" },
+              { port: 2, model: "XG-SFP-SR-MM850", kind: "multimode" },
+            ],
+          },
         ],
         Rack2: [
-          { type: "sw-h3c-9850", startU: 27 },
-          { type: "sw-h3c-9850", startU: 32 },
+          { type: "sw-h3c-9850", startU: 27, code: "C4" },
+          { type: "sw-h3c-9850", startU: 32, code: "C2" },
         ],
       }
     );
