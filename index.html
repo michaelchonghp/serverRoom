@@ -1900,9 +1900,17 @@
       });
     }
 
-    // C1 / C2 optic map — SM on 1–4, MM on 47–50 (no patch cords yet → linked false)
+    // Optic maps — no patch cords yet → linked false
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[47, 48, 49, 50].map((port) => ({
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
+      })),
+    ];
+    const CORE_XCVRS_C3C4 = [
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
@@ -1921,11 +1929,11 @@
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
-          { type: "sw-h3c-9850", startU: 27, code: "C3" },
+          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
         ],
         Rack2: [
-          { type: "sw-h3c-9850", startU: 27, code: "C4" },
+          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
         ],
       }
