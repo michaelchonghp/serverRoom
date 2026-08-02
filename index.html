@@ -3274,11 +3274,12 @@
       return g;
     }
 
-    /** 1U L-shaped fixed shelf — tray + short front flange (no face panel) */
+    /** 1U L-shaped fixed shelf — continuous tray + front flange spanning rail-to-rail */
     function makeFixedShelf({ rackName = "Rack1" } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.25;
-      const w = 44.0;
+      // Span the full 19″ opening so the shelf meets both rails (no floating gap)
+      const w = RAIL_WIDTH - 1.5; // ~46.76 between rail faces
       const d = 50;
       const g = new THREE.Group();
 
@@ -3286,25 +3287,62 @@
         color: 0x4a5560, metalness: 0.45, roughness: 0.48,
       });
 
-      // Horizontal tray (deck)
-      const trayT = 0.4;
+      const trayT = 0.45;
       const trayY = -h * 0.28;
-      const trayZ = 0; // centered; front edge at z = -d/2
-      g.add(box(w - 1.5, trayT, d, matShelf, 0, trayY, trayZ));
+      const lipH = h * 0.6;
+      const lipD = 0.45;
+      // Front face of the L sits at local z = -d/2
+      const frontZ = -d / 2;
 
-      // Vertical front flange — forms the “L” with the tray (no front panel / label)
-      const lipH = h * 0.55;
-      const lipD = 0.35;
-      const lipZ = -d / 2 - lipD / 2;
-      g.add(box(w - 1.5, lipH, lipD, matShelf, 0, trayY + trayT / 2 + lipH / 2, lipZ));
+      // Horizontal tray — full width, front edge flush with flange
+      g.add(box(w, trayT, d, matShelf, 0, trayY, 0));
 
-      // Side mounting ears (screw to 19″ rails)
-      const earZ = lipZ;
-      g.add(box(1.6, h * 0.85, 1.0, matChrome, -w / 2 - 0.4, 0, earZ));
-      g.add(box(1.6, h * 0.85, 1.0, matChrome, w / 2 + 0.4, 0, earZ));
+      // Vertical front flange (the upright of the L) — same width, continuous with tray
+      g.add(box(
+        w,
+        lipH,
+        lipD,
+        matShelf,
+        0,
+        trayY + trayT / 2 + lipH / 2,
+        frontZ + lipD / 2
+      ));
+
+      // Side returns — tie flange/tray into the mounting ears so nothing floats
+      const sideT = 0.45;
+      const sideD = Math.min(12, d * 0.35);
+      [-1, 1].forEach((side) => {
+        const sx = side * (w / 2 - sideT / 2);
+        // Short side wall from front back along tray edge
+        g.add(box(
+          sideT,
+          lipH,
+          sideD,
+          matShelf,
+          sx,
+          trayY + trayT / 2 + lipH / 2,
+          frontZ + sideD / 2
+        ));
+      });
+
+      // Mounting ears — inner face flush against shelf ends
+      const earW = 1.8;
+      const earD = 1.2;
+      const earZ = frontZ + earD / 2;
+      [-1, 1].forEach((side) => {
+        g.add(box(
+          earW,
+          h * 0.92,
+          earD,
+          matChrome,
+          side * (w / 2 + earW / 2),
+          0,
+          earZ
+        ));
+      });
 
       g.userData.heightU = heightU;
-      g.userData.mountZ = earZ - 0.5; // front of ears / flange
+      g.userData.mountZ = frontZ; // flush front of L flange to rail plane
       g.userData.interactive = true;
       g.userData.kind = "shelf";
       g.userData.label = "1U Fixed Shelf";
@@ -3320,7 +3358,7 @@
           },
           {
             label: "Physical",
-            text: "L-profile: horizontal tray + short front flange · ~500 mm deep · Screwed to 19″ rails",
+            text: "L-profile: full-width tray + front flange · ~500 mm deep · Screwed to 19″ rails",
           },
         ],
       };
