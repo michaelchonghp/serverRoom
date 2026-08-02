@@ -2265,7 +2265,7 @@
       face.castShadow = true;
       g.add(face);
 
-      const fieldTag = makeFieldLabel("AR1600C");
+      const fieldTag = makeFieldLabel("SD-WAN");
       const tagW = fieldTag.userData.labelW || 6.44;
       fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
       fieldTag.rotation.z = -0.03;
@@ -2282,10 +2282,10 @@
       g.userData.label = "Huawei NetEngine AR1600C";
       g.userData.frontMat = frontMat;
       g.userData.info = {
-        eyebrow: `WAN Router · ${rackName}`,
+        eyebrow: `SD-WAN · ${rackName}`,
         title: "Huawei NetEngine AR1600 Series",
         model: "AR1600C",
-        rating: "1U · Enterprise AR",
+        rating: "1U · SD-WAN",
         blocks: [
           {
             label: "Interfaces",
