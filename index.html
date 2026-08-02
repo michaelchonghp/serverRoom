@@ -2854,6 +2854,223 @@
       return g;
     }
 
+    /** Dell PowerEdge R750 front — 2U, 24× 2.5″ drive bays + right control panel */
+    let powerEdgeR750FrontTex = null;
+    function makePowerEdgeR750FrontTexture() {
+      if (powerEdgeR750FrontTex) return powerEdgeR750FrontTex;
+
+      const pw = 2400;
+      const ph = 480; // 2U aspect
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Dark charcoal bezel / chassis face
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#2a3038");
+      gFace.addColorStop(0.5, "#1e242c");
+      gFace.addColorStop(1, "#161a20");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawDriveBay(x, y, w, h) {
+        // Carrier face
+        const g = ctx.createLinearGradient(x, y, x, y + h);
+        g.addColorStop(0, "#3a424c");
+        g.addColorStop(0.5, "#2c333c");
+        g.addColorStop(1, "#222830");
+        ctx.fillStyle = g;
+        roundRect(x, y, w, h, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#5a6572";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Latch / handle bar
+        ctx.fillStyle = "#4a5560";
+        roundRect(x + w * 0.08, y + h * 0.35, w * 0.55, h * 0.3, 2);
+        ctx.fill();
+        // Activity LED
+        ctx.fillStyle = "#2a3038";
+        ctx.beginPath();
+        ctx.arc(x + w * 0.82, y + h * 0.5, Math.max(3, h * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+        // Release tab
+        ctx.fillStyle = "#6a7380";
+        roundRect(x + w * 0.7, y + h * 0.22, w * 0.08, h * 0.56, 1.5);
+        ctx.fill();
+      }
+
+      const margin = 18;
+      const ctrlW = pw * 0.11;
+      const bayAreaX = margin;
+      const bayAreaW = pw - margin * 2 - ctrlW - 12;
+      const bayAreaY = margin;
+      const bayAreaH = ph - margin * 2;
+
+      // 24× 2.5″ — 2 rows × 12
+      const cols = 12;
+      const rows = 2;
+      const gapX = 6;
+      const gapY = 8;
+      const bayW = (bayAreaW - gapX * (cols - 1)) / cols;
+      const bayH = (bayAreaH - gapY * (rows - 1)) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+          drawDriveBay(
+            bayAreaX + col * (bayW + gapX),
+            bayAreaY + r * (bayH + gapY),
+            bayW,
+            bayH
+          );
+        }
+      }
+
+      // Right control / LCD panel
+      const cx = bayAreaX + bayAreaW + 12;
+      const cy = bayAreaY;
+      const ch = bayAreaH;
+      ctx.fillStyle = "#12161c";
+      roundRect(cx, cy, ctrlW, ch, 4);
+      ctx.fill();
+      ctx.strokeStyle = "#4a5560";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Dell wordmark
+      ctx.fillStyle = "#007DB8";
+      ctx.font = `800 ${Math.floor(ph * 0.08)}px "Archivo Black", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("DELL", cx + ctrlW / 2, cy + ch * 0.14);
+
+      // Mini LCD
+      ctx.fillStyle = "#0a0c10";
+      roundRect(cx + ctrlW * 0.12, cy + ch * 0.26, ctrlW * 0.76, ch * 0.22, 3);
+      ctx.fill();
+      ctx.fillStyle = "#3dd68c";
+      ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+      ctx.fillText("OK", cx + ctrlW / 2, cy + ch * 0.37);
+
+      // Power / ID / USB cluster
+      const btnY = cy + ch * 0.58;
+      ctx.fillStyle = "#2ecc71";
+      ctx.beginPath();
+      ctx.arc(cx + ctrlW * 0.35, btnY, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#049fd9";
+      ctx.beginPath();
+      ctx.arc(cx + ctrlW * 0.65, btnY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 ${Math.floor(ph * 0.035)}px "IBM Plex Mono", monospace`;
+      ctx.fillText("PWR", cx + ctrlW * 0.35, btnY + 22);
+      ctx.fillText("ID", cx + ctrlW * 0.65, btnY + 22);
+
+      // USB ports
+      ctx.fillStyle = "#1a4a8a";
+      roundRect(cx + ctrlW * 0.2, cy + ch * 0.78, ctrlW * 0.25, ch * 0.1, 2);
+      ctx.fill();
+      roundRect(cx + ctrlW * 0.55, cy + ch * 0.78, ctrlW * 0.25, ch * 0.1, 2);
+      ctx.fill();
+      ctx.fillStyle = "#6a9ee0";
+      ctx.fillRect(cx + ctrlW * 0.2 + 3, cy + ch * 0.78 + 3, ctrlW * 0.25 - 6, ch * 0.1 - 6);
+      ctx.fillRect(cx + ctrlW * 0.55 + 3, cy + ch * 0.78 + 3, ctrlW * 0.25 - 6, ch * 0.1 - 6);
+
+      ctx.fillStyle = "#8a929c";
+      ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+      ctx.fillText("R750", cx + ctrlW / 2, cy + ch * 0.95);
+
+      // Ear hints
+      ctx.fillStyle = "#3a424c";
+      ctx.fillRect(0, 10, 8, ph - 20);
+      ctx.fillRect(pw - 8, 10, 8, ph - 20);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      powerEdgeR750FrontTex = tex;
+      return tex;
+    }
+
+    /** Dell PowerEdge R750 — 2U rack server, ≈434×700×87 mm */
+    function makePowerEdgeR750({ rackName = "Rack1" } = {}) {
+      const heightU = 2;
+      const h = heightU * U - 0.2;
+      const w = 43.4;
+      const d = 70.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0x1c2128, metalness: 0.45, roughness: 0.5,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.25, h + 0.2, 0.3, matUpsFace, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makePowerEdgeR750FrontTexture(),
+        metalness: 0.3,
+        roughness: 0.52,
+        side: THREE.DoubleSide,
+        emissive: 0x10141a,
+        emissiveIntensity: 0.2,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.12), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("R750");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.85, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.88, h * 0.7, 0.5, matUpsVent, 0, 0, d / 2 + 0.2));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "server";
+      g.userData.label = "Dell PowerEdge R750";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `Server · ${rackName}`,
+        title: "Dell PowerEdge R750",
+        model: "PowerEdge R750",
+        rating: "2U · Dual Xeon",
+        blocks: [
+          {
+            label: "Compute",
+            text: "2× 3rd Gen Intel Xeon Scalable · up to 32× DDR4 DIMMs · PCIe Gen4",
+          },
+          {
+            label: "Storage",
+            text: "Up to 24× 2.5″ SAS/SATA/NVMe front bays · Optional rear drive module · PERC RAID",
+          },
+          {
+            label: "Physical",
+            text: "2U rackmount · 434 × 700.7 × 86.8 mm · Dual hot-swap PSU · iDRAC",
+          },
+        ],
+      };
+      return g;
+    }
+
     const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
@@ -2969,6 +3186,9 @@
         }
         if (type === "rt-cisco-c8300") {
           unit = makeCiscoC8300({ rackName: name });
+        }
+        if (type === "srv-poweredge-r750") {
+          unit = makePowerEdgeR750({ rackName: name });
         }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
@@ -3226,6 +3446,7 @@
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
+          { type: "srv-poweredge-r750", startU: 16 }, // RU 17–18
           { type: "rt-cisco-c8300", startU: 19 }, // RU 20 — Voice
           // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
           { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
