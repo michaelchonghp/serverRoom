@@ -3204,6 +3204,168 @@
       return g;
     }
 
+    /** 1U blanking / filler panel — closes unused RU space */
+    function makeBlankPanel({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.2;
+      const w = 44.0;
+      const d = 2.4; // thin filler depth
+      const g = new THREE.Group();
+
+      const matBlank = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.35, roughness: 0.55,
+      });
+      g.add(box(w, h, d, matBlank, 0, 0, 0));
+
+      // Simple vented face texture
+      const pw = 1024;
+      const ph = 160;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#2a3038";
+      ctx.fillRect(40, 28, pw - 80, ph - 56);
+      ctx.fillStyle = "rgba(60, 68, 78, 0.9)";
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 48; col++) {
+          ctx.beginPath();
+          ctx.arc(70 + col * 18, 45 + row * 16, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 22px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("BLANK", pw / 2, ph / 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: tex, metalness: 0.25, roughness: 0.6, side: THREE.DoubleSide,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.1), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.15);
+      face.rotation.y = Math.PI;
+      g.add(face);
+
+      g.add(box(1.8, h * 0.92, 1.0, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.1));
+      g.add(box(1.8, h * 0.92, 1.0, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.1));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "blank";
+      g.userData.label = "1U Blank Panel";
+      g.userData.info = {
+        eyebrow: `Filler · ${rackName}`,
+        title: "1U Blanking Panel",
+        model: "EIA filler",
+        rating: "1U",
+        blocks: [
+          {
+            label: "Purpose",
+            text: "Closes unused rack space · Improves airflow · Screwed to 19″ rails",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** 1U fixed shelf — front lip + tray for non-rackmount gear (Telecom reserve) */
+    function makeFixedShelf({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.25;
+      const w = 44.0;
+      const d = 55; // shelf depth into rack
+      const g = new THREE.Group();
+
+      const matShelf = new THREE.MeshStandardMaterial({
+        color: 0x3a424c, metalness: 0.4, roughness: 0.5,
+      });
+      const matLip = new THREE.MeshStandardMaterial({
+        color: 0x2a3038, metalness: 0.35, roughness: 0.55,
+      });
+
+      // Tray deck (horizontal) — top surface near mid of the 1U
+      const trayT = 0.35;
+      const tray = box(w - 2, trayT, d - 2, matShelf, 0, -h * 0.15, d * 0.15);
+      g.add(tray);
+      // Side rails / flanges
+      g.add(box(0.4, h * 0.55, d - 4, matShelf, -w / 2 + 1.2, -h * 0.05, d * 0.12));
+      g.add(box(0.4, h * 0.55, d - 4, matShelf, w / 2 - 1.2, -h * 0.05, d * 0.12));
+      // Front lip (flush mount plane)
+      const lipD = 1.2;
+      g.add(box(w, h * 0.85, lipD, matLip, 0, 0, -d / 2 + lipD / 2 + 0.5));
+
+      // Face label strip on front lip
+      const pw = 1024;
+      const ph = 140;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#2a3038";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#3a424c";
+      ctx.fillRect(20, 20, pw - 40, ph - 40);
+      // Perforation row
+      ctx.fillStyle = "rgba(70, 78, 88, 0.95)";
+      for (let col = 0; col < 40; col++) {
+        ctx.beginPath();
+        ctx.arc(40 + col * 24, ph / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#c8d0da";
+      ctx.font = `800 36px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("FIXED SHELF", pw / 2, ph / 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: tex, metalness: 0.3, roughness: 0.55, side: THREE.DoubleSide,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.2, h * 0.7), frontMat);
+      face.position.set(0, 0, -d / 2 + 0.2);
+      face.rotation.y = Math.PI;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("TELECOM");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.35);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.9, 1.1, matChrome, -w / 2 - 0.5, 0, -d / 2 + 0.4));
+      g.add(box(1.8, h * 0.9, 1.1, matChrome, w / 2 + 0.5, 0, -d / 2 + 0.4));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "shelf";
+      g.userData.label = "1U Fixed Shelf (Telecom)";
+      g.userData.info = {
+        eyebrow: `Telecom · ${rackName}`,
+        title: "1U Fixed Shelf",
+        model: "Fixed rack shelf",
+        rating: "1U · RU 39",
+        blocks: [
+          {
+            label: "Reserve",
+            text: "RU 39–42 reserved for Telecom · Shelf at RU 39 for non-rackmount gear · RU 40–42 open above",
+          },
+          {
+            label: "Physical",
+            text: "1U front lip · Fixed tray ~550 mm deep · Screwed to 19″ rails",
+          },
+        ],
+      };
+      return g;
+    }
+
     const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
@@ -3322,6 +3484,12 @@
         }
         if (type === "srv-poweredge-r750") {
           unit = makePowerEdgeR750({ rackName: name });
+        }
+        if (type === "panel-blank-1u") {
+          unit = makeBlankPanel({ rackName: name });
+        }
+        if (type === "shelf-fixed-1u") {
+          unit = makeFixedShelf({ rackName: name });
         }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
@@ -3574,7 +3742,7 @@
       ROW_SEP / 2,
       0,
       0,
-      { Rack1: ["CORE"], Rack2: ["CORE"] },
+      { Rack1: ["CORE", "TELECOM"], Rack2: ["CORE"] },
       {
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
@@ -3589,6 +3757,8 @@
           { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
           { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
+          { type: "panel-blank-1u", startU: 37 }, // RU 38 blank
+          { type: "shelf-fixed-1u", startU: 38 }, // RU 39 fixed shelf — Telecom reserve RU 39–42
         ],
         Rack2: [
           // Dist top→down: D2 (RU26), D4 (RU24), D6 (RU22)
