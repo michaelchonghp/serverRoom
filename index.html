@@ -3274,7 +3274,7 @@
       return g;
     }
 
-    /** 1U L-shaped fixed shelf — continuous tray + front flange spanning rail-to-rail */
+    /** 1U inverted-L fixed shelf — open top for sliding gear on; flange hangs below front */
     function makeFixedShelf({ rackName = "Rack1" } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.25;
@@ -3288,39 +3288,38 @@
       });
 
       const trayT = 0.45;
-      const trayY = -h * 0.28;
-      const lipH = h * 0.6;
+      // Tray near top of the RU so the drop-flange hangs in the unit below the deck
+      const trayY = h * 0.22;
+      const lipH = h * 0.55;
       const lipD = 0.45;
-      // Front face of the L sits at local z = -d/2
       const frontZ = -d / 2;
 
-      // Horizontal tray — full width, front edge flush with flange
+      // Horizontal tray — clear top surface (slide equipment on from the aisle)
       g.add(box(w, trayT, d, matShelf, 0, trayY, 0));
 
-      // Vertical front flange (the upright of the L) — same width, continuous with tray
+      // Front flange hangs DOWN from the tray → inverted L (does not block the deck)
       g.add(box(
         w,
         lipH,
         lipD,
         matShelf,
         0,
-        trayY + trayT / 2 + lipH / 2,
+        trayY - trayT / 2 - lipH / 2,
         frontZ + lipD / 2
       ));
 
-      // Side returns — tie flange/tray into the mounting ears so nothing floats
+      // Side returns under the tray — tie flange into the ears
       const sideT = 0.45;
       const sideD = Math.min(12, d * 0.35);
       [-1, 1].forEach((side) => {
         const sx = side * (w / 2 - sideT / 2);
-        // Short side wall from front back along tray edge
         g.add(box(
           sideT,
           lipH,
           sideD,
           matShelf,
           sx,
-          trayY + trayT / 2 + lipH / 2,
+          trayY - trayT / 2 - lipH / 2,
           frontZ + sideD / 2
         ));
       });
@@ -3342,23 +3341,23 @@
       });
 
       g.userData.heightU = heightU;
-      g.userData.mountZ = frontZ; // flush front of L flange to rail plane
+      g.userData.mountZ = frontZ;
       g.userData.interactive = true;
       g.userData.kind = "shelf";
       g.userData.label = "1U Fixed Shelf";
       g.userData.info = {
         eyebrow: `Shelf · ${rackName}`,
-        title: "1U L-Shaped Fixed Shelf",
+        title: "1U Inverted-L Fixed Shelf",
         model: "Fixed rack shelf",
         rating: "1U · RU 39",
         blocks: [
           {
             label: "Reserve",
-            text: "RU 39–42 reserved for Telecom · Open space above for non-rackmount gear",
+            text: "RU 39–42 reserved for Telecom · Open deck for sliding non-rackmount gear on",
           },
           {
             label: "Physical",
-            text: "L-profile: full-width tray + front flange · ~500 mm deep · Screwed to 19″ rails",
+            text: "Inverted L: flat tray on top · front flange hangs below · ~500 mm deep · Screwed to 19″ rails",
           },
         ],
       };
