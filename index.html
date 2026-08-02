@@ -766,6 +766,9 @@
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(RU_STRIP_W, INNER_H), mat);
       // PlaneGeometry faces +Z; rack front is −Z
