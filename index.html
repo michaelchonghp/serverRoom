@@ -726,14 +726,14 @@
       for (let u = 0; u < UNITS; u++) {
         const ru = u + 1; // bottom = 1
         const y = ph - (u + 0.5) * pxPerU;
-        // Compact label plate — keeps type from needing to fill the full U height
-        const plateW = pw * 0.78;
-        const plateH = Math.min(pxPerU * 0.38, pw * 0.55);
+        // Larger plate + type so RU numbers stay readable when zoomed on a rack
+        const plateW = pw * 0.9;
+        const plateH = Math.min(pxPerU * 0.58, pw * 0.78);
         const px = (pw - plateW) / 2;
         const py = y - plateH / 2;
-        ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
+        ctx.fillStyle = "rgba(248, 250, 252, 0.95)";
         ctx.beginPath();
-        const r = Math.min(6, plateH * 0.2);
+        const r = Math.min(7, plateH * 0.22);
         ctx.moveTo(px + r, py);
         ctx.arcTo(px + plateW, py, px + plateW, py + plateH, r);
         ctx.arcTo(px + plateW, py + plateH, px, py + plateH, r);
@@ -741,13 +741,13 @@
         ctx.arcTo(px, py, px + plateW, py, r);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = "rgba(30, 38, 48, 0.2)";
+        ctx.strokeStyle = "rgba(30, 38, 48, 0.22)";
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
         ctx.fillStyle = "#12181f";
-        const fs = Math.floor(plateH * (ru >= 10 ? 0.62 : 0.72));
-        ctx.font = `700 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
+        const fs = Math.floor(plateH * (ru >= 10 ? 0.78 : 0.86));
+        ctx.font = `800 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
         ctx.fillText(String(ru), pw * 0.5, y + 0.5);
       }
       ruRailTex = new THREE.CanvasTexture(c);
@@ -1908,19 +1908,18 @@
       return g;
     }
 
-    /** Huawei NetEngine AR1600C front — silver faceplate, color-coded GE blocks, SIC slot, SFP */
+    /** Huawei NetEngine AR1600C front — full-width layout matching reference photo */
     let huaweiAr1600cFrontTex = null;
     function makeHuaweiAr1600cFrontTexture() {
       if (huaweiAr1600cFrontTex) return huaweiAr1600cFrontTex;
 
-      const pw = 2200;
-      const ph = 220;
+      const pw = 2400;
+      const ph = 260;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
 
-      // Silver chassis face
       const faceGrad = ctx.createLinearGradient(0, 0, 0, ph);
       faceGrad.addColorStop(0, "#d8dde4");
       faceGrad.addColorStop(0.5, "#c8ced6");
@@ -1928,7 +1927,7 @@
       ctx.fillStyle = faceGrad;
       ctx.fillRect(0, 0, pw, ph);
       ctx.fillStyle = "#e8ebf0";
-      ctx.fillRect(8, 8, pw - 16, ph - 16);
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
 
       function roundRect(x, y, w, h, r) {
         ctx.beginPath();
@@ -1942,15 +1941,15 @@
 
       function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
         ctx.fillStyle = "#2a3038";
-        roundRect(x, y, w, h, 1.5);
+        roundRect(x, y, w, h, 2);
         ctx.fill();
         ctx.strokeStyle = "#a8b0ba";
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 2;
         ctx.stroke();
         const ix = x + w * 0.12;
-        const iy = y + h * 0.14;
+        const iy = y + h * 0.12;
         const iw = w * 0.76;
-        const ih = h * 0.72;
+        const ih = h * 0.76;
         const cut = Math.min(iw, ih) * 0.22;
         ctx.beginPath();
         if (!invert) {
@@ -1972,7 +1971,7 @@
         ctx.fillStyle = "#0a0c10";
         ctx.fill();
         ctx.strokeStyle = "#8a929c";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
         ctx.fillStyle = "#1a222c";
         const ledgeY = invert ? iy + ih * 0.55 : iy + ih * 0.12;
@@ -1980,7 +1979,7 @@
         ctx.fillStyle = "#c9a227";
         const gY = invert ? iy + ih * 0.62 : iy + ih * 0.18;
         for (let i = 0; i < 8; i++) {
-          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1, iw * 0.035), ih * 0.1);
+          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1.2, iw * 0.035), ih * 0.1);
         }
       }
 
@@ -1989,7 +1988,7 @@
         roundRect(x, y, w, h, 2);
         ctx.fill();
         ctx.strokeStyle = "#a8b0ba";
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2;
         ctx.stroke();
         ctx.fillStyle = "#0a0c10";
         ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
@@ -2001,199 +2000,231 @@
         ctx.fill();
       }
 
-      // —— Brand + LEDs (far left) ——
-      ctx.fillStyle = "#c7000b";
-      ctx.font = `800 28px "Archivo Black", sans-serif`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("HUAWEI", 28, 48);
-      ctx.fillStyle = "#2a3038";
-      ctx.font = `700 16px "IBM Plex Mono", monospace`;
-      ctx.fillText("AR1600 Series", 28, 78);
+      // Full-face horizontal bands (fractions of usable width) matching the photo
+      const margin = 14;
+      const usable = pw - margin * 2;
+      const zones = {
+        brand: 0.09,
+        ctrl: 0.08,
+        red: 0.11,
+        blue: 0.20,
+        yellow: 0.055,
+        sic: 0.265,
+        bays: 0.17,
+        vent: 0.03,
+      };
+      let x = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x, w: usable * f };
+        x += usable * f;
+      }
 
-      const ledLabs = ["SYS", "PWR", "USB", "WLAN", "GE"];
-      ledLabs.forEach((lab, i) => {
-        const lx = 28 + i * 36;
-        ctx.fillStyle = "#3a454f";
+      const contentTop = 18;
+      const contentH = ph - 36;
+
+      // —— Brand + LEDs ——
+      {
+        const { x: zx, w: zw } = Z.brand;
+        ctx.fillStyle = "#c7000b";
+        ctx.font = `800 ${Math.floor(ph * 0.14)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("HUAWEI", zx + 4, contentTop + contentH * 0.22);
+        ctx.fillStyle = "#2a3038";
+        ctx.font = `700 ${Math.floor(ph * 0.075)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("AR1600 Series", zx + 4, contentTop + contentH * 0.42);
+        const ledLabs = ["SYS", "PWR", "USB", "WLAN", "GE"];
+        const ledGap = zw / (ledLabs.length + 0.2);
+        ledLabs.forEach((lab, i) => {
+          const lx = zx + 10 + i * ledGap;
+          const ly = contentTop + contentH * 0.68;
+          ctx.fillStyle = "#3a454f";
+          ctx.beginPath();
+          ctx.arc(lx, ly, Math.max(4, ph * 0.028), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#5a6572";
+          ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "center";
+          ctx.fillText(lab, lx, ly + ph * 0.1);
+        });
+      }
+
+      // —— RST · USB×3 · DB9 ——
+      {
+        const { x: zx, w: zw } = Z.ctrl;
+        const midY = contentTop + contentH * 0.5;
+        // RST
+        ctx.fillStyle = "#4a5560";
         ctx.beginPath();
-        ctx.arc(lx + 10, 118, 5, 0, Math.PI * 2);
+        ctx.arc(zx + zw * 0.18, midY, ph * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1e24";
+        ctx.beginPath();
+        ctx.arc(zx + zw * 0.18, midY, ph * 0.03, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = "#5a6572";
-        ctx.font = `600 9px "IBM Plex Mono", monospace`;
+        ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
         ctx.textAlign = "center";
-        ctx.fillText(lab, lx + 10, 138);
-      });
-
-      // RST + USB×3 + DB9 console
-      let cx = 220;
-      ctx.fillStyle = "#4a5560";
-      ctx.beginPath();
-      ctx.arc(cx + 12, ph / 2, 9, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#1a1e24";
-      ctx.beginPath();
-      ctx.arc(cx + 12, ph / 2, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#5a6572";
-      ctx.font = `600 9px "IBM Plex Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText("RST", cx + 12, ph / 2 + 28);
-
-      cx += 40;
-      for (let i = 0; i < 3; i++) {
-        const uy = 42 + i * 48;
-        ctx.fillStyle = "#1a4a8a";
-        roundRect(cx, uy, 26, 36, 2);
-        ctx.fill();
-        ctx.fillStyle = "#6a9ee0";
-        ctx.fillRect(cx + 3, uy + 4, 20, 28);
-      }
-      ctx.fillStyle = "#5a6572";
-      ctx.font = `600 9px "IBM Plex Mono", monospace`;
-      ctx.fillText("USB", cx + 13, ph - 18);
-
-      cx += 44;
-      // DB9 console
-      ctx.fillStyle = "#2a3038";
-      roundRect(cx, 55, 48, 90, 3);
-      ctx.fill();
-      ctx.strokeStyle = "#a8b0ba";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = "#c9a227";
-      for (let r = 0; r < 2; r++) {
-        for (let col = 0; col < 5; col++) {
-          if (r === 1 && (col === 0 || col === 4)) continue;
-          ctx.beginPath();
-          ctx.arc(cx + 10 + col * 7.5, 78 + r * 28, 2.2, 0, Math.PI * 2);
+        ctx.fillText("RST", zx + zw * 0.18, midY + ph * 0.14);
+        // USB stack
+        const usbX = zx + zw * 0.38;
+        const usbW = zw * 0.22;
+        const usbH = contentH * 0.22;
+        for (let i = 0; i < 3; i++) {
+          const uy = contentTop + contentH * 0.08 + i * (usbH + 6);
+          ctx.fillStyle = "#1a4a8a";
+          roundRect(usbX, uy, usbW, usbH, 2);
           ctx.fill();
+          ctx.fillStyle = "#6a9ee0";
+          ctx.fillRect(usbX + 3, uy + 3, usbW - 6, usbH - 6);
+        }
+        // DB9
+        const dbX = zx + zw * 0.68;
+        const dbW = zw * 0.28;
+        const dbH = contentH * 0.7;
+        const dbY = contentTop + contentH * 0.08;
+        ctx.fillStyle = "#2a3038";
+        roundRect(dbX, dbY, dbW, dbH, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.fillStyle = "#c9a227";
+        for (let r = 0; r < 2; r++) {
+          for (let col = 0; col < 5; col++) {
+            if (r === 1 && (col === 0 || col === 4)) continue;
+            ctx.beginPath();
+            ctx.arc(dbX + dbW * (0.18 + col * 0.16), dbY + dbH * (0.3 + r * 0.35), 2.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
-      ctx.fillStyle = "#5a6572";
-      ctx.font = `600 9px "IBM Plex Mono", monospace`;
-      ctx.fillText("CON", cx + 24, ph - 18);
 
-      // —— Color-coded RJ45 blocks ——
-      cx += 70;
-      const portTop = 38;
-      const portH = 68;
-      const pW = 36;
-      const pH = 30;
-      const pGapX = 5;
-      const pGapY = 6;
-
-      function drawRjBlock(x, cols, barColor, barAlsoBottom = false) {
-        const blockW = cols * pW + (cols - 1) * pGapX + 12;
-        drawColorBar(x, portTop - 14, blockW, 10, barColor);
-        if (barAlsoBottom) drawColorBar(x, portTop + portH + 4, blockW, 8, barColor);
+      // —— Color-coded RJ45 blocks (tall ports, fill zone height) ——
+      function drawRjBlock(zone, cols, barColor, barAlsoBottom = false) {
+        const { x: zx, w: zw } = zone;
+        const barH = Math.max(10, ph * 0.055);
+        const padX = zw * 0.04;
+        const padY = contentH * 0.08;
+        const blockTop = contentTop + padY + barH + 4;
+        const blockBot = contentTop + contentH - (barAlsoBottom ? barH + 8 : 6);
+        const blockH = blockBot - blockTop;
+        const gapX = 5;
+        const gapY = 7;
+        const pW = (zw - padX * 2 - gapX * (cols - 1)) / cols;
+        const pH = (blockH - gapY) / 2;
+        drawColorBar(zx + padX * 0.5, contentTop + padY * 0.4, zw - padX, barH, barColor);
+        if (barAlsoBottom) {
+          drawColorBar(zx + padX * 0.5, blockBot + 4, zw - padX, barH * 0.85, barColor);
+        }
         for (let r = 0; r < 2; r++) {
           for (let col = 0; col < cols; col++) {
             drawRj45Jack(
-              x + 6 + col * (pW + pGapX),
-              portTop + r * (pH + pGapY),
+              zx + padX + col * (pW + gapX),
+              blockTop + r * (pH + gapY),
               pW,
               pH,
               { invert: r === 1 }
             );
           }
         }
-        return blockW;
       }
+      drawRjBlock(Z.red, 2, "#c0392b", true);
+      drawRjBlock(Z.blue, 4, "#2980b9", false);
+      drawRjBlock(Z.yellow, 1, "#f1c40f", false);
 
-      // Red 2×2
-      let bw = drawRjBlock(cx, 2, "#c0392b", true);
-      cx += bw + 14;
-      // Blue 2×4
-      bw = drawRjBlock(cx, 4, "#2980b9", false);
-      cx += bw + 14;
-      // Yellow 2×1
-      bw = drawRjBlock(cx, 1, "#f1c40f", false);
-      cx += bw + 18;
-
-      // —— SIC / expansion blanking plate ——
-      const slotW = 380;
-      const slotH = 78;
-      const slotY = 22;
-      ctx.fillStyle = "#cfd4dc";
-      roundRect(cx, slotY, slotW, slotH, 3);
-      ctx.fill();
-      ctx.strokeStyle = "#9aa3ae";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // Thumb screws
-      [18, slotW - 18].forEach((ox) => {
-        ctx.fillStyle = "#8a929c";
-        ctx.beginPath();
-        ctx.arc(cx + ox, slotY + slotH / 2, 8, 0, Math.PI * 2);
+      // —— SIC blanking plate (upper) + GE9/GE10 SFP (lower) ——
+      {
+        const { x: zx, w: zw } = Z.sic;
+        const slotH = contentH * 0.52;
+        const slotY = contentTop + 4;
+        ctx.fillStyle = "#cfd4dc";
+        roundRect(zx + 4, slotY, zw - 8, slotH, 3);
         ctx.fill();
-        ctx.fillStyle = "#d8dde4";
-        ctx.beginPath();
-        ctx.arc(cx + ox, slotY + slotH / 2, 4, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      ctx.fillStyle = "#6a7380";
-      ctx.font = `600 14px "IBM Plex Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText("SIC", cx + slotW / 2, slotY + slotH / 2 + 1);
-
-      // Two SFP under / beside lower area of slot — GE9 / GE10
-      const sfpY = slotY + slotH + 8;
-      drawColorBar(cx, sfpY - 12, 120, 8, "#f1c40f");
-      drawSfpCage(cx + 4, sfpY, 52, 28);
-      drawSfpCage(cx + 62, sfpY, 52, 28);
-      ctx.fillStyle = "#5a6572";
-      ctx.font = `600 9px "IBM Plex Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText("GE9", cx + 30, sfpY + 40);
-      ctx.fillText("GE10", cx + 88, sfpY + 40);
-
-      // Vent dots near SFPs
-      ctx.fillStyle = "rgba(120,128,138,0.55)";
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 6; col++) {
+        ctx.strokeStyle = "#9aa3ae";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        [0.08, 0.92].forEach((t) => {
+          const ox = zx + 4 + (zw - 8) * t;
+          ctx.fillStyle = "#8a929c";
           ctx.beginPath();
-          ctx.arc(cx + 140 + col * 10, sfpY + 6 + row * 10, 2.2, 0, Math.PI * 2);
+          ctx.arc(ox, slotY + slotH / 2, 9, 0, Math.PI * 2);
           ctx.fill();
-        }
-      }
+          ctx.fillStyle = "#d8dde4";
+          ctx.beginPath();
+          ctx.arc(ox, slotY + slotH / 2, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.fillStyle = "#6a7380";
+        ctx.font = `600 ${Math.floor(ph * 0.07)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("SIC", zx + zw / 2, slotY + slotH / 2 + 1);
 
-      cx += slotW + 16;
-
-      // —— Dual module bays (honeycomb + yellow pull tabs) ——
-      const bayW = 210;
-      const bayH = 48;
-      for (let i = 0; i < 2; i++) {
-        const by = 28 + i * (bayH + 10);
-        ctx.fillStyle = "#1a1e24";
-        roundRect(cx, by, bayW, bayH, 3);
-        ctx.fill();
-        // Honeycomb
-        ctx.fillStyle = "rgba(70, 78, 88, 0.9)";
+        const sfpY = slotY + slotH + 10;
+        const sfpH = contentH * 0.28;
+        const sfpW = (zw - 28) * 0.28;
+        drawColorBar(zx + 8, sfpY - 12, sfpW * 2 + 14, 9, "#f1c40f");
+        drawSfpCage(zx + 8, sfpY, sfpW, sfpH);
+        drawSfpCage(zx + 16 + sfpW, sfpY, sfpW, sfpH);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("GE9", zx + 8 + sfpW / 2, sfpY + sfpH + 14);
+        ctx.fillText("GE10", zx + 16 + sfpW * 1.5, sfpY + sfpH + 14);
+        // Vent dots beside SFPs
+        ctx.fillStyle = "rgba(120,128,138,0.55)";
+        const vx0 = zx + 28 + sfpW * 2;
         for (let row = 0; row < 4; row++) {
-          for (let col = 0; col < 14; col++) {
-            const hx = cx + 14 + col * 12 + (row % 2 ? 6 : 0);
-            const hy = by + 10 + row * 9;
+          for (let col = 0; col < 5; col++) {
             ctx.beginPath();
-            ctx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+            ctx.arc(vx0 + col * 12, sfpY + 8 + row * 12, 2.8, 0, Math.PI * 2);
             ctx.fill();
           }
         }
-        // Yellow pull tab
-        ctx.fillStyle = "#f1c40f";
-        roundRect(cx + bayW - 14, by + 8, 8, bayH - 16, 2);
-        ctx.fill();
       }
-      // Side vent
-      ctx.fillStyle = "rgba(120,128,138,0.5)";
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 3; col++) {
-          ctx.beginPath();
-          ctx.arc(cx + bayW + 16 + col * 9, 40 + row * 16, 2.5, 0, Math.PI * 2);
+
+      // —— Dual module bays ——
+      {
+        const { x: zx, w: zw } = Z.bays;
+        const gap = 10;
+        const bayH = (contentH - gap) / 2;
+        for (let i = 0; i < 2; i++) {
+          const by = contentTop + i * (bayH + gap);
+          ctx.fillStyle = "#1a1e24";
+          roundRect(zx + 4, by, zw - 8, bayH, 3);
+          ctx.fill();
+          ctx.fillStyle = "rgba(70, 78, 88, 0.95)";
+          const cols = Math.floor((zw - 40) / 14);
+          const rows = Math.floor((bayH - 16) / 11);
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              const hx = zx + 18 + col * 14 + (row % 2 ? 7 : 0);
+              const hy = by + 12 + row * 11;
+              ctx.beginPath();
+              ctx.arc(hx, hy, 3.6, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.fillStyle = "#f1c40f";
+          roundRect(zx + zw - 18, by + 10, 9, bayH - 20, 2);
           ctx.fill();
         }
       }
 
-      // Rack-ear hints
+      // —— Far-right vent ——
+      {
+        const { x: zx, w: zw } = Z.vent;
+        ctx.fillStyle = "rgba(120,128,138,0.55)";
+        for (let row = 0; row < 10; row++) {
+          for (let col = 0; col < 2; col++) {
+            ctx.beginPath();
+            ctx.arc(zx + zw * 0.35 + col * 12, contentTop + 12 + row * (contentH / 10), 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
       ctx.fillStyle = "#9aa1ab";
       ctx.fillRect(0, 8, 6, ph - 16);
       ctx.fillRect(pw - 6, 8, 6, ph - 16);
