@@ -2525,6 +2525,324 @@
       return g;
     }
 
+    /** Cisco Catalyst C8300-1N1S front — hex vent face, GE/SFP cluster, NIM + SM blanks */
+    let ciscoC8300FrontTex = null;
+    function makeCiscoC8300FrontTexture() {
+      if (ciscoC8300FrontTex) return ciscoC8300FrontTex;
+
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Light metallic face
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#d8dde4");
+      gFace.addColorStop(0.5, "#c8ced6");
+      gFace.addColorStop(1, "#b4bac4");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Dense hexagonal ventilation across the whole face
+      ctx.fillStyle = "rgba(70, 78, 90, 0.55)";
+      const hexR = 5.5;
+      for (let row = 0; row < 28; row++) {
+        for (let col = 0; col < 160; col++) {
+          const hx = 10 + col * (hexR * 1.7) + (row % 2 ? hexR * 0.85 : 0);
+          const hy = 10 + row * (hexR * 1.5);
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i + Math.PI / 6;
+            const px = hx + Math.cos(a) * hexR * 0.55;
+            const py = hy + Math.sin(a) * hexR * 0.55;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      function clearPanel(x, y, w, h) {
+        ctx.fillStyle = "#cfd4dc";
+        roundRect(x, y, w, h, 3);
+        ctx.fill();
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false, border = null } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = border || "#a8b0ba";
+        ctx.lineWidth = border ? 2.4 : 1.8;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.12;
+        const iw = w * 0.76;
+        const ih = h * 0.76;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawBlankPlate(x, y, w, h) {
+        clearPanel(x, y, w, h);
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Top/bottom vent perforations
+        ctx.fillStyle = "rgba(60,68,78,0.45)";
+        for (let col = 0; col < Math.floor(w / 14); col++) {
+          ctx.beginPath();
+          ctx.arc(x + 16 + col * 14, y + 10, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x + 16 + col * 14, y + h - 10, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Thumb / flat-head screws
+        [0.08, 0.92].forEach((t) => {
+          const sx = x + w * t;
+          const sy = y + h / 2;
+          ctx.fillStyle = "#7a828c";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#4a5058";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(sx - 5, sy);
+          ctx.lineTo(sx + 5, sy);
+          ctx.stroke();
+        });
+      }
+
+      // Full-width zone layout
+      const margin = 16;
+      const usable = pw - margin * 2;
+      const zones = {
+        brand: 0.14,
+        ports: 0.22,
+        nim: 0.14,
+        sm: 0.46,
+        vent: 0.04,
+      };
+      let zx = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x: zx, w: usable * f };
+        zx += usable * f;
+      }
+      const top = 18;
+      const contentH = ph - 36;
+
+      // —— Brand / CON / USB ——
+      {
+        const { x, w } = Z.brand;
+        clearPanel(x + 4, top, w - 8, contentH);
+        ctx.fillStyle = "#049fd9";
+        ctx.font = `800 ${Math.floor(ph * 0.11)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("cisco", x + 14, top + contentH * 0.22);
+        ctx.fillStyle = "#2a3038";
+        ctx.font = `700 ${Math.floor(ph * 0.06)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("C8300-1N1S-6T", x + 14, top + contentH * 0.42);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.05)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("Catalyst Edge", x + 14, top + contentH * 0.88);
+        // Status LED
+        ctx.fillStyle = "#3a454f";
+        ctx.beginPath();
+        ctx.arc(x + 28, top + contentH * 0.62, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // USB-C CON
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x + w * 0.45, top + contentH * 0.52, 34, 14, 2);
+        ctx.fill();
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("CON", x + w * 0.45 + 17, top + contentH * 0.52 - 8);
+        // USB-A
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(x + w * 0.7, top + contentH * 0.5, 22, 32, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(x + w * 0.7 + 3, top + contentH * 0.5 + 4, 16, 24);
+      }
+
+      // —— MGT + 4× GE RJ45 + 2× SFP ——
+      {
+        const { x, w } = Z.ports;
+        clearPanel(x + 2, top, w - 4, contentH);
+        const pW = Math.min(42, (w - 28) / 4.2);
+        const pH = (contentH - 36) / 2;
+        const gap = 5;
+        // LED row
+        ctx.fillStyle = "#3a454f";
+        for (let i = 0; i < 8; i++) {
+          ctx.beginPath();
+          ctx.arc(x + 18 + i * 18, top + 14, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        let px = x + 10;
+        const py = top + 26;
+        // MGT (blue border)
+        drawRj45Jack(px, py + pH * 0.35, pW, pH * 0.85, { border: "#049fd9" });
+        ctx.fillStyle = "#049fd9";
+        ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("MGT", px + pW / 2, py + pH * 0.35 - 6);
+        px += pW + gap + 4;
+        // 2 stacks × 2 GE
+        for (let stack = 0; stack < 2; stack++) {
+          for (let r = 0; r < 2; r++) {
+            drawRj45Jack(px, py + r * (pH + gap), pW, pH, { invert: r === 1 });
+          }
+          px += pW + gap;
+        }
+        // 2× SFP stacked
+        px += 4;
+        const sW = pW * 1.05;
+        for (let r = 0; r < 2; r++) {
+          drawSfpCage(px, py + r * (pH + gap), sW, pH);
+        }
+      }
+
+      // —— NIM blank ——
+      drawBlankPlate(Z.nim.x + 4, top + 4, Z.nim.w - 8, contentH - 8);
+
+      // —— Large SM blank ——
+      drawBlankPlate(Z.sm.x + 4, top + 4, Z.sm.w - 8, contentH - 8);
+      // Small triangle mark bottom-right of SM plate
+      {
+        const { x, w } = Z.sm;
+        ctx.fillStyle = "#6a7380";
+        ctx.beginPath();
+        ctx.moveTo(x + w - 36, top + contentH - 22);
+        ctx.lineTo(x + w - 22, top + contentH - 22);
+        ctx.lineTo(x + w - 29, top + contentH - 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Far-right hex already drawn; ear hints
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      ciscoC8300FrontTex = tex;
+      return tex;
+    }
+
+    /** Cisco Catalyst 8300 — C8300-1N1S, 1U edge/voice router */
+    function makeCiscoC8300({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 43.8;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xb8bec8, metalness: 0.5, roughness: 0.42,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeCiscoC8300FrontTexture(),
+        metalness: 0.25,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("Voice");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "voice-router";
+      g.userData.label = "Cisco C8300-1N1S";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `Voice · ${rackName}`,
+        title: "Cisco Catalyst 8300 Edge",
+        model: "C8300-1N1S-6T",
+        rating: "1U · Edge / Voice",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "MGT · 4× GE RJ45 · 2× GE SFP · USB console · USB-A · 1× NIM slot · 1× SM slot (blanks fitted)",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · Hex-vent front · Catalyst Edge platform · Voice / SD-WAN edge services",
+          },
+        ],
+      };
+      return g;
+    }
+
     const interactiveItems = [];
 
     function createRack(name, extraLabels = [], equipment = []) {
@@ -2637,6 +2955,9 @@
         }
         if (type === "sw-ruijie-s6510") {
           unit = makeRuijieS6510({ rackName: name, code });
+        }
+        if (type === "rt-cisco-c8300") {
+          unit = makeCiscoC8300({ rackName: name });
         }
         if (!unit) return;
         const heightU = unit.userData.heightU || 1;
@@ -2894,6 +3215,7 @@
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
         Rack1: [
+          { type: "rt-cisco-c8300", startU: 19 }, // RU 20 — Voice
           // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
           { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
