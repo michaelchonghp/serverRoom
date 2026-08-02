@@ -1439,8 +1439,8 @@
         metalness: 0.02,
         side: THREE.DoubleSide,
       });
-      // ~9.2 × 1.55 cm — tiny at full-rack distance, clear when close
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 1.55), mat);
+      // ~6.4 × 1.1 cm (30% smaller) — faint at full-rack, clear when close
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(6.44, 1.085), mat);
       label.rotation.y = Math.PI; // face rack front (−Z)
       return label;
     }
@@ -1473,10 +1473,11 @@
       face.castShadow = true;
       g.add(face);
 
-      // Engineer field label — top-left of face
+      // Engineer field label — top-left as seen from aisle
+      // (camera looks +Z at the front face, so screen-left is +X)
       const fieldTag = makeFieldLabel("CORE SWITCH");
-      fieldTag.position.set(-w / 2 + 5.4, h / 2 - 1.15, -d / 2 - 0.98);
-      fieldTag.rotation.z = 0.035; // slightly crooked, hand-applied
+      fieldTag.position.set(w / 2 - 3.7, h / 2 - 0.85, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.035; // slightly crooked, hand-applied
       g.add(fieldTag);
 
       g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
