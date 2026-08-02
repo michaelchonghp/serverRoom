@@ -3274,92 +3274,53 @@
       return g;
     }
 
-    /** 1U fixed shelf — front lip + tray for non-rackmount gear (Telecom reserve) */
+    /** 1U L-shaped fixed shelf — tray + short front flange (no face panel) */
     function makeFixedShelf({ rackName = "Rack1" } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.25;
       const w = 44.0;
-      const d = 55; // shelf depth into rack
+      const d = 50;
       const g = new THREE.Group();
 
       const matShelf = new THREE.MeshStandardMaterial({
-        color: 0x3a424c, metalness: 0.4, roughness: 0.5,
-      });
-      const matLip = new THREE.MeshStandardMaterial({
-        color: 0x2a3038, metalness: 0.35, roughness: 0.55,
+        color: 0x4a5560, metalness: 0.45, roughness: 0.48,
       });
 
-      // Tray deck (horizontal) — top surface near mid of the 1U
-      const trayT = 0.35;
-      const tray = box(w - 2, trayT, d - 2, matShelf, 0, -h * 0.15, d * 0.15);
-      g.add(tray);
-      // Side rails / flanges
-      g.add(box(0.4, h * 0.55, d - 4, matShelf, -w / 2 + 1.2, -h * 0.05, d * 0.12));
-      g.add(box(0.4, h * 0.55, d - 4, matShelf, w / 2 - 1.2, -h * 0.05, d * 0.12));
-      // Front lip (flush mount plane)
-      const lipD = 1.2;
-      g.add(box(w, h * 0.85, lipD, matLip, 0, 0, -d / 2 + lipD / 2 + 0.5));
+      // Horizontal tray (deck)
+      const trayT = 0.4;
+      const trayY = -h * 0.28;
+      const trayZ = 0; // centered; front edge at z = -d/2
+      g.add(box(w - 1.5, trayT, d, matShelf, 0, trayY, trayZ));
 
-      // Face label strip on front lip
-      const pw = 1024;
-      const ph = 140;
-      const c = document.createElement("canvas");
-      c.width = pw;
-      c.height = ph;
-      const ctx = c.getContext("2d");
-      ctx.fillStyle = "#2a3038";
-      ctx.fillRect(0, 0, pw, ph);
-      ctx.fillStyle = "#3a424c";
-      ctx.fillRect(20, 20, pw - 40, ph - 40);
-      // Perforation row
-      ctx.fillStyle = "rgba(70, 78, 88, 0.95)";
-      for (let col = 0; col < 40; col++) {
-        ctx.beginPath();
-        ctx.arc(40 + col * 24, ph / 2, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = "#c8d0da";
-      ctx.font = `800 36px "IBM Plex Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("FIXED SHELF", pw / 2, ph / 2);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const frontMat = new THREE.MeshStandardMaterial({
-        map: tex, metalness: 0.3, roughness: 0.55, side: THREE.DoubleSide,
-      });
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.2, h * 0.7), frontMat);
-      face.position.set(0, 0, -d / 2 + 0.2);
-      face.rotation.y = Math.PI;
-      g.add(face);
+      // Vertical front flange — forms the “L” with the tray (no front panel / label)
+      const lipH = h * 0.55;
+      const lipD = 0.35;
+      const lipZ = -d / 2 - lipD / 2;
+      g.add(box(w - 1.5, lipH, lipD, matShelf, 0, trayY + trayT / 2 + lipH / 2, lipZ));
 
-      const fieldTag = makeFieldLabel("TELECOM");
-      const tagW = fieldTag.userData.labelW || 6.44;
-      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.35);
-      fieldTag.rotation.z = -0.03;
-      g.add(fieldTag);
-
-      g.add(box(1.8, h * 0.9, 1.1, matChrome, -w / 2 - 0.5, 0, -d / 2 + 0.4));
-      g.add(box(1.8, h * 0.9, 1.1, matChrome, w / 2 + 0.5, 0, -d / 2 + 0.4));
+      // Side mounting ears (screw to 19″ rails)
+      const earZ = lipZ;
+      g.add(box(1.6, h * 0.85, 1.0, matChrome, -w / 2 - 0.4, 0, earZ));
+      g.add(box(1.6, h * 0.85, 1.0, matChrome, w / 2 + 0.4, 0, earZ));
 
       g.userData.heightU = heightU;
-      g.userData.mountZ = face.position.z;
+      g.userData.mountZ = earZ - 0.5; // front of ears / flange
       g.userData.interactive = true;
       g.userData.kind = "shelf";
-      g.userData.label = "1U Fixed Shelf (Telecom)";
+      g.userData.label = "1U Fixed Shelf";
       g.userData.info = {
-        eyebrow: `Telecom · ${rackName}`,
-        title: "1U Fixed Shelf",
+        eyebrow: `Shelf · ${rackName}`,
+        title: "1U L-Shaped Fixed Shelf",
         model: "Fixed rack shelf",
         rating: "1U · RU 39",
         blocks: [
           {
             label: "Reserve",
-            text: "RU 39–42 reserved for Telecom · Shelf at RU 39 for non-rackmount gear · RU 40–42 open above",
+            text: "RU 39–42 reserved for Telecom · Open space above for non-rackmount gear",
           },
           {
             label: "Physical",
-            text: "1U front lip · Fixed tray ~550 mm deep · Screwed to 19″ rails",
+            text: "L-profile: horizontal tray + short front flange · ~500 mm deep · Screwed to 19″ rails",
           },
         ],
       };
@@ -3742,7 +3703,7 @@
       ROW_SEP / 2,
       0,
       0,
-      { Rack1: ["CORE", "TELECOM"], Rack2: ["CORE"] },
+      { Rack1: ["CORE"], Rack2: ["CORE"] },
       {
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
