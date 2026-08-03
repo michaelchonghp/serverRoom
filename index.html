@@ -597,6 +597,13 @@
     const matMcbCover = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.28, roughness: 0.58 });
     // Panduit Wyr-Grid indicator — zinc wire basket
     const matWyrGrid = new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.82, roughness: 0.32 });
+    // Brushed silver trunk — lower metalness so it stays bright without an env map
+    const matTrunkSilver = new THREE.MeshStandardMaterial({
+      color: 0xd8dee6,
+      metalness: 0.45,
+      roughness: 0.38,
+      envMapIntensity: 0.6,
+    });
 
     // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
     function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
@@ -4516,7 +4523,7 @@
     const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
     const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
     const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
-    const trunk = box(TRUNK, trunkH, TRUNK, matChrome, trunkX, trunkY, trunkZ);
+    const trunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, trunkX, trunkY, trunkZ);
     trunk.name = "PowerTrunk";
     roomPower.add(trunk);
 
