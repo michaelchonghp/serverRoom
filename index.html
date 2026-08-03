@@ -1477,7 +1477,8 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const long = text.length > 14;
-      ctx.font = `800 ${Math.floor(ph * (long ? 0.4 : 0.48))}px "IBM Plex Mono", ui-monospace, monospace`;
+      const mid = !long && text.length > 8;
+      ctx.font = `800 ${Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48))}px "IBM Plex Mono", ui-monospace, monospace`;
       ctx.fillText(text, pw / 2, ph / 2 + 2);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -1489,7 +1490,7 @@
         side: THREE.DoubleSide,
       });
       // Slightly wider when code suffix is present
-      const labelW = long ? 7.8 : 6.44;
+      const labelW = long ? 7.8 : mid ? 7.15 : 6.44;
       const labelH = 1.085;
       const label = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
       label.rotation.y = Math.PI; // face rack front (−Z)
