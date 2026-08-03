@@ -619,7 +619,11 @@
     renderer.localClippingEnabled = true;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xe8eef4, 630, 1650);
+    const FOG_NEAR = 630;
+    const FOG_FAR = 1650;
+    const FOG_NEAR_POWER = 1400;
+    const FOG_FAR_POWER = 3600;
+    scene.fog = new THREE.Fog(0xe8eef4, FOG_NEAR, FOG_FAR);
 
     const isMobile = () => window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
     const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 3000);
@@ -4938,8 +4942,16 @@
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
       syncPowerButton();
-      if (on) framePowerPath();
-      else nudgeIdle();
+      if (on) {
+        // Pull fog back so the wide power overview stays readable
+        scene.fog.near = FOG_NEAR_POWER;
+        scene.fog.far = FOG_FAR_POWER;
+        framePowerPath();
+      } else {
+        scene.fog.near = FOG_NEAR;
+        scene.fog.far = FOG_FAR;
+        nudgeIdle();
+      }
     }
 
     function nudgeIdle() {
@@ -5140,7 +5152,8 @@
       const h = window.innerHeight;
       const mobile = isMobile();
 
-      camera.fov = mobile ? 52 : 38;
+      // Wider FOV → camera can sit closer without clipping the path
+      camera.fov = mobile ? 58 : 48;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
 
@@ -5151,21 +5164,21 @@
         roomPower.localToWorld(tmp);
         box.expandByPoint(tmp);
       });
-      box.expandByScalar(mobile ? 55 : 42);
+      box.expandByScalar(mobile ? 28 : 20);
 
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
       box.getSize(size);
       box.getCenter(center);
 
-      const pad = mobile ? 1.48 : 1.32;
+      const pad = mobile ? 1.2 : 1.1;
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
       const distance = Math.max(
         (size.y * pad * 0.5) / Math.tan(vFov / 2),
         (size.x * pad * 0.5) / Math.tan(hFov / 2),
         (size.z * pad * 0.5) / Math.tan(hFov / 2)
-      ) * (mobile ? 1.14 : 1.08);
+      ) * (mobile ? 0.95 : 0.9);
 
       // High corner view so wall stack, underfloor L, and Rack6 riser all read
       const dir = new THREE.Vector3(0.58, mobile ? 0.68 : 0.78, -0.42).normalize();
