@@ -1177,6 +1177,319 @@
       return tex;
     }
 
+    /** Rear face — APC Smart-UPS On-Line (ports, OUTPUT, ±192 VDC, NMC, honeycomb) */
+    let upsRearTex = null;
+    function makeApcSrtgRearTexture() {
+      if (upsRearTex) return upsRearTex;
+      const pw = 1408;
+      const ph = 976;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawHexMesh(x, y, w, h, hexR) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#12161c";
+        ctx.fillRect(x, y, w, h);
+        const dx = hexR * Math.sqrt(3);
+        const dy = hexR * 1.5;
+        for (let row = 0, yy = y + hexR; yy < y + h + hexR; row++, yy += dy) {
+          const xOff = (row % 2) * (dx * 0.5);
+          for (let xx = x + hexR + xOff; xx < x + w + hexR; xx += dx) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = (Math.PI / 3) * i - Math.PI / 6;
+              const px = xx + hexR * 0.78 * Math.cos(a);
+              const py = yy + hexR * 0.78 * Math.sin(a);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = "#0a0c10";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(70,78,88,0.55)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+
+      function dsub(x, y, label) {
+        roundRect(x, y, 78, 42, 3);
+        ctx.fillStyle = "#1a1f26";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Trapezoid connector face
+        ctx.beginPath();
+        ctx.moveTo(x + 14, y + 10);
+        ctx.lineTo(x + 64, y + 10);
+        ctx.lineTo(x + 58, y + 32);
+        ctx.lineTo(x + 20, y + 32);
+        ctx.closePath();
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.stroke();
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 8; col++) {
+            ctx.beginPath();
+            ctx.arc(x + 24 + col * 5, y + 16 + row * 10, 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = "#c5ccd6";
+            ctx.fill();
+          }
+        }
+        ctx.fillStyle = "#d0d6de";
+        ctx.font = "600 11px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 39, y + 56);
+      }
+
+      function rjPort(x, y, label) {
+        roundRect(x, y, 36, 28, 2);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1e2530";
+        ctx.fillRect(x + 6, y + 6, 24, 14);
+        ctx.fillStyle = "#d0d6de";
+        ctx.font = "600 10px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 18, y + 42);
+      }
+
+      // Chassis + ears
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 70;
+      ctx.fillStyle = "#242a32";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      [0.12, 0.32, 0.68, 0.88].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 8, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const bodyX = earW + 10;
+      const bodyW = pw - earW * 2 - 20;
+      const bodyY = 14;
+      const bodyH = ph - 28;
+      roundRect(bodyX, bodyY, bodyW, bodyH, 6);
+      ctx.fillStyle = "#15191f";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4450";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // —— Left: communication ports ——
+      const lx = bodyX + 28;
+      const ly = bodyY + 36;
+      dsub(lx, ly, "PARALLEL PORT 1");
+      dsub(lx + 96, ly, "PARALLEL PORT 2");
+
+      // EPO green terminal
+      roundRect(lx + 210, ly + 4, 52, 36, 3);
+      ctx.fillStyle = "#1a4a28";
+      ctx.fill();
+      ctx.strokeStyle = "#3dd68c";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(lx + 224 + i * 12, ly + 22, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#c5e8c8";
+        ctx.fill();
+      }
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "700 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("EPO", lx + 236, ly + 56);
+
+      rjPort(lx, ly + 90, "BAT_TEMP");
+      rjPort(lx + 56, ly + 90, "RS232");
+      // USB type-B style
+      roundRect(lx + 112, ly + 90, 36, 28, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.stroke();
+      ctx.fillStyle = "#2a313a";
+      ctx.fillRect(lx + 120, ly + 98, 20, 12);
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("USB", lx + 130, ly + 132);
+
+      // Ground screw
+      ctx.beginPath();
+      ctx.arc(lx + 190, ly + 104, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      ctx.font = "700 14px sans-serif";
+      ctx.fillText("⏚", lx + 190, ly + 109);
+
+      // —— Center: OUTPUT + DC covers + honeycomb ——
+      const cx = bodyX + bodyW * 0.38;
+      // C19 outlet
+      roundRect(cx, bodyY + 40, 90, 110, 6);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // C19 receptacle silhouette
+      roundRect(cx + 18, bodyY + 58, 54, 58, 4);
+      ctx.fillStyle = "#1a1f26";
+      ctx.fill();
+      ctx.strokeStyle = "#c5ccd6";
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      [[0.28, 0.35], [0.72, 0.35], [0.5, 0.7]].forEach(([fx, fy]) => {
+        roundRect(cx + 18 + 54 * fx - 7, bodyY + 58 + 58 * fy - 8, 14, 16, 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 12px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("OUTPUT", cx + 45, bodyY + 138);
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.fillText("16A MAX", cx + 45, bodyY + 154);
+
+      // ±192 VDC covers
+      function dcCover(x, y, label) {
+        roundRect(x, y, 100, 36, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // screw heads
+        [8, 92].forEach((sx) => {
+          ctx.beginPath();
+          ctx.arc(x + sx, y + 18, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#8a949e";
+          ctx.fill();
+        });
+        ctx.fillStyle = "#f0c040";
+        ctx.font = "700 12px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 50, y + 22);
+      }
+      dcCover(cx + 120, bodyY + 48, "+192 VDC");
+      dcCover(cx + 120, bodyY + 96, "−192 VDC");
+
+      // Honeycomb vent — lower left / center
+      drawHexMesh(bodyX + 24, bodyY + bodyH * 0.42, bodyW * 0.52, bodyH * 0.52, 9);
+
+      // —— Right: AP9641 NMC + fan openings ——
+      const nx = bodyX + bodyW - 280;
+      const ny = bodyY + 36;
+      roundRect(nx, ny, 248, 200, 4);
+      ctx.fillStyle = "#0e1116";
+      ctx.fill();
+      ctx.strokeStyle = "#5a6570";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Card face
+      roundRect(nx + 10, ny + 28, 228, 160, 3);
+      ctx.fillStyle = "#1a2230";
+      ctx.fill();
+      // Label strip
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 13px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("AP9641  Network Management Card 3", nx + 14, ny + 20);
+      // Ports on NMC
+      function nmcPort(x, y, w, h, label, led) {
+        roundRect(x, y, w, h, 2);
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (led) {
+          ctx.beginPath();
+          ctx.arc(x + w + 8, y + h / 2, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#3dd68c";
+          ctx.fill();
+        }
+        ctx.fillStyle = "#c5ccd6";
+        ctx.font = "500 9px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + w / 2, y + h + 12);
+      }
+      nmcPort(nx + 24, ny + 48, 28, 22, "USB", false);
+      nmcPort(nx + 64, ny + 48, 28, 22, "USB", false);
+      nmcPort(nx + 24, ny + 96, 42, 28, "Univ. I/O", false);
+      nmcPort(nx + 80, ny + 96, 42, 28, "Univ. I/O", false);
+      nmcPort(nx + 140, ny + 100, 28, 18, "Console", false);
+      nmcPort(nx + 180, ny + 96, 42, 28, "Network", true);
+
+      // Schneider mark
+      ctx.fillStyle = "#3dd68c";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("Schneider Electric", nx + 238, ny + 180);
+
+      // Fan openings — top right
+      for (let i = 0; i < 4; i++) {
+        const fx = nx + 20 + i * 56;
+        const fy = bodyY + bodyH - 90;
+        ctx.beginPath();
+        ctx.arc(fx + 22, fy + 22, 20, 0, Math.PI * 2);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // fan blades hint
+        ctx.strokeStyle = "rgba(90,100,112,0.7)";
+        ctx.lineWidth = 1.5;
+        for (let b = 0; b < 3; b++) {
+          const a = (b / 3) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(fx + 22, fy + 22);
+          ctx.lineTo(fx + 22 + Math.cos(a) * 16, fy + 22 + Math.sin(a) * 16);
+          ctx.stroke();
+        }
+      }
+
+      upsRearTex = new THREE.CanvasTexture(c);
+      upsRearTex.colorSpace = THREE.SRGBColorSpace;
+      upsRearTex.anisotropy = 8;
+      upsRearTex.needsUpdate = true;
+      return upsRearTex;
+    }
+
     /** APC Smart-UPS On-Line SRTG15KXLI — 15kVA/15kW, 7U, 440×700×306 mm */
     function makeApcSrtg15() {
       const heightU = 7;
@@ -1209,14 +1522,22 @@
       g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
       g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
 
-      // Rear fans
-      g.add(box(w * 0.85, h * 0.7, 0.5, matUpsVent, 0, 0, d / 2 + 0.2));
-      for (let i = 0; i < 4; i++) {
-        const fan = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 0.35, 16), matAccent);
-        fan.rotation.x = Math.PI / 2;
-        fan.position.set(-12 + i * 8, h * 0.15, d / 2 + 0.45);
-        g.add(fan);
-      }
+      // Rear face — ports, OUTPUT, NMC, honeycomb (matches product rear)
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrtgRearTexture(),
+        metalness: 0.22,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.3,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
 
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
@@ -1224,6 +1545,7 @@
       g.userData.kind = "ups";
       g.userData.label = "APC SRTG15KXLI";
       g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
       g.userData.info = {
         eyebrow: "UPS · Rack6",
         title: "APC Smart-UPS On-Line",
@@ -1387,6 +1709,227 @@
       return battFrontTex;
     }
 
+    /** Rear face — APC SRTG battery pack (breaker, ±192 VDC, vents, MOD S/N) */
+    let battRearTex = null;
+    function makeApcBattRearTexture() {
+      if (battRearTex) return battRearTex;
+      const pw = 1024;
+      const ph = 420;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Chassis + ears
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 52;
+      ctx.fillStyle = "#242a32";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      [0.22, 0.78].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 7, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const bodyX = earW + 8;
+      const bodyW = pw - earW * 2 - 16;
+      const bodyY = 12;
+      const bodyH = ph - 24;
+      roundRect(bodyX, bodyY, bodyW, bodyH, 4);
+      ctx.fillStyle = "#15191f";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4450";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // —— Left: BATTERY BREAKER 63A + BAT_TEMP ——
+      const bx = bodyX + 22;
+      const by = bodyY + 40;
+      // BAT_TEMP port
+      roundRect(bx, by - 8, 34, 26, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = "#1e2530";
+      ctx.fillRect(bx + 6, by - 2, 22, 12);
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "600 9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("BAT_TEMP", bx + 17, by + 32);
+
+      // Breaker body
+      roundRect(bx + 52, by - 16, 110, 130, 5);
+      ctx.fillStyle = "#2a313a";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("BATTERY", bx + 107, by + 8);
+      ctx.fillText("BREAKER", bx + 107, by + 24);
+      ctx.font = "800 18px 'IBM Plex Mono', monospace";
+      ctx.fillText("63 A", bx + 107, by + 48);
+      // Blue toggle
+      roundRect(bx + 88, by + 62, 38, 40, 4);
+      ctx.fillStyle = "#2a6fd4";
+      ctx.fill();
+      ctx.strokeStyle = "#8ab4f0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 10px 'IBM Plex Mono', monospace";
+      ctx.fillText("I", bx + 107, by + 78);
+      ctx.fillText("O", bx + 107, by + 96);
+
+      // —— Center: ±192 VDC access covers + ground ——
+      function dcPanel(x, y, label) {
+        roundRect(x, y, 130, 70, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // warning triangle
+        ctx.beginPath();
+        ctx.moveTo(x + 28, y + 18);
+        ctx.lineTo(x + 42, y + 42);
+        ctx.lineTo(x + 14, y + 42);
+        ctx.closePath();
+        ctx.fillStyle = "#f0c040";
+        ctx.fill();
+        ctx.fillStyle = "#050608";
+        ctx.font = "800 12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("!", x + 28, y + 38);
+        // screws
+        [[10, 10], [120, 10], [10, 60], [120, 60]].forEach(([sx, sy]) => {
+          ctx.beginPath();
+          ctx.arc(x + sx, y + sy, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#8a949e";
+          ctx.fill();
+        });
+        ctx.fillStyle = "#f0c040";
+        ctx.font = "700 14px 'IBM Plex Mono', monospace";
+        ctx.fillText(label, x + 78, y + 40);
+      }
+      const cx = bodyX + bodyW * 0.34;
+      dcPanel(cx, bodyY + 50, "+192 VDC");
+      dcPanel(cx + 150, bodyY + 50, "−192 VDC");
+
+      // Ground between panels
+      const gx = cx + 138;
+      const gy = bodyY + 160;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 9, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      ctx.font = "700 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("⏚", gx, gy + 5);
+
+      // —— Right: solid plate + honeycomb vents + MOD S/N ——
+      const rx = bodyX + bodyW - 250;
+      roundRect(rx, bodyY + 28, 120, 160, 3);
+      ctx.fillStyle = "#1e2530";
+      ctx.fill();
+      ctx.strokeStyle = "#5a6570";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      [[10, 10], [110, 10], [10, 150], [110, 150]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(rx + sx, bodyY + 28 + sy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#8a949e";
+        ctx.fill();
+      });
+
+      // Honeycomb vents
+      function hexBlock(x, y, w, h) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#0e1116";
+        ctx.fillRect(x, y, w, h);
+        const hexR = 6;
+        const dx = hexR * Math.sqrt(3);
+        const dy = hexR * 1.5;
+        for (let row = 0, yy = y + hexR; yy < y + h + hexR; row++, yy += dy) {
+          const xOff = (row % 2) * (dx * 0.5);
+          for (let xx = x + hexR + xOff; xx < x + w + hexR; xx += dx) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = (Math.PI / 3) * i - Math.PI / 6;
+              const px = xx + hexR * 0.78 * Math.cos(a);
+              const py = yy + hexR * 0.78 * Math.sin(a);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = "#050608";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(70,78,88,0.5)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+      hexBlock(rx + 132, bodyY + 28, 90, 70);
+      hexBlock(rx + 132, bodyY + 110, 90, 70);
+
+      // Ground between vents
+      ctx.beginPath();
+      ctx.arc(rx + 177, bodyY + 108, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // MOD S/N bracket
+      roundRect(rx + 132, bodyY + bodyH - 36, 90, 24, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.stroke();
+      ctx.fillStyle = "#c5ccd6";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("MOD S/N", rx + 177, bodyY + bodyH - 20);
+
+      battRearTex = new THREE.CanvasTexture(c);
+      battRearTex.colorSpace = THREE.SRGBColorSpace;
+      battRearTex.anisotropy = 8;
+      battRearTex.needsUpdate = true;
+      return battRearTex;
+    }
+
     /** APC SRTG192XLBP2 — 192V external battery pack, 4U, 440×700×175 mm */
     function makeApcSrtgBatt() {
       const heightU = 4;
@@ -1414,7 +1957,23 @@
 
       g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
       g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
-      g.add(box(w * 0.9, h * 0.75, 0.45, matUpsVent, 0, 0, d / 2 + 0.2));
+
+      // Rear face — breaker, ±192 VDC, vents (matches product rear)
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcBattRearTexture(),
+        metalness: 0.2,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
 
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
@@ -1422,6 +1981,7 @@
       g.userData.kind = "battery";
       g.userData.label = "APC SRTG192XLBP2";
       g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
       g.userData.info = {
         eyebrow: "Battery · Rack6",
         title: "APC Smart-UPS RT Battery Pack",
