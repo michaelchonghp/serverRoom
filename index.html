@@ -4890,7 +4890,10 @@
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
-    document.querySelector(".door-controls").addEventListener("pointerdown", (e) => e.stopPropagation());
+    document.querySelector(".door-controls").addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+    });
     // Close drop-up when clicking the canvas / elsewhere
     document.addEventListener("pointerdown", (e) => {
       if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
