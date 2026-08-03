@@ -3204,12 +3204,12 @@
       return g;
     }
 
-    /** Panduit FMT1 1U fiber enclosure + CFAPPBL1 4-bay front adapter panel */
+    /** Panduit FMT1 1U fiber enclosure + CFAPPBL1 with 4× FAP6WBUDLCZ (OS2 LC) */
     let panduitFmt1FrontTex = null;
     function makePanduitFmt1FrontTexture() {
       if (panduitFmt1FrontTex) return panduitFmt1FrontTex;
-      const pw = 1600;
-      const ph = 200;
+      const pw = 1800;
+      const ph = 220;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
@@ -3225,51 +3225,109 @@
         ctx.closePath();
       }
 
-      // Black panel face
-      ctx.fillStyle = "#1a1e24";
+      // CFAPPBL1 carrier face
+      ctx.fillStyle = "#1a1a1b";
       ctx.fillRect(0, 0, pw, ph);
-      ctx.fillStyle = "#12161c";
-      ctx.fillRect(8, 8, pw - 16, ph - 16);
+      ctx.fillStyle = "#121316";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
 
-      // Four CFAPPBL1 adapter bay openings with dividers
-      const marginX = 48;
-      const marginY = 28;
-      const gap = 14;
+      /** One FAP6WBUDLCZ — 6× LC duplex, staggered, OS2 blue */
+      function drawFap6(x, y, w, h) {
+        // FAP body
+        ctx.fillStyle = "#1a1a1b";
+        roundRect(x, y, w, h, 4);
+        ctx.fill();
+        ctx.strokeStyle = "#3a3e44";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Push-pin fasteners L/R
+        [0.08, 0.92].forEach((t) => {
+          const px = x + w * t;
+          const py = y + h * 0.5;
+          ctx.fillStyle = "#2a2e34";
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(4, h * 0.09), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#0a0c10";
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(2, h * 0.04), 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // 6 LC duplex in staggered 2×3 (bottom row offset)
+        const portAreaX = x + w * 0.16;
+        const portAreaW = w * 0.68;
+        const cols = 3;
+        const rows = 2;
+        const pGapX = portAreaW * 0.08;
+        const pGapY = h * 0.08;
+        const pW = (portAreaW - pGapX * (cols - 1)) / cols;
+        const pH = (h * 0.7 - pGapY) / rows;
+        const blue = "#4a74b4";
+        const blueDark = "#2f4f8a";
+
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            const stagger = r === 1 ? pW * 0.35 : 0;
+            const px = portAreaX + col * (pW + pGapX) + stagger;
+            const py = y + h * 0.14 + r * (pH + pGapY);
+            // Blue LC duplex housing (OS2 single-mode)
+            const g = ctx.createLinearGradient(px, py, px, py + pH);
+            g.addColorStop(0, "#5a8acc");
+            g.addColorStop(0.45, blue);
+            g.addColorStop(1, blueDark);
+            ctx.fillStyle = g;
+            roundRect(px, py, pW, pH, 2);
+            ctx.fill();
+            // Silver latch/spring at top
+            ctx.fillStyle = "#c8d0da";
+            roundRect(px + pW * 0.18, py + pH * 0.06, pW * 0.64, pH * 0.14, 1);
+            ctx.fill();
+            // Twin LC bores
+            ctx.fillStyle = "#0a0c10";
+            const boreW = pW * 0.28;
+            const boreH = pH * 0.42;
+            const boreY = py + pH * 0.38;
+            ctx.fillRect(px + pW * 0.14, boreY, boreW, boreH);
+            ctx.fillRect(px + pW * 0.58, boreY, boreW, boreH);
+            // Ceramic ferrule hint
+            ctx.fillStyle = "#e8eef4";
+            ctx.beginPath();
+            ctx.arc(px + pW * 0.14 + boreW / 2, boreY + boreH * 0.45, Math.max(1.5, boreW * 0.18), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(px + pW * 0.58 + boreW / 2, boreY + boreH * 0.45, Math.max(1.5, boreW * 0.18), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Four FAP modules across CFAPPBL1
+      const marginX = 40;
+      const marginY = 18;
+      const gap = 10;
       const bays = 4;
       const bayW = (pw - marginX * 2 - gap * (bays - 1)) / bays;
       const bayH = ph - marginY * 2;
       for (let i = 0; i < bays; i++) {
         const bx = marginX + i * (bayW + gap);
         const by = marginY;
-        // Recessed opening (empty — no adapter modules seated)
+        // Bay frame recess
         ctx.fillStyle = "#0a0c10";
-        roundRect(bx, by, bayW, bayH, 3);
+        roundRect(bx - 2, by - 2, bayW + 4, bayH + 4, 3);
         ctx.fill();
-        ctx.strokeStyle = "#3a424c";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        // Inner shadow / depth
-        ctx.fillStyle = "#151920";
-        ctx.fillRect(bx + 6, by + 6, bayW - 12, bayH - 12);
-        // Module screw holes on vertical dividers (between bays)
-        if (i < bays - 1) {
-          const dx = bx + bayW + gap / 2;
-          ctx.fillStyle = "#2a3038";
-          [0.28, 0.72].forEach((t) => {
-            ctx.beginPath();
-            ctx.arc(dx, by + bayH * t, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-          });
-        }
+        drawFap6(bx, by, bayW, bayH);
       }
-      // Outer ear screw hints
-      ctx.fillStyle = "#2a3038";
+
+      // Carrier ear screw hints
+      ctx.fillStyle = "#2a2e34";
       [0.25, 0.75].forEach((t) => {
         ctx.beginPath();
-        ctx.arc(18, ph * t, 5, 0, Math.PI * 2);
+        ctx.arc(16, ph * t, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(pw - 18, ph * t, 5, 0, Math.PI * 2);
+        ctx.arc(pw - 16, ph * t, 5, 0, Math.PI * 2);
         ctx.fill();
       });
 
@@ -3349,16 +3407,16 @@
       g.userData.info = {
         eyebrow: `Fiber · ${rackName}`,
         title: "Panduit Fiber Enclosure",
-        model: "FMT1 + CFAPPBL1",
-        rating: "1U · 4 adapter bays",
+        model: "FMT1 + CFAPPBL1 + FAP6WBUDLCZ",
+        rating: "1U · 24× LC duplex (OS2)",
         blocks: [
           {
             label: "Enclosure",
-            text: "Panduit FMT1 1U fiber tray / enclosure · Shallow black chassis · Side cable knockouts",
+            text: "Panduit FMT1 1U fiber tray / enclosure · CFAPPBL1 4-bay front carrier",
           },
           {
-            label: "Front panel",
-            text: "CFAPPBL1 blank adapter panel · 4× module openings (empty) · Screwed to 19″ rails over FMT1",
+            label: "Adapters",
+            text: "4× FAP6WBUDLCZ · 6 LC duplex each (24 ports total) · Blue = single-mode OS2 · Staggered layout",
           },
         ],
       };
