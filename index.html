@@ -4642,29 +4642,57 @@
     roomPower.add(conduit);
 
     // Logical 5-wire 3P+N+E inside conduit/boxes — invisible until Show Power (x-ray)
+    // Path: top of MCB → center of UPS Bypass (not full panel heights)
+    const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
+    const powerCableStartY = mcbY + mcbH / 2;
+    const powerCableEndY = bypassY;
+    const powerCableLen = powerCableEndY - powerCableStartY;
+
     const matPowerXray = new THREE.MeshBasicMaterial({
       color: 0x3dff9a,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.55,
       depthTest: false,
       depthWrite: false,
     });
-    const powerCableLen = mcbH + BOX_GAP + mcbH; // through both boxes + conduit
     const powerCable = new THREE.Mesh(
       new THREE.CylinderGeometry(1.15, 1.15, powerCableLen, 12),
       matPowerXray
     );
     powerCable.position.set(
       mcbX,
-      (mcbY + bypassY) / 2,
-      wallFaceZ - WALL_T - mcbD / 2
+      (powerCableStartY + powerCableEndY) / 2,
+      powerCableZ
     );
     powerCable.name = "PowerCableMcbToBypass";
     powerCable.visible = false;
     powerCable.renderOrder = 20;
     powerCable.frustumCulled = false;
     roomPower.add(powerCable);
-    const powerHighlights = [powerCable];
+
+    // Traveling pulse packet — MCB → Bypass along the x-ray path
+    const matPowerPulse = new THREE.MeshBasicMaterial({
+      color: 0xb8ffe0,
+      transparent: true,
+      opacity: 1,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const powerPulse = new THREE.Group();
+    powerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.35, 16, 12), matPowerPulse));
+    powerPulse.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.55, 1.55, 7.5, 12),
+      matPowerPulse
+    ));
+    powerPulse.name = "PowerPulseMcbToBypass";
+    powerPulse.visible = false;
+    powerPulse.renderOrder = 21;
+    powerPulse.frustumCulled = false;
+    powerPulse.position.set(mcbX, powerCableStartY, powerCableZ);
+    roomPower.add(powerPulse);
+
+    const powerHighlights = [powerCable, powerPulse];
+    const POWER_PULSE_SPEED = 0.65; // cycles per second along the run
 
     // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
     const TRUNK = 10.16; // 4 inches
@@ -5343,10 +5371,14 @@
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
 
-      // Sci-fi pulse on x-ray power paths
+      // Sci-fi pulse travels MCB → Bypass along the x-ray path
       if (showPower) {
-        const pulse = 0.72 + 0.28 * Math.sin(clock.elapsedTime * 3.2);
-        matPowerXray.opacity = pulse;
+        const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
+        const y = THREE.MathUtils.lerp(powerCableStartY, powerCableEndY, t);
+        powerPulse.position.set(mcbX, y, powerCableZ);
+        // Soft breathe on the static cable; pulse head stays bright
+        matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
+        matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
       }
 
       controls.update();
