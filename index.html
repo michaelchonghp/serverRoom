@@ -204,6 +204,59 @@
       border-color: var(--ink);
     }
 
+    /* Drop-up control menu (Front / Rear / Show Power …) */
+    .ctrl-menu {
+      position: relative;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .ctrl-menu-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 0.35rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      min-width: 7.5rem;
+      padding: 0.35rem;
+      background: color-mix(in srgb, #ffffff 92%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 -8px 28px rgba(20, 24, 30, 0.12);
+      z-index: 4;
+    }
+
+    .ctrl-menu-panel[hidden] { display: none; }
+
+    .ctrl-menu-panel button {
+      width: 100%;
+      min-width: 0;
+      text-align: left;
+      padding: 0.5rem 0.65rem;
+    }
+
+    .ctrl-menu > #btn-controls-toggle .action::after {
+      content: " ▴";
+      opacity: 0.55;
+      font-size: 0.7em;
+    }
+
+    .ctrl-menu.open > #btn-controls-toggle {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .ctrl-menu.open > #btn-controls-toggle .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
     /* Sci-fi equipment info callout */
     :root {
       --scan: #3dff9a;
@@ -424,6 +477,10 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
+      .ctrl-menu-panel {
+        min-width: 6.8rem;
+        padding: 0.28rem;
+      }
       .info-panel {
         width: min(17.25rem, calc(100vw - 1.25rem));
         padding: 0.7rem 0.8rem 0.8rem;
@@ -455,14 +512,26 @@
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
   <div class="door-controls" role="group" aria-label="Scene controls">
-    <button type="button" id="btn-front" aria-pressed="true">
-      <span class="label">Front</span>
-      <span class="action">Close</span>
-    </button>
-    <button type="button" id="btn-rear" aria-pressed="true">
-      <span class="label">Rear</span>
-      <span class="action">Close</span>
-    </button>
+    <div class="ctrl-menu" id="ctrl-menu">
+      <div class="ctrl-menu-panel" id="controls-panel" hidden role="menu" aria-label="View controls">
+        <button type="button" id="btn-front" role="menuitem" aria-pressed="true">
+          <span class="label">Front</span>
+          <span class="action">Close</span>
+        </button>
+        <button type="button" id="btn-rear" role="menuitem" aria-pressed="true">
+          <span class="label">Rear</span>
+          <span class="action">Close</span>
+        </button>
+        <button type="button" id="btn-show-power" role="menuitem" aria-pressed="false">
+          <span class="label">Power</span>
+          <span class="action">Show</span>
+        </button>
+      </div>
+      <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
+        <span class="label">Controls</span>
+        <span class="action">Menu</span>
+      </button>
+    </div>
     <div class="rack-group" role="group" aria-label="Zoom to rack">
       <button type="button" class="rack-btn" data-rack="Rack1" aria-label="Zoom to Rack 1">1</button>
       <button type="button" class="rack-btn" data-rack="Rack2" aria-label="Zoom to Rack 2">2</button>
@@ -3839,54 +3908,42 @@
       return g;
     }
 
-    /** Wall-mount main MCB — closed grey cover, front “MCB” label only */
-    function makeMcbBoard() {
+    /** Wall-mount grey power enclosure (MCB / UPS Bypass) — closed cover + front label */
+    function makeWallPowerBox({
+      name = "PowerBox",
+      label = "MCB",
+      kind = "mcb",
+      eyebrow = "Power",
+      title = "Power Board",
+      model = "Wall-mount distribution board",
+      rating = "3-phase · 32A",
+      blocks = [],
+    } = {}) {
       const g = new THREE.Group();
-      g.name = "MCB";
+      g.name = name;
 
-      // ~30% smaller than the previous open enclosure
       const w = 36.4;
       const h = 54.6;
       const d = 8.5;
 
-      // Solid grey cabinet + front cover (no internals)
       g.add(box(w, h, d, matMcbShell, 0, 0, 0));
       const cover = box(w - 1.2, h - 1.2, 0.6, matMcbCover, 0, 0, -d / 2 - 0.25);
       g.add(cover);
 
       // Cover front is at −d/2 − 0.55; sit the label clearly in front to avoid z-fight flicker
-      const plate = makeMcbFacePlate(w * 0.62, h * 0.22);
+      const plate = makePowerFacePlate(label, w * 0.72, h * 0.22);
       plate.position.set(0, h * 0.12, -d / 2 - 0.75);
       g.add(plate);
 
       g.userData.size = { w, h, d };
       g.userData.interactive = true;
-      g.userData.kind = "mcb";
-      g.userData.label = "Main MCB";
-      g.userData.info = {
-        eyebrow: "Power · Room feed",
-        title: "Main MCB Board",
-        model: "Wall-mount distribution board",
-        rating: "3-phase · 32A",
-        blocks: [
-          {
-            label: "Role",
-            text: "Main circuit breaker for the room — feeds UPS and all IT loads (not UPS-only)",
-          },
-          {
-            label: "Supply",
-            text: "Three-phase 32A incoming to the room power distribution",
-          },
-          {
-            label: "Routing",
-            text: "Power cables TBD — reviewing raised-floor vs ceiling basket paths",
-          },
-        ],
-      };
+      g.userData.kind = kind;
+      g.userData.label = title;
+      g.userData.info = { eyebrow, title, model, rating, blocks };
       return g;
     }
 
-    function makeMcbFacePlate(labelW = 22, labelH = 8) {
+    function makePowerFacePlate(text = "MCB", labelW = 22, labelH = 8) {
       const pw = 512;
       const ph = 180;
       const c = document.createElement("canvas");
@@ -3901,8 +3958,17 @@
       ctx.fillStyle = "#12161c";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `800 ${Math.floor(ph * 0.55)}px "Archivo Black", "Arial Black", sans-serif`;
-      ctx.fillText("MCB", pw / 2, ph / 2 + 2);
+      const lines = String(text).split("\n");
+      const long = text.length > 10 || lines.length > 1;
+      const fs = Math.floor(ph * (long ? 0.32 : 0.55));
+      ctx.font = `800 ${fs}px "Archivo Black", "Arial Black", sans-serif`;
+      if (lines.length === 1) {
+        ctx.fillText(lines[0], pw / 2, ph / 2 + 2);
+      } else {
+        const step = fs * 1.15;
+        const startY = ph / 2 - ((lines.length - 1) * step) / 2;
+        lines.forEach((ln, i) => ctx.fillText(ln, pw / 2, startY + i * step));
+      }
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
@@ -4495,6 +4561,7 @@
     const wallCenterZ = wallFaceZ - WALL_T / 2;
 
     const mcbW = 36.4;
+    const mcbH = 54.6;
     const mcbD = 8.5;
     const mcbGap = OUTER_W * 1.55;
     const rack1X = RACK_PITCH;
@@ -4516,10 +4583,88 @@
     backWall.castShadow = false;
     roomPower.add(backWall);
 
-    const mcb = makeMcbBoard();
+    const mcb = makeWallPowerBox({
+      name: "MCB",
+      label: "MCB",
+      kind: "mcb",
+      eyebrow: "Power · Room feed",
+      title: "Main MCB Board",
+      model: "Wall-mount distribution board",
+      rating: "3-phase · 32A",
+      blocks: [
+        {
+          label: "Role",
+          text: "Main circuit breaker for the room — feeds UPS and all IT loads (not UPS-only)",
+        },
+        {
+          label: "Supply",
+          text: "Three-phase 32A incoming to the room power distribution",
+        },
+        {
+          label: "Routing",
+          text: "Feeds UPS Bypass via wall conduit (5-wire 3P+N+E)",
+        },
+      ],
+    });
     mcb.position.set(mcbX, mcbY, wallFaceZ - WALL_T - mcbD / 2);
     roomPower.add(mcb);
     interactiveItems.push(mcb);
+
+    // UPS Bypass — same enclosure, a few inches above MCB, linked by conduit
+    const BOX_GAP = 12.7; // ~5″ clear between boxes
+    const bypassY = mcbY + mcbH + BOX_GAP;
+    const bypass = makeWallPowerBox({
+      name: "UPSBypass",
+      label: "UPS\nBYPASS",
+      kind: "ups-bypass",
+      eyebrow: "Power · UPS",
+      title: "UPS Bypass Switch",
+      model: "Wall-mount bypass / maintenance switch",
+      rating: "3-phase · 32A",
+      blocks: [
+        {
+          label: "Role",
+          text: "UPS bypass switch — maintenance path around the UPS for the room feed",
+        },
+        {
+          label: "Feed",
+          text: "Receives 5-wire 3P+N+E from the main MCB through the interconnect conduit",
+        },
+      ],
+    });
+    bypass.position.set(mcbX, bypassY, wallFaceZ - WALL_T - mcbD / 2);
+    roomPower.add(bypass);
+    interactiveItems.push(bypass);
+
+    // Interconnect conduit — length equals the gap between boxes
+    const conduit = box(4.2, BOX_GAP, 4.2, matTrunkSilver, mcbX, mcbY + mcbH / 2 + BOX_GAP / 2, wallFaceZ - WALL_T - 2.1);
+    conduit.name = "McbBypassConduit";
+    roomPower.add(conduit);
+
+    // Logical 5-wire 3P+N+E inside conduit/boxes — invisible until Show Power (x-ray)
+    const matPowerXray = new THREE.MeshBasicMaterial({
+      color: 0x3dff9a,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const powerCableLen = mcbH + BOX_GAP + mcbH; // through both boxes + conduit
+    const powerCable = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.15, 1.15, powerCableLen, 12),
+      matPowerXray
+    );
+    powerCable.position.set(
+      mcbX,
+      (mcbY + bypassY) / 2,
+      wallFaceZ - WALL_T - mcbD / 2
+    );
+    powerCable.name = "PowerCableMcbToBypass";
+    powerCable.visible = false;
+    powerCable.renderOrder = 20;
+    powerCable.frustumCulled = false;
+    roomPower.add(powerCable);
+    const powerHighlights = [powerCable];
 
     // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
     const TRUNK = 10.16; // 4 inches
@@ -4614,7 +4759,7 @@
       Math.PI / 2
     );
 
-    // Door controls drive all six cabinets
+    // Door / power controls (+ drop-up menu)
     const doorState = {
       frontOpen: true,
       rearOpen: true,
@@ -4622,18 +4767,46 @@
       rearLTarget: REAR_L_OPEN,
       rearRTarget: REAR_R_OPEN,
     };
+    let showPower = false;
 
+    const ctrlMenu = document.getElementById("ctrl-menu");
+    const controlsPanel = document.getElementById("controls-panel");
+    const btnControlsToggle = document.getElementById("btn-controls-toggle");
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
+    const btnShowPower = document.getElementById("btn-show-power");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
     let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
+
+    function setControlsMenuOpen(open) {
+      ctrlMenu.classList.toggle("open", open);
+      controlsPanel.hidden = !open;
+      btnControlsToggle.setAttribute("aria-expanded", String(open));
+    }
 
     function syncDoorButton(btn, isOpen, noun) {
       btn.classList.toggle("open", isOpen);
       btn.setAttribute("aria-pressed", String(isOpen));
       btn.querySelector(".action").textContent = isOpen ? "Close" : "Open";
       btn.setAttribute("aria-label", `${isOpen ? "Close" : "Open"} ${noun}`);
+    }
+
+    function syncPowerButton() {
+      btnShowPower.classList.toggle("open", showPower);
+      btnShowPower.setAttribute("aria-pressed", String(showPower));
+      btnShowPower.querySelector(".action").textContent = showPower ? "Hide" : "Show";
+      btnShowPower.setAttribute(
+        "aria-label",
+        showPower ? "Hide power cable highlight" : "Show power cable highlight"
+      );
+    }
+
+    function setShowPower(on) {
+      showPower = on;
+      powerHighlights.forEach((m) => { m.visible = on; });
+      syncPowerButton();
+      nudgeIdle();
     }
 
     function nudgeIdle() {
@@ -4707,14 +4880,24 @@
       controls.update();
     }
 
+    btnControlsToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setControlsMenuOpen(controlsPanel.hidden);
+    });
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
+    btnShowPower.addEventListener("click", () => setShowPower(!showPower));
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
     document.querySelector(".door-controls").addEventListener("pointerdown", (e) => e.stopPropagation());
+    // Close drop-up when clicking the canvas / elsewhere
+    document.addEventListener("pointerdown", (e) => {
+      if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+    });
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
+    syncPowerButton();
     syncRackButtons();
 
     // Deep-link helpers: ?focus=Rack6&info=ups|battery
@@ -5156,6 +5339,12 @@
 
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
+
+      // Sci-fi pulse on x-ray power paths
+      if (showPower) {
+        const pulse = 0.72 + 0.28 * Math.sin(clock.elapsedTime * 3.2);
+        matPowerXray.opacity = pulse;
+      }
 
       controls.update();
       renderer.render(scene, camera);
