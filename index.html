@@ -4105,6 +4105,34 @@
     const floorOriginX = -floorW / 2 + TILE / 2;
     const floorOriginZ = -floorD / 2 + TILE / 2;
 
+    // Room footprint: rectangle with diagonal cut on the Rack6 / −X end
+    // (wider clearance past Rack6, narrows toward Rack3 — matches floor-plan sketch)
+    const floorZMax = floorD / 2;
+    const floorZMin = -floorD / 2;
+    const floorXMax = floorW / 2;
+    const rack6OuterX = -2 * RACK_PITCH - OUTER_W / 2;
+    const rack3OuterX = -RACK_PITCH - OUTER_W / 2;
+    const xDiagAtZMin = Math.max(-floorW / 2, rack6OuterX - 4.5 * TILE);
+    const xDiagAtZMax = rack3OuterX - 0.75 * TILE;
+    function floorXMinAt(z) {
+      const t = (z - floorZMin) / (floorZMax - floorZMin);
+      return xDiagAtZMin + t * (xDiagAtZMax - xDiagAtZMin);
+    }
+    function inRoomFootprint(x, z) {
+      return (
+        z >= floorZMin &&
+        z <= floorZMax &&
+        x <= floorXMax &&
+        x >= floorXMinAt(z)
+      );
+    }
+    const roomOutline = [
+      [floorXMax, floorZMin],
+      [floorXMax, floorZMax],
+      [xDiagAtZMax, floorZMax],
+      [xDiagAtZMin, floorZMin],
+    ];
+
     // Building slab under the void
     const subfloor = new THREE.Mesh(
       new THREE.CircleGeometry(520, 64),
@@ -4118,26 +4146,34 @@
     const raisedFloor = new THREE.Group();
     scene.add(raisedFloor);
 
-    // Void plenum / skirt so the raised height reads clearly
+    // Void plenum / skirt matching the cut footprint
+    const plenumH = FLOOR_H - FLOOR_TILE_T;
+    const plenumShape = new THREE.Shape();
+    // Shape XY → XZ via rotX −90°; use (x, −z) so world Z keeps the right sign
+    plenumShape.moveTo(roomOutline[0][0], -roomOutline[0][1]);
+    for (let i = 1; i < roomOutline.length; i++) {
+      plenumShape.lineTo(roomOutline[i][0], -roomOutline[i][1]);
+    }
+    plenumShape.closePath();
     const plenum = new THREE.Mesh(
-      new THREE.BoxGeometry(floorW + 4, FLOOR_H - FLOOR_TILE_T, floorD + 4),
+      new THREE.ExtrudeGeometry(plenumShape, { depth: plenumH, bevelEnabled: false }),
       matFloorEdge
     );
-    plenum.position.y = (FLOOR_H - FLOOR_TILE_T) / 2;
+    plenum.rotation.x = -Math.PI / 2;
+    plenum.position.y = 0;
     plenum.castShadow = true;
     plenum.receiveShadow = true;
     raisedFloor.add(plenum);
 
-    // Pedestals in the void (visible along the open edge)
-    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, FLOOR_H - FLOOR_TILE_T - 1, 8);
+    // Pedestals in the void (only under remaining floor)
+    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
     for (let c = 0; c <= FLOOR_COLS; c += 2) {
       for (let r = 0; r <= FLOOR_ROWS; r += 2) {
+        const px = -floorW / 2 + c * TILE;
+        const pz = -floorD / 2 + r * TILE;
+        if (!inRoomFootprint(px, pz)) continue;
         const ped = new THREE.Mesh(pedGeo, matPedestal);
-        ped.position.set(
-          -floorW / 2 + c * TILE,
-          (FLOOR_H - FLOOR_TILE_T) / 2,
-          -floorD / 2 + r * TILE
-        );
+        ped.position.set(px, plenumH / 2, pz);
         ped.castShadow = true;
         raisedFloor.add(ped);
       }
@@ -4195,6 +4231,7 @@
       for (let c = 0; c < FLOOR_COLS; c++) {
         const x = floorOriginX + c * TILE;
         const z = floorOriginZ + r * TILE;
+        if (!inRoomFootprint(x, z)) continue;
         const inAisle = z >= aisleZ0 && z <= aisleZ1;
         const entry = { x, z };
         if (inAisle) perfTiles.push(entry);
@@ -4222,21 +4259,26 @@
     addTileInstances(solidAltTiles, matFloorTileAlt);
     addTileInstances(perfTiles, matFloorPerfMapped);
 
-    // Edge trim / ramp lip
+    // Edge trim / ramp lip following the cut footprint
     const lipH = FLOOR_H + 0.6;
     const lipT = 3;
-    [
-      [floorW + lipT * 2, lipH, lipT, 0, lipH / 2, -floorD / 2 - lipT / 2],
-      [floorW + lipT * 2, lipH, lipT, 0, lipH / 2, floorD / 2 + lipT / 2],
-      [lipT, lipH, floorD, -floorW / 2 - lipT / 2, lipH / 2, 0],
-      [lipT, lipH, floorD, floorW / 2 + lipT / 2, lipH / 2, 0],
-    ].forEach(([w, h, d, x, y, z]) => {
-      const lip = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matFloorEdge);
-      lip.position.set(x, y, z);
+    function addFloorLip(x0, z0, x1, z1) {
+      const dx = x1 - x0;
+      const dz = z1 - z0;
+      const len = Math.hypot(dx, dz);
+      if (len < 1) return;
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(lipT, lipH, len + lipT * 0.5), matFloorEdge);
+      lip.position.set((x0 + x1) / 2, lipH / 2, (z0 + z1) / 2);
+      lip.rotation.y = Math.atan2(dx, dz);
       lip.castShadow = true;
       lip.receiveShadow = true;
       raisedFloor.add(lip);
-    });
+    }
+    for (let i = 0; i < roomOutline.length; i++) {
+      const a = roomOutline[i];
+      const b = roomOutline[(i + 1) % roomOutline.length];
+      addFloorLip(a[0], a[1], b[0], b[1]);
+    }
 
     const bay = new THREE.Group();
     // Cabinets sit on the raised floor deck
@@ -4402,21 +4444,12 @@
     hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
     raisedFloor.add(hotB);
 
-    // --- Thin translucent room outline (non-rectangular) + MCB ---
-    // Top-down: Row B (4–6) at −Z, Row A (1–3) at +Z; Rack6/3 at −X.
-    // Red outline: full left (−Z), short right (+Z), top (+X), diagonal on Rack6/−X end.
+    // --- Single thin translucent wall behind Rack1–3 + MCB ---
+    // (no walls on the other sides — diagonal room shape is the floor cut)
     const WALL_T = 1.2;
     const WALL_H = 290;
-
-    const zMax = floorD / 2 - 0.5; // behind Rack1–3 (floor tile edge)
-    const zMin = -floorD / 2 + 0.5; // behind Rack4–6 (floor tile edge)
-    const xMax = floorW / 2 - 0.5; // past Rack1 / Rack4 end
-
-    // Diagonal: wider clearance past Rack6, tight past Rack3 (room narrows)
-    const rack6OuterX = -2 * RACK_PITCH - OUTER_W / 2;
-    const rack3OuterX = -RACK_PITCH - OUTER_W / 2;
-    const xDiagStart = Math.max(-floorW / 2 + 0.5, rack6OuterX - 4.5 * TILE);
-    const xDiagEnd = rack3OuterX - 0.75 * TILE;
+    const wallFaceZ = floorZMax;
+    const wallCenterZ = wallFaceZ - WALL_T / 2;
 
     const mcbW = 36.4;
     const mcbD = 8.5;
@@ -4425,37 +4458,23 @@
     const mcbX = rack1X + OUTER_W / 2 + mcbGap + mcbW / 2;
     const mcbY = TOTAL_H * 0.55;
 
+    // Wall only where floor remains: diagonal end → past MCB
+    const wallX0 = xDiagAtZMax;
+    const wallX1 = Math.min(floorXMax, mcbX + mcbW / 2 + 40);
+    const wallW = wallX1 - wallX0;
+    const wallCenterX = (wallX0 + wallX1) / 2;
+
     const roomPower = new THREE.Group();
     roomPower.name = "RoomPower";
     roomPower.position.y = FLOOR_H;
     scene.add(roomPower);
 
-    /** Thin ghost wall segment from (x0,z0) → (x1,z1) in the XZ plane */
-    function addGhostWall(x0, z0, x1, z1) {
-      const dx = x1 - x0;
-      const dz = z1 - z0;
-      const len = Math.hypot(dx, dz);
-      if (len < 1) return null;
-      const mesh = box(WALL_T, WALL_H, len, matWall, (x0 + x1) / 2, WALL_H / 2, (z0 + z1) / 2);
-      mesh.rotation.y = Math.atan2(dx, dz);
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      roomPower.add(mesh);
-      return mesh;
-    }
-
-    // 1) Top (+X) — full depth between the two hot-aisle walls
-    addGhostWall(xMax, zMin, xMax, zMax);
-    // 2) Left (−Z) — behind Rack4–6, runs to the wide diagonal corner
-    addGhostWall(xMax, zMin, xDiagStart, zMin);
-    // 3) Right (+Z) — behind Rack1–3, shortened (stops near Rack3)
-    addGhostWall(xMax, zMax, xDiagEnd, zMax);
-    // 4) Lower diagonal — Rack6 side: wide at −Z, narrows toward Rack3 / +Z
-    addGhostWall(xDiagStart, zMin, xDiagEnd, zMax);
+    const backWall = box(wallW, WALL_H, WALL_T, matWall, wallCenterX, WALL_H / 2, wallCenterZ);
+    backWall.castShadow = false;
+    roomPower.add(backWall);
 
     const mcb = makeMcbBoard();
-    // Still on the +Z wall, past Rack1 toward +X
-    mcb.position.set(mcbX, mcbY, zMax - WALL_T - mcbD / 2);
+    mcb.position.set(mcbX, mcbY, wallFaceZ - WALL_T - mcbD / 2);
     roomPower.add(mcb);
     interactiveItems.push(mcb);
 
