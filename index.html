@@ -5256,12 +5256,15 @@
     const mcbY = TOTAL_H * 0.55;
     const BOX_GAP = 12.7; // ~5″ clear between stacked boxes
     const bypassY = mcbY + mcbH + BOX_GAP;
-    const sideGap = 8; // clear Bypass↔trunk and Bypass↔distribution
-    const distX = mcbX + mcbW / 2 + sideGap + mcbW / 2; // right of Bypass (opp. trunk)
+    const sideGap = 8; // clear Bypass↔trunk and trunk↔Dist
+    const TRUNK = 10.16; // 4 inches
+    // Layout: MCB/Bypass | trunk | Dist  (Dist on the far side of the vertical trunk)
+    const trunkX = mcbX - mcbW / 2 - sideGap - TRUNK / 2;
+    const distX = trunkX - TRUNK / 2 - sideGap - mcbW / 2;
 
-    // Wall only where floor remains: diagonal end → past distribution panel
-    const wallX0 = xDiagAtZMax;
-    const wallX1 = Math.min(floorXMax, distX + mcbW / 2 + 40);
+    // Wall only where floor remains: diagonal end → past MCB (Dist sits toward racks)
+    const wallX0 = Math.min(xDiagAtZMax, distX - mcbW / 2 - 24);
+    const wallX1 = Math.min(floorXMax, mcbX + mcbW / 2 + 40);
     const wallW = wallX1 - wallX0;
     const wallCenterX = (wallX0 + wallX1) / 2;
 
@@ -5321,7 +5324,7 @@
         },
         {
           label: "Return",
-          text: "Receives 32A TPN from UPS hardwire OUTPUT, then feeds the room distribution panel",
+          text: "Receives 32A TPN on a separate return trunk from UPS hardwire OUTPUT, then feeds Dist",
         },
       ],
     });
@@ -5329,7 +5332,7 @@
     roomPower.add(bypass);
     interactiveItems.push(bypass);
 
-    // Distribution panel — right of Bypass (opposite the vertical trunk)
+    // Distribution panel — far side of vertical trunk (toward racks), not beside Bypass
     const dist = makeWallPowerBox({
       name: "DistPanel",
       label: "DIST\nPANEL",
@@ -5362,23 +5365,7 @@
     conduit.name = "McbBypassConduit";
     roomPower.add(conduit);
 
-    // Conduit Bypass → Distribution (horizontal, right side)
-    const bypassDistConduit = box(
-      sideGap,
-      4.2,
-      4.2,
-      matTrunkSilver,
-      mcbX + mcbW / 2 + sideGap / 2,
-      bypassY,
-      wallFaceZ - WALL_T - 2.1
-    );
-    bypassDistConduit.name = "BypassDistConduit";
-    roomPower.add(bypassDistConduit);
-
-    // 4″×4″ silver vertical trunk — left of Bypass (toward racks), full wall + into raised floor
-    const TRUNK = 10.16; // 4 inches
-    const trunkGap = sideGap;
-    const trunkX = mcbX - mcbW / 2 - trunkGap - TRUNK / 2;
+    // 4″×4″ silver vertical trunk — between Bypass and Dist
     const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
     const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
     const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
@@ -5386,10 +5373,17 @@
     trunk.name = "PowerTrunk";
     roomPower.add(trunk);
 
-    // Short conduit: UPS Bypass → vertical trunk (fills the clear gap)
+    // Parallel return trunk — into the room from the outbound trunk (separate UPS→Bypass lane)
+    const returnTrunkX = trunkX;
+    const returnTrunkZ = trunkZ - TRUNK - 4;
+    const returnTrunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, returnTrunkX, trunkY, returnTrunkZ);
+    returnTrunk.name = "PowerTrunkReturn";
+    roomPower.add(returnTrunk);
+
+    // Short conduit: UPS Bypass → outbound vertical trunk
     const bypassFaceX = mcbX - mcbW / 2;
     const trunkFaceX = trunkX + TRUNK / 2;
-    const bypassTrunkConduitLen = bypassFaceX - trunkFaceX; // == trunkGap
+    const bypassTrunkConduitLen = bypassFaceX - trunkFaceX;
     const bypassTrunkConduit = box(
       bypassTrunkConduitLen,
       4.2,
@@ -5402,13 +5396,46 @@
     bypassTrunkConduit.name = "BypassTrunkConduit";
     roomPower.add(bypassTrunkConduit);
 
-    // Logical 32A TPN — invisible until Show Power (x-ray)
-    // Path: MCB → Bypass → trunk → underfloor → UPS IN → UPS OUT → underfloor → Bypass → Dist
+    // Conduit: outbound trunk → Dist (Dist sits on the far side of the trunk)
+    const trunkOuterX = trunkX - TRUNK / 2;
+    const distInnerX = distX + mcbW / 2;
+    const trunkDistConduitLen = trunkOuterX - distInnerX;
+    const trunkDistConduit = box(
+      trunkDistConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (trunkOuterX + distInnerX) / 2,
+      bypassY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    trunkDistConduit.name = "TrunkDistConduit";
+    roomPower.add(trunkDistConduit);
+
+    // Short link: return trunk → Bypass (into the room, separate from outbound Bypass→trunk)
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
+    const retLinkZ0 = returnTrunkZ + TRUNK / 2;
+    const retLinkZ1 = powerCableZ + mcbD / 2;
+    const retLinkLen = Math.max(2, retLinkZ1 - retLinkZ0);
+    const returnBypassLink = box(
+      4.2,
+      4.2,
+      retLinkLen,
+      matTrunkSilver,
+      mcbX - mcbW * 0.22,
+      bypassY,
+      (retLinkZ0 + retLinkZ1) / 2
+    );
+    returnBypassLink.name = "ReturnBypassLink";
+    roomPower.add(returnBypassLink);
+
+    // Logical 32A TPN — invisible until Show Power (x-ray)
+    // Outbound + separate return lane (not the same path reversed)
     const rack6X = -2 * RACK_PITCH;
     const rack6Z = -ROW_SEP / 2;
     const underY = -FLOOR_H + TRUNK / 2 + 1.5; // 4″ trunk sitting on the slab
     const periX = xDiagAtZMax + TRUNK * 0.75; // inside +Z / −X floor corner
+    const retLane = TRUNK + 8; // parallel underfloor return offset (+X / into floor plate)
 
     // UPS rear 32A TPN hardwire I/O (Rack6 rotated 180° — local +Z rear → world −Z)
     const upsD = 70;
@@ -5431,6 +5458,8 @@
     const upsOutWorldX = rack6X - upsOutLocalX;
     const upsRiseWorldZ = rack6Z - upsRiseRackZ;
     const upsEntryWorldZ = rack6Z - upsEntryRackZ;
+    const retRack6X = rack6X + retLane;
+    const retPeriX = periX + retLane;
 
     function buildPolyline(points) {
       const segs = [];
@@ -5482,7 +5511,7 @@
     }
 
     const powerPathPoints = [
-      // Outbound: MCB → Bypass → trunk → underfloor → UPS 32A TPN INPUT
+      // Outbound: MCB → Bypass → outbound trunk → underfloor → UPS 32A TPN INPUT
       new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
       new THREE.Vector3(mcbX, bypassY, powerCableZ),
       new THREE.Vector3(trunkX, bypassY, trunkZ),
@@ -5496,21 +5525,22 @@
       new THREE.Vector3(upsInWorldX, upsIoY, upsEntryWorldZ),
       // Through UPS hardwire block → 32A TPN OUTPUT
       new THREE.Vector3(upsOutWorldX, upsIoY, upsEntryWorldZ),
-      // Return: UPS OUTPUT → underfloor → trunk → Bypass → Dist panel
+      // Separate return lane (offset underfloor + return trunk) → Bypass → Dist
       new THREE.Vector3(upsOutWorldX, upsIoY, upsRiseWorldZ),
-      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
-      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
-      new THREE.Vector3(rack6X, underY, rack6Z),
-      new THREE.Vector3(periX, underY, rack6Z),
-      new THREE.Vector3(periX, underY, trunkZ),
-      new THREE.Vector3(trunkX, underY, trunkZ),
-      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(upsOutWorldX, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, bypassY, returnTrunkZ),
       new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
       new THREE.Vector3(distX, bypassY, powerCableZ),
     ];
 
-    // 4″×4″ metal trunking for underfloor + riser (physical run once; return reuses it)
-    const underfloorTrunkPts = [
+    // 4″×4″ metal trunking — outbound run + parallel return run
+    const underfloorTrunkPtsOut = [
       new THREE.Vector3(trunkX, underY, trunkZ),
       new THREE.Vector3(periX, underY, trunkZ),
       new THREE.Vector3(periX, underY, rack6Z),
@@ -5518,11 +5548,23 @@
       new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
       new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
     ];
+    const underfloorTrunkPtsRet = [
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsOutWorldX, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, bypassY, returnTrunkZ),
+    ];
     const underfloorTrunking = new THREE.Group();
     underfloorTrunking.name = "UnderfloorTrunking";
-    for (let i = 0; i < underfloorTrunkPts.length - 1; i++) {
-      const seg = trunkBetween(underfloorTrunkPts[i], underfloorTrunkPts[i + 1], TRUNK, matTrunkSilver);
-      if (seg) underfloorTrunking.add(seg);
+    for (const run of [underfloorTrunkPtsOut, underfloorTrunkPtsRet]) {
+      for (let i = 0; i < run.length - 1; i++) {
+        const seg = trunkBetween(run[i], run[i + 1], TRUNK, matTrunkSilver);
+        if (seg) underfloorTrunking.add(seg);
+      }
     }
     roomPower.add(underfloorTrunking);
 
