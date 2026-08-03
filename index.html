@@ -1407,8 +1407,58 @@
       dcCover(cx + 120, bodyY + 48, "+192 VDC");
       dcCover(cx + 120, bodyY + 96, "−192 VDC");
 
-      // Honeycomb vent — lower left / center
-      drawHexMesh(bodyX + 24, bodyY + bodyH * 0.42, bodyW * 0.52, bodyH * 0.52, 9);
+      // Honeycomb vent — lower left (leaves room for hardwire input)
+      drawHexMesh(bodyX + 24, bodyY + bodyH * 0.42, bodyW * 0.28, bodyH * 0.52, 9);
+
+      // —— Center-lower: 3φ hardwire INPUT terminal (AC mains entry) ——
+      const hx = bodyX + bodyW * 0.34;
+      const hy = bodyY + bodyH * 0.52;
+      const hw = 210;
+      const hh = 175;
+      roundRect(hx, hy, hw, hh, 4);
+      ctx.fillStyle = "#1e2530";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      [[10, 10], [hw - 10, 10], [10, hh - 10], [hw - 10, hh - 10]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(hx + sx, hy + sy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#a0a8b0";
+        ctx.fill();
+      });
+      ctx.fillStyle = "#f0c040";
+      ctx.font = "800 14px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("⚠ INPUT / OUTPUT HARDWIRE", hx + hw / 2, hy + 28);
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 13px 'IBM Plex Mono', monospace";
+      ctx.fillText("3φ  L1  L2  L3  N  PE", hx + hw / 2, hy + 50);
+      // Terminal screws row
+      const terms = ["L1", "L2", "L3", "N", "PE"];
+      terms.forEach((t, i) => {
+        const tx = hx + 28 + i * 36;
+        const ty = hy + 78;
+        roundRect(tx, ty, 28, 52, 3);
+        ctx.fillStyle = t === "PE" ? "#3a6b3a" : t === "N" ? "#2a4058" : "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#c5ccd6";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tx + 14, ty + 22, 7, 0, Math.PI * 2);
+        ctx.fillStyle = "#8a949e";
+        ctx.fill();
+        ctx.strokeStyle = "#e8ecf0";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#e8ecf0";
+        ctx.font = "700 11px 'IBM Plex Mono', monospace";
+        ctx.fillText(t, tx + 14, ty + 46);
+      });
+      ctx.fillStyle = "#9aa3ad";
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.fillText("380/400/415 V  3P+N+E", hx + hw / 2, hy + hh - 14);
 
       // —— Right: AP9641 NMC + fan openings ——
       const nx = bodyX + bodyW - 280;
@@ -1539,8 +1589,14 @@
       g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
       g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
 
+      // 3φ hardwire INPUT block — target for underfloor mains entry (rear, lower-center)
+      const powerInputLocal = { x: 0, y: -h * 0.12, z: d / 2 + 1.35 };
+      g.add(box(14, 9, 1.8, matUpsFace, powerInputLocal.x, powerInputLocal.y, powerInputLocal.z));
+      g.add(box(12.5, 6.5, 0.35, matAccent, powerInputLocal.x, powerInputLocal.y - 0.4, powerInputLocal.z + 1.0));
+
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
+      g.userData.powerInputLocal = powerInputLocal;
       g.userData.interactive = true;
       g.userData.kind = "ups";
       g.userData.label = "APC SRTG15KXLI";
@@ -5242,13 +5298,32 @@
     roomPower.add(bypassTrunkConduit);
 
     // Logical 5-wire 3P+N+E — invisible until Show Power (x-ray)
-    // Path: MCB → Bypass → wall trunk → underfloor perimeter → Rack6 → up into UPS
+    // Path: MCB → Bypass → wall trunk → underfloor perimeter → Rack6 rear → 3φ INPUT
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
     const rack6X = -2 * RACK_PITCH;
     const rack6Z = -ROW_SEP / 2;
     const underY = -FLOOR_H + TRUNK / 2 + 1.5; // 4″ trunk sitting on the slab
     const periX = xDiagAtZMax + TRUNK * 0.75; // inside +Z / −X floor corner
-    const upsY = BASE_H + 7 * U * 0.42; // into the UPS body in Rack6
+
+    // UPS rear 3φ hardwire input (Rack6 is rotated 180° — local +Z rear → world −Z)
+    const upsD = 70;
+    const upsH = 7 * U - 0.2;
+    const railZFront = -OUTER_D / 2 + 10;
+    const railFrontFaceZ = railZFront - 1.1;
+    const upsMountZ = -(upsD / 2) - 0.9;
+    const upsUnitZ = railFrontFaceZ - upsMountZ;
+    const upsCenterY = BASE_H + upsH / 2 + 0.05;
+    const inputLocalX = 0;
+    const inputLocalY = -upsH * 0.12;
+    const inputLocalZ = upsD / 2 + 1.35; // rear face terminal
+    const riseClear = TRUNK * 0.55; // stand-off just outside the rear face
+    // Rack-local → world with rotY=π: (rx,ry,rz) → (rackX−rx, ry, rackZ−rz)
+    const upsInputY = upsCenterY + inputLocalY;
+    const upsRiseRackZ = upsUnitZ + inputLocalZ + riseClear;
+    const upsEntryRackZ = upsUnitZ + inputLocalZ - 2.5; // into the terminal block
+    const upsInputWorldX = rack6X - inputLocalX;
+    const upsRiseWorldZ = rack6Z - upsRiseRackZ;
+    const upsEntryWorldZ = rack6Z - upsEntryRackZ;
 
     function buildPolyline(points) {
       const segs = [];
@@ -5307,7 +5382,10 @@
       new THREE.Vector3(periX, underY, trunkZ),
       new THREE.Vector3(periX, underY, rack6Z),
       new THREE.Vector3(rack6X, underY, rack6Z),
-      new THREE.Vector3(rack6X, upsY, rack6Z),
+      // Underfloor to UPS rear, rise outside rear, enter 3φ hardwire INPUT
+      new THREE.Vector3(upsInputWorldX, underY, upsRiseWorldZ),
+      new THREE.Vector3(upsInputWorldX, upsInputY, upsRiseWorldZ),
+      new THREE.Vector3(upsInputWorldX, upsInputY, upsEntryWorldZ),
     ];
 
     // 4″×4″ metal trunking for underfloor + riser into Rack6 (not naked cable)
