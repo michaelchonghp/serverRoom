@@ -4102,16 +4102,7 @@
       rightRu.position.set(railInsetX, sideY, ruZ);
       rack.add(rightRu);
 
-      // Light interior backplane — makes door perforations and gear read clearly
-      rack.add(box(
-        OUTER_W - FRAME_T * 2 - 2,
-        INNER_H - 2,
-        0.5,
-        matInterior,
-        0,
-        sideY,
-        OUTER_D / 2 - 8
-      ));
+      // No interior backplane — keep rear open so device backs are workable
 
       for (let u = 0; u < UNITS; u++) {
         const yBase = BASE_H + u * U;
