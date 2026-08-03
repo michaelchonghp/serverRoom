@@ -582,18 +582,18 @@
     const matFloorTileAlt = new THREE.MeshStandardMaterial({ color: 0xcfd6df, metalness: 0.18, roughness: 0.74 });
     const matFloorEdge = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.4, roughness: 0.55 });
     const matPedestal = new THREE.MeshStandardMaterial({ color: 0x6a737c, metalness: 0.55, roughness: 0.45 });
-    // Room wall + MCB distribution board
-    const matWall = new THREE.MeshStandardMaterial({ color: 0xd6dce8, metalness: 0.02, roughness: 0.92 });
-    const matWallTrim = new THREE.MeshStandardMaterial({ color: 0xc2c8d0, metalness: 0.08, roughness: 0.78 });
-    const matMcbShell = new THREE.MeshStandardMaterial({ color: 0x1a1e24, metalness: 0.55, roughness: 0.42 });
-    const matMcbInner = new THREE.MeshStandardMaterial({ color: 0xe8ecf0, metalness: 0.05, roughness: 0.82 });
-    const matMcbDin = new THREE.MeshStandardMaterial({ color: 0xa8b0ba, metalness: 0.85, roughness: 0.28 });
-    const matMcbBreak = new THREE.MeshStandardMaterial({ color: 0xf2f4f6, metalness: 0.15, roughness: 0.55 });
-    const matMcbHandle = new THREE.MeshStandardMaterial({ color: 0xd4a017, metalness: 0.4, roughness: 0.4 });
-    const matPhaseL1 = new THREE.MeshStandardMaterial({ color: 0xc0392b, metalness: 0.35, roughness: 0.45 });
-    const matPhaseL2 = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.35, roughness: 0.45 });
-    const matPhaseL3 = new THREE.MeshStandardMaterial({ color: 0x2980b9, metalness: 0.35, roughness: 0.45 });
-    const matEarth = new THREE.MeshStandardMaterial({ color: 0x2d8f4e, metalness: 0.35, roughness: 0.5 });
+    // Room wall indicator + MCB cabinet
+    const matWall = new THREE.MeshStandardMaterial({
+      color: 0xc8d0da,
+      metalness: 0.02,
+      roughness: 0.88,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const matMcbShell = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.35, roughness: 0.55 });
+    const matMcbCover = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.28, roughness: 0.58 });
 
     // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
     function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
@@ -3829,87 +3829,33 @@
       return g;
     }
 
-    /** Wall-mount main MCB board — open face (no door / no hinge animation) */
+    /** Wall-mount main MCB — closed grey cover, front “MCB” label only */
     function makeMcbBoard() {
       const g = new THREE.Group();
       g.name = "MCB";
 
-      const w = 52;
-      const h = 78;
-      const d = 16;
-      const t = 1.4; // shell thickness
+      // ~30% smaller than the previous open enclosure
+      const w = 36.4;
+      const h = 54.6;
+      const d = 8.5;
 
-      // Open steel enclosure: back + 4 returns (no door leaf)
-      g.add(box(w, h, t, matMcbShell, 0, 0, d / 2 - t / 2)); // back against wall
-      g.add(box(t, h, d, matMcbShell, -w / 2 + t / 2, 0, 0)); // left
-      g.add(box(t, h, d, matMcbShell, w / 2 - t / 2, 0, 0)); // right
-      g.add(box(w, t, d, matMcbShell, 0, h / 2 - t / 2, 0)); // top
-      g.add(box(w, t, d, matMcbShell, 0, -h / 2 + t / 2, 0)); // bottom
+      // Solid grey cabinet + front cover (no internals)
+      g.add(box(w, h, d, matMcbShell, 0, 0, 0));
+      const cover = box(w - 1.2, h - 1.2, 0.6, matMcbCover, 0, 0, -d / 2 - 0.25);
+      g.add(cover);
 
-      // Light inner backplane (recessed)
-      const inner = box(w - t * 2 - 0.4, h - t * 2 - 0.4, 0.6, matMcbInner, 0, 0, d / 2 - t - 0.4);
-      g.add(inner);
-
-      // DIN rail
-      const dinY = h * 0.12;
-      g.add(box(w - 8, 1.2, 1.4, matMcbDin, 0, dinY, -d / 2 + 4.5));
-
-      // Main 3-pole MCCB body
-      const brW = 18;
-      const brH = 22;
-      const brD = 8;
-      const brY = dinY + 2;
-      g.add(box(brW, brH, brD, matMcbBreak, 0, brY, -d / 2 + 5.5));
-      // Toggle handle (ON)
-      g.add(box(4.5, 8, 2.2, matMcbHandle, 0, brY + 2, -d / 2 + 1.2));
-      g.add(box(6, 1.4, 1.6, matMcbHandle, 0, brY + 6.2, -d / 2 + 1.0));
-
-      // Phase markers L1 / L2 / L3 above the breaker
-      const phaseY = brY + brH / 2 + 4;
-      const phaseMats = [matPhaseL1, matPhaseL2, matPhaseL3];
-      [-5.5, 0, 5.5].forEach((px, i) => {
-        g.add(box(4.2, 3.2, 1.2, phaseMats[i], px, phaseY, -d / 2 + 3.2));
-      });
-
-      // Smaller outgoing breakers under main
-      for (let i = 0; i < 4; i++) {
-        const ox = -12 + i * 8;
-        g.add(box(6.2, 10, 5.5, matMcbBreak, ox, dinY - 16, -d / 2 + 4.8));
-        g.add(box(2.2, 4.5, 1.4, matMcbHandle, ox, dinY - 14, -d / 2 + 1.6));
-      }
-
-      // Earth / PE bar at bottom
-      g.add(box(w - 12, 1.6, 1.2, matEarth, 0, -h / 2 + 8, -d / 2 + 3.5));
-
-      // Bottom cable gland stubs (feed TBD — raised floor vs ceiling baskets)
-      [-10, 0, 10].forEach((gx) => {
-        const gland = new THREE.Mesh(
-          new THREE.CylinderGeometry(1.3, 1.5, 2.4, 12),
-          matChrome
-        );
-        gland.position.set(gx, -h / 2 + 1.2, -d / 2 + 4);
-        gland.castShadow = true;
-        g.add(gland);
-      });
-
-      // Face legend plate — “MCB” + 3Φ 32A
-      const plate = makeMcbFacePlate();
-      plate.position.set(0, h / 2 - 10, -d / 2 - 0.05);
+      const plate = makeMcbFacePlate(w * 0.62, h * 0.22);
+      plate.position.set(0, h * 0.12, -d / 2 - 0.58);
       g.add(plate);
 
-      // Mounting flanges to wall (side ears)
-      g.add(box(3.5, 8, 0.8, matMcbShell, -w / 2 - 1.5, h * 0.28, d / 2 - 0.5));
-      g.add(box(3.5, 8, 0.8, matMcbShell, w / 2 + 1.5, h * 0.28, d / 2 - 0.5));
-      g.add(box(3.5, 8, 0.8, matMcbShell, -w / 2 - 1.5, -h * 0.28, d / 2 - 0.5));
-      g.add(box(3.5, 8, 0.8, matMcbShell, w / 2 + 1.5, -h * 0.28, d / 2 - 0.5));
-
+      g.userData.size = { w, h, d };
       g.userData.interactive = true;
       g.userData.kind = "mcb";
       g.userData.label = "Main MCB";
       g.userData.info = {
         eyebrow: "Power · Room feed",
         title: "Main MCB Board",
-        model: "Wall-mount distribution board (door removed)",
+        model: "Wall-mount distribution board",
         rating: "3-phase · 32A",
         blocks: [
           {
@@ -3918,7 +3864,7 @@
           },
           {
             label: "Supply",
-            text: "Three-phase 32A incoming · Outgoing breakers for rack / UPS distribution",
+            text: "Three-phase 32A incoming to the room power distribution",
           },
           {
             label: "Routing",
@@ -3929,36 +3875,34 @@
       return g;
     }
 
-    function makeMcbFacePlate() {
+    function makeMcbFacePlate(labelW = 22, labelH = 8) {
       const pw = 512;
-      const ph = 220;
+      const ph = 180;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
-      ctx.fillStyle = "#f4f1ea";
+      ctx.fillStyle = "#eceff3";
       ctx.fillRect(0, 0, pw, ph);
-      ctx.strokeStyle = "rgba(20,24,30,0.4)";
-      ctx.lineWidth = 8;
-      ctx.strokeRect(4, 4, pw - 8, ph - 8);
+      ctx.strokeStyle = "rgba(20,24,30,0.35)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, pw - 6, ph - 6);
       ctx.fillStyle = "#12161c";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `800 ${Math.floor(ph * 0.42)}px "Archivo Black", "Arial Black", sans-serif`;
-      ctx.fillText("MCB", pw / 2, ph * 0.4);
-      ctx.font = `700 ${Math.floor(ph * 0.2)}px "IBM Plex Mono", ui-monospace, monospace`;
-      ctx.fillText("3Φ  ·  32A", pw / 2, ph * 0.72);
+      ctx.font = `800 ${Math.floor(ph * 0.55)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText("MCB", pw / 2, ph / 2 + 2);
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       const mat = new THREE.MeshStandardMaterial({
         map: tex,
-        roughness: 0.7,
+        roughness: 0.72,
         metalness: 0.04,
         side: THREE.DoubleSide,
       });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(28, 12), mat);
-      mesh.rotation.y = Math.PI; // face out of enclosure (−Z)
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
+      mesh.rotation.y = Math.PI; // face out (−Z)
       return mesh;
     }
 
@@ -4458,24 +4402,22 @@
     hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
     raisedFloor.add(hotB);
 
-    // --- Room wall behind Row A (Rack1–3) + main MCB (doorless) ---
-    // Row A sits at +Z; fronts face the cold aisle (−Z), rears face +Z / this wall.
-    const ROW_A_Z = ROW_SEP / 2;
-    const WALL_T = 14;
+    // --- Thin translucent wall indicator at rear floor edge + MCB ---
+    // Row A at +Z; wall sits at the +Z edge of the raised floor tiles.
+    const WALL_T = 1.2;
     const WALL_H = 290;
-    const WALL_CLEAR = 52; // hot-aisle clearance from rack rear to wall face
-    const wallFaceZ = ROW_A_Z + OUTER_D / 2 + WALL_CLEAR;
-    const wallCenterZ = wallFaceZ + WALL_T / 2;
+    const wallFaceZ = floorD / 2; // flush with back edge of floor tiles
+    const wallCenterZ = wallFaceZ - WALL_T / 2; // thin plane just inside the floor
 
-    // Rack1 is at +X; “left of Rack1” when viewing the row from behind = further +X
+    // Rack1 at +X; “left of Rack1” when viewing from behind = further +X
     const rack1X = RACK_PITCH;
     const rack3X = -RACK_PITCH;
-    const mcbW = 52;
-    const mcbH = 78;
-    const mcbD = 16;
-    const mcbGap = OUTER_W * 1.55; // ~1.5–2 rack widths past Rack1
+    const mcbW = 36.4;
+    const mcbH = 54.6;
+    const mcbD = 8.5;
+    const mcbGap = OUTER_W * 1.55;
     const mcbX = rack1X + OUTER_W / 2 + mcbGap + mcbW / 2;
-    const mcbY = TOTAL_H * 0.55; // mid–upper of rack height, per sketch
+    const mcbY = TOTAL_H * 0.55;
 
     const wallX0 = rack3X - OUTER_W / 2 - 50;
     const wallX1 = mcbX + mcbW / 2 + 40;
@@ -4487,16 +4429,13 @@
     roomPower.position.y = FLOOR_H;
     scene.add(roomPower);
 
+    // Ghost wall — indicator only; see rack backs through it from outside
     const backWall = box(wallW, WALL_H, WALL_T, matWall, wallCenterX, WALL_H / 2, wallCenterZ);
+    backWall.castShadow = false;
     roomPower.add(backWall);
-    // Soft base skirting
-    roomPower.add(box(wallW + 2, 8, WALL_T + 2, matWallTrim, wallCenterX, 4, wallCenterZ));
-    // Top coping
-    roomPower.add(box(wallW + 4, 4, WALL_T + 6, matWallTrim, wallCenterX, WALL_H + 1, wallCenterZ - 1));
 
     const mcb = makeMcbBoard();
-    // Open face toward rack rears (−Z); back sits on wall face
-    mcb.position.set(mcbX, mcbY, wallFaceZ - mcbD / 2);
+    mcb.position.set(mcbX, mcbY, wallFaceZ - WALL_T - mcbD / 2);
     roomPower.add(mcb);
     interactiveItems.push(mcb);
 
