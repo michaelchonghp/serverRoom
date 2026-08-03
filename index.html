@@ -3854,8 +3854,9 @@
       const cover = box(w - 1.2, h - 1.2, 0.6, matMcbCover, 0, 0, -d / 2 - 0.25);
       g.add(cover);
 
+      // Cover front is at −d/2 − 0.55; sit the label clearly in front to avoid z-fight flicker
       const plate = makeMcbFacePlate(w * 0.62, h * 0.22);
-      plate.position.set(0, h * 0.12, -d / 2 - 0.58);
+      plate.position.set(0, h * 0.12, -d / 2 - 0.75);
       g.add(plate);
 
       g.userData.size = { w, h, d };
@@ -3910,9 +3911,13 @@
         roughness: 0.72,
         metalness: 0.04,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
       mesh.rotation.y = Math.PI; // face out (−Z)
+      mesh.renderOrder = 2;
       return mesh;
     }
 
