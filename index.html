@@ -529,6 +529,7 @@
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.08;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.localClippingEnabled = true;
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xe8eef4, 630, 1650);
@@ -4126,6 +4127,16 @@
         x >= floorXMinAt(z)
       );
     }
+    /** True if the tile quad overlaps the room (may straddle the diagonal). */
+    function tileOverlapsRoom(x, z) {
+      const half = (TILE - 0.7) * 0.5;
+      if (z + half < floorZMin || z - half > floorZMax) return false;
+      if (x - half > floorXMax || x + half < -floorW / 2) return false;
+      // Keep if any part reaches the room side of the diagonal
+      const xRight = x + half;
+      const need = Math.min(floorXMinAt(z - half), floorXMinAt(z + half));
+      return xRight >= need;
+    }
     const roomOutline = [
       [floorXMax, floorZMin],
       [floorXMax, floorZMax],
@@ -4213,6 +4224,24 @@
       roughness: 0.55,
     });
 
+    // Slice tiles flush to the diagonal (no stair-step overhang)
+    {
+      const dx = xDiagAtZMax - xDiagAtZMin;
+      const dz = floorZMax - floorZMin;
+      const len = Math.hypot(dx, dz) || 1;
+      const n = new THREE.Vector3(-dz / len, 0, dx / len);
+      let c = -(n.x * xDiagAtZMin + n.z * floorZMin);
+      if (c < 0) {
+        n.negate();
+        c = -c;
+      }
+      const floorDiagClip = new THREE.Plane(n, c);
+      [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
+        m.clippingPlanes = [floorDiagClip];
+        m.clipShadows = true;
+      });
+    }
+
     // Two rows face-to-face across a cold aisle (extra clearance for inward-opening doors)
     const AISLE = 220; // cm clear between front doors
     const ROW_SEP = OUTER_D + AISLE;
@@ -4231,7 +4260,7 @@
       for (let c = 0; c < FLOOR_COLS; c++) {
         const x = floorOriginX + c * TILE;
         const z = floorOriginZ + r * TILE;
-        if (!inRoomFootprint(x, z)) continue;
+        if (!tileOverlapsRoom(x, z)) continue;
         const inAisle = z >= aisleZ0 && z <= aisleZ1;
         const entry = { x, z };
         if (inAisle) perfTiles.push(entry);
