@@ -4237,24 +4237,8 @@
     const raisedFloor = new THREE.Group();
     scene.add(raisedFloor);
 
-    // Void plenum / skirt matching the cut footprint
+    // Raised-floor void is open (no solid plenum box) so underfloor trunking is visible
     const plenumH = FLOOR_H - FLOOR_TILE_T;
-    const plenumShape = new THREE.Shape();
-    // Shape XY → XZ via rotX −90°; use (x, −z) so world Z keeps the right sign
-    plenumShape.moveTo(roomOutline[0][0], -roomOutline[0][1]);
-    for (let i = 1; i < roomOutline.length; i++) {
-      plenumShape.lineTo(roomOutline[i][0], -roomOutline[i][1]);
-    }
-    plenumShape.closePath();
-    const plenum = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(plenumShape, { depth: plenumH, bevelEnabled: false }),
-      matFloorEdge
-    );
-    plenum.rotation.x = -Math.PI / 2;
-    plenum.position.y = 0;
-    plenum.castShadow = true;
-    plenum.receiveShadow = true;
-    raisedFloor.add(plenum);
 
     // Pedestals in the void (only under remaining floor)
     const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
@@ -4669,14 +4653,13 @@
     roomPower.add(bypassTrunkConduit);
 
     // Logical 5-wire 3P+N+E — invisible until Show Power (x-ray)
-    // Path: top of MCB → Bypass center → into trunk → down beneath raised floor
+    // Path: MCB → Bypass → wall trunk → underfloor perimeter → Rack6 → up into UPS
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
-    const powerPathPoints = [
-      new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
-      new THREE.Vector3(mcbX, bypassY, powerCableZ),
-      new THREE.Vector3(trunkX, bypassY, trunkZ),
-      new THREE.Vector3(trunkX, -FLOOR_H + 1.5, trunkZ),
-    ];
+    const rack6X = -2 * RACK_PITCH;
+    const rack6Z = -ROW_SEP / 2;
+    const underY = -FLOOR_H + TRUNK / 2 + 1.5; // 4″ trunk sitting on the slab
+    const periX = xDiagAtZMax + TRUNK * 0.75; // inside +Z / −X floor corner
+    const upsY = BASE_H + 7 * U * 0.42; // into the UPS body in Rack6
 
     function buildPolyline(points) {
       const segs = [];
@@ -4715,6 +4698,39 @@
       return mesh;
     }
 
+    function trunkBetween(a, b, size, mat) {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      if (len < 1e-4) return null;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, len, size), mat);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    const powerPathPoints = [
+      new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
+      new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(trunkX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, rack6Z),
+      new THREE.Vector3(rack6X, upsY, rack6Z),
+    ];
+
+    // 4″×4″ metal trunking for underfloor + riser into Rack6 (not naked cable)
+    const underfloorTrunkPts = powerPathPoints.slice(3); // from base of wall trunk onward
+    const underfloorTrunking = new THREE.Group();
+    underfloorTrunking.name = "UnderfloorTrunking";
+    for (let i = 0; i < underfloorTrunkPts.length - 1; i++) {
+      const seg = trunkBetween(underfloorTrunkPts[i], underfloorTrunkPts[i + 1], TRUNK, matTrunkSilver);
+      if (seg) underfloorTrunking.add(seg);
+    }
+    roomPower.add(underfloorTrunking);
+
     const powerPath = buildPolyline(powerPathPoints);
 
     const matPowerXray = new THREE.MeshBasicMaterial({
@@ -4725,7 +4741,7 @@
       depthWrite: false,
     });
     const powerCableGroup = new THREE.Group();
-    powerCableGroup.name = "PowerCableMcbToFloor";
+    powerCableGroup.name = "PowerCableMcbToUps";
     powerPath.segs.forEach(({ a, b }) => {
       const seg = cylinderBetween(a, b, 1.15, matPowerXray);
       if (seg) powerCableGroup.add(seg);
@@ -4735,7 +4751,7 @@
     powerCableGroup.frustumCulled = false;
     roomPower.add(powerCableGroup);
 
-    // Traveling pulse packet — MCB → Bypass → trunk → underfloor
+    // Traveling pulse — MCB → Bypass → trunk → underfloor → Rack6 UPS
     const matPowerPulse = new THREE.MeshBasicMaterial({
       color: 0xb8ffe0,
       transparent: true,
@@ -4749,7 +4765,7 @@
       new THREE.CylinderGeometry(1.55, 1.55, 7.5, 12),
       matPowerPulse
     ));
-    powerPulse.name = "PowerPulseMcbToFloor";
+    powerPulse.name = "PowerPulseMcbToUps";
     powerPulse.visible = false;
     powerPulse.renderOrder = 21;
     powerPulse.frustumCulled = false;
@@ -4757,7 +4773,7 @@
     roomPower.add(powerPulse);
 
     const powerHighlights = [powerCableGroup, powerPulse];
-    const POWER_PULSE_SPEED = 0.35; // cycles per second along the full run
+    const POWER_PULSE_SPEED = 0.22; // cycles per second along the full run
 
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
@@ -5425,7 +5441,7 @@
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
 
-      // Sci-fi pulse travels MCB → Bypass → trunk → underfloor
+      // Sci-fi pulse travels MCB → Bypass → trunk → underfloor → Rack6 UPS
       if (showPower) {
         const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
         const p = powerPath.getPointAt(t);
