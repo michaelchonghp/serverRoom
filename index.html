@@ -4509,6 +4509,17 @@
     roomPower.add(mcb);
     interactiveItems.push(mcb);
 
+    // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
+    const TRUNK = 10.16; // 4 inches
+    const trunkGap = 2.5;
+    const trunkX = mcbX - mcbW / 2 - trunkGap - TRUNK / 2;
+    const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
+    const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
+    const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
+    const trunk = box(TRUNK, trunkH, TRUNK, matChrome, trunkX, trunkY, trunkZ);
+    trunk.name = "PowerTrunk";
+    roomPower.add(trunk);
+
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
     const WG_W = 45; // ~18″ pathway
