@@ -582,7 +582,7 @@
   <div class="hint">Orbit · Zoom · Pan</div>
   <div class="power-legend" id="power-legend" hidden aria-live="polite">
     <span class="swatch" aria-hidden="true"></span>
-    <span><span class="title">32A TPN</span> <span class="sub">· green power path</span></span>
+    <span><span class="title">32A TPN</span> <span class="sub">· MCB → Bypass → UPS → Dist</span></span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
     <div class="ctrl-menu" id="ctrl-menu">
@@ -1487,9 +1487,9 @@
       ctx.textAlign = "center";
       ctx.fillText("⚠ INPUT / OUTPUT HARDWIRE", hx + hw / 2, hy + 28);
       ctx.fillStyle = "#e8ecf0";
-      ctx.font = "700 13px 'IBM Plex Mono', monospace";
-      ctx.fillText("3φ  L1  L2  L3  N  PE", hx + hw / 2, hy + 50);
-      // Terminal screws row
+      ctx.font = "700 12px 'IBM Plex Mono', monospace";
+      ctx.fillText("32A TPN IN  ·  32A TPN OUT", hx + hw / 2, hy + 50);
+      // Terminal screws row — L1 L2 L3 N PE (shared hardwire block)
       const terms = ["L1", "L2", "L3", "N", "PE"];
       terms.forEach((t, i) => {
         const tx = hx + 28 + i * 36;
@@ -1644,14 +1644,17 @@
       g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
       g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
 
-      // 3φ hardwire INPUT block — target for underfloor mains entry (rear, lower-center)
-      const powerInputLocal = { x: 0, y: -h * 0.12, z: d / 2 + 1.35 };
-      g.add(box(14, 9, 1.8, matUpsFace, powerInputLocal.x, powerInputLocal.y, powerInputLocal.z));
-      g.add(box(12.5, 6.5, 0.35, matAccent, powerInputLocal.x, powerInputLocal.y - 0.4, powerInputLocal.z + 1.0));
+      // 3φ hardwire I/O — 32A TPN in (left) / 32A TPN out (right) on rear face
+      const powerInputLocal = { x: -5, y: -h * 0.12, z: d / 2 + 1.35 };
+      const powerOutputLocal = { x: 5, y: -h * 0.12, z: d / 2 + 1.35 };
+      g.add(box(14, 9, 1.8, matUpsFace, 0, powerInputLocal.y, powerInputLocal.z));
+      g.add(box(5.5, 5.5, 0.4, matAccent, powerInputLocal.x, powerInputLocal.y - 0.3, powerInputLocal.z + 1.0));
+      g.add(box(5.5, 5.5, 0.4, matAccent, powerOutputLocal.x, powerOutputLocal.y - 0.3, powerOutputLocal.z + 1.0));
 
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.powerInputLocal = powerInputLocal;
+      g.userData.powerOutputLocal = powerOutputLocal;
       g.userData.interactive = true;
       g.userData.kind = "ups";
       g.userData.label = "APC SRTG15KXLI";
@@ -1661,15 +1664,15 @@
         eyebrow: "UPS · Rack6",
         title: "APC Smart-UPS On-Line",
         model: "SRTG15KXLI",
-        rating: "15 kVA / 15 kW",
+        rating: "15 kVA / 15 kW · 32A TPN I/O",
         blocks: [
           {
             label: "Input",
-            text: "220/230/240 V 1φ or 380/400/415 V 3φ · Hard-wire 3P+N+E / 1P+N+E · 40–70 Hz · up to 66 A",
+            text: "32A TPN hardwire · 380/400/415 V 3φ · From UPS Bypass via underfloor trunk",
           },
           {
             label: "Output",
-            text: "220/230/240 V 1φ or 380/400/415 V 3φ · Pure sine · Unity PF · 50/60 Hz · Double-conversion online",
+            text: "32A TPN hardwire · Returns to UPS Bypass, then onward to the room distribution panel",
           },
         ],
       };
@@ -5251,10 +5254,14 @@
     const rack1X = RACK_PITCH;
     const mcbX = rack1X + OUTER_W / 2 + mcbGap + mcbW / 2;
     const mcbY = TOTAL_H * 0.55;
+    const BOX_GAP = 12.7; // ~5″ clear between stacked boxes
+    const bypassY = mcbY + mcbH + BOX_GAP;
+    const sideGap = 8; // clear Bypass↔trunk and Bypass↔distribution
+    const distX = mcbX + mcbW / 2 + sideGap + mcbW / 2; // right of Bypass (opp. trunk)
 
-    // Wall only where floor remains: diagonal end → past MCB
+    // Wall only where floor remains: diagonal end → past distribution panel
     const wallX0 = xDiagAtZMax;
-    const wallX1 = Math.min(floorXMax, mcbX + mcbW / 2 + 40);
+    const wallX1 = Math.min(floorXMax, distX + mcbW / 2 + 40);
     const wallW = wallX1 - wallX0;
     const wallCenterX = (wallX0 + wallX1) / 2;
 
@@ -5274,15 +5281,15 @@
       eyebrow: "Power · Room feed",
       title: "Main MCB Board",
       model: "Wall-mount distribution board",
-      rating: "3-phase · 32A",
+      rating: "3-phase · 32A TPN",
       blocks: [
         {
           label: "Role",
-          text: "Main circuit breaker for the room — feeds UPS and all IT loads (not UPS-only)",
+          text: "Main circuit breaker for the room — feeds UPS Bypass (not the final IT distribution)",
         },
         {
           label: "Supply",
-          text: "Three-phase 32A incoming to the room power distribution",
+          text: "Three-phase 32A TPN incoming to the room power train",
         },
         {
           label: "Routing",
@@ -5295,8 +5302,6 @@
     interactiveItems.push(mcb);
 
     // UPS Bypass — same enclosure, a few inches above MCB, linked by conduit
-    const BOX_GAP = 12.7; // ~5″ clear between boxes
-    const bypassY = mcbY + mcbH + BOX_GAP;
     const bypass = makeWallPowerBox({
       name: "UPSBypass",
       label: "UPS\nBYPASS",
@@ -5304,15 +5309,19 @@
       eyebrow: "Power · UPS",
       title: "UPS Bypass Switch",
       model: "Wall-mount bypass / maintenance switch",
-      rating: "3-phase · 32A",
+      rating: "3-phase · 32A TPN",
       blocks: [
         {
           label: "Role",
-          text: "UPS bypass switch — maintenance path around the UPS for the room feed",
+          text: "UPS bypass / maintenance switch — routes 32A TPN to the UPS and takes the UPS output back",
         },
         {
-          label: "Feed",
-          text: "Receives 5-wire 3P+N+E from the main MCB, then onward to the vertical trunk under the raised floor",
+          label: "Feed out",
+          text: "32A TPN via vertical trunk + underfloor to Rack6 UPS hardwire INPUT",
+        },
+        {
+          label: "Return",
+          text: "Receives 32A TPN from UPS hardwire OUTPUT, then feeds the room distribution panel",
         },
       ],
     });
@@ -5320,14 +5329,55 @@
     roomPower.add(bypass);
     interactiveItems.push(bypass);
 
-    // Interconnect conduit — length equals the gap between boxes
+    // Distribution panel — right of Bypass (opposite the vertical trunk)
+    const dist = makeWallPowerBox({
+      name: "DistPanel",
+      label: "DIST\nPANEL",
+      kind: "dist-panel",
+      eyebrow: "Power · Distribution",
+      title: "Distribution Panel",
+      model: "Wall-mount MCB distribution board",
+      rating: "Feeds 16A / 32A industrial plugs",
+      blocks: [
+        {
+          label: "Role",
+          text: "Room distribution — takes protected 32A TPN from UPS Bypass and breaks out to industrial plugs",
+        },
+        {
+          label: "Outlets",
+          text: "16A and 32A industrial plugs (outlets not modeled yet)",
+        },
+        {
+          label: "Feed",
+          text: "From UPS Bypass after the UPS 32A TPN output return",
+        },
+      ],
+    });
+    dist.position.set(distX, bypassY, wallFaceZ - WALL_T - mcbD / 2);
+    roomPower.add(dist);
+    interactiveItems.push(dist);
+
+    // Interconnect conduit — MCB ↔ Bypass (vertical)
     const conduit = box(4.2, BOX_GAP, 4.2, matTrunkSilver, mcbX, mcbY + mcbH / 2 + BOX_GAP / 2, wallFaceZ - WALL_T - 2.1);
     conduit.name = "McbBypassConduit";
     roomPower.add(conduit);
 
-    // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
+    // Conduit Bypass → Distribution (horizontal, right side)
+    const bypassDistConduit = box(
+      sideGap,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      mcbX + mcbW / 2 + sideGap / 2,
+      bypassY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    bypassDistConduit.name = "BypassDistConduit";
+    roomPower.add(bypassDistConduit);
+
+    // 4″×4″ silver vertical trunk — left of Bypass (toward racks), full wall + into raised floor
     const TRUNK = 10.16; // 4 inches
-    const trunkGap = 8; // short clear for Bypass→trunk conduit
+    const trunkGap = sideGap;
     const trunkX = mcbX - mcbW / 2 - trunkGap - TRUNK / 2;
     const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
     const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
@@ -5352,15 +5402,15 @@
     bypassTrunkConduit.name = "BypassTrunkConduit";
     roomPower.add(bypassTrunkConduit);
 
-    // Logical 5-wire 3P+N+E — invisible until Show Power (x-ray)
-    // Path: MCB → Bypass → wall trunk → underfloor perimeter → Rack6 rear → 3φ INPUT
+    // Logical 32A TPN — invisible until Show Power (x-ray)
+    // Path: MCB → Bypass → trunk → underfloor → UPS IN → UPS OUT → underfloor → Bypass → Dist
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
     const rack6X = -2 * RACK_PITCH;
     const rack6Z = -ROW_SEP / 2;
     const underY = -FLOOR_H + TRUNK / 2 + 1.5; // 4″ trunk sitting on the slab
     const periX = xDiagAtZMax + TRUNK * 0.75; // inside +Z / −X floor corner
 
-    // UPS rear 3φ hardwire input (Rack6 is rotated 180° — local +Z rear → world −Z)
+    // UPS rear 32A TPN hardwire I/O (Rack6 rotated 180° — local +Z rear → world −Z)
     const upsD = 70;
     const upsH = 7 * U - 0.2;
     const railZFront = -OUTER_D / 2 + 10;
@@ -5368,15 +5418,17 @@
     const upsMountZ = -(upsD / 2) - 0.9;
     const upsUnitZ = railFrontFaceZ - upsMountZ;
     const upsCenterY = BASE_H + upsH / 2 + 0.05;
-    const inputLocalX = 0;
-    const inputLocalY = -upsH * 0.12;
-    const inputLocalZ = upsD / 2 + 1.35; // rear face terminal
+    const upsIoLocalY = -upsH * 0.12;
+    const upsIoLocalZ = upsD / 2 + 1.35; // rear face terminal
+    const upsInLocalX = -5;
+    const upsOutLocalX = 5;
     const riseClear = TRUNK * 0.55; // stand-off just outside the rear face
     // Rack-local → world with rotY=π: (rx,ry,rz) → (rackX−rx, ry, rackZ−rz)
-    const upsInputY = upsCenterY + inputLocalY;
-    const upsRiseRackZ = upsUnitZ + inputLocalZ + riseClear;
-    const upsEntryRackZ = upsUnitZ + inputLocalZ - 2.5; // into the terminal block
-    const upsInputWorldX = rack6X - inputLocalX;
+    const upsIoY = upsCenterY + upsIoLocalY;
+    const upsRiseRackZ = upsUnitZ + upsIoLocalZ + riseClear;
+    const upsEntryRackZ = upsUnitZ + upsIoLocalZ - 2.5; // into the terminal block
+    const upsInWorldX = rack6X - upsInLocalX;
+    const upsOutWorldX = rack6X - upsOutLocalX;
     const upsRiseWorldZ = rack6Z - upsRiseRackZ;
     const upsEntryWorldZ = rack6Z - upsEntryRackZ;
 
@@ -5430,6 +5482,7 @@
     }
 
     const powerPathPoints = [
+      // Outbound: MCB → Bypass → trunk → underfloor → UPS 32A TPN INPUT
       new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
       new THREE.Vector3(mcbX, bypassY, powerCableZ),
       new THREE.Vector3(trunkX, bypassY, trunkZ),
@@ -5437,14 +5490,34 @@
       new THREE.Vector3(periX, underY, trunkZ),
       new THREE.Vector3(periX, underY, rack6Z),
       new THREE.Vector3(rack6X, underY, rack6Z),
-      // Underfloor to UPS rear, rise outside rear, enter 3φ hardwire INPUT
-      new THREE.Vector3(upsInputWorldX, underY, upsRiseWorldZ),
-      new THREE.Vector3(upsInputWorldX, upsInputY, upsRiseWorldZ),
-      new THREE.Vector3(upsInputWorldX, upsInputY, upsEntryWorldZ),
+      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsInWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsInWorldX, upsIoY, upsEntryWorldZ),
+      // Through UPS hardwire block → 32A TPN OUTPUT
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsEntryWorldZ),
+      // Return: UPS OUTPUT → underfloor → trunk → Bypass → Dist panel
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, underY, rack6Z),
+      new THREE.Vector3(periX, underY, rack6Z),
+      new THREE.Vector3(periX, underY, trunkZ),
+      new THREE.Vector3(trunkX, underY, trunkZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(distX, bypassY, powerCableZ),
     ];
 
-    // 4″×4″ metal trunking for underfloor + riser into Rack6 (not naked cable)
-    const underfloorTrunkPts = powerPathPoints.slice(3); // from base of wall trunk onward
+    // 4″×4″ metal trunking for underfloor + riser (physical run once; return reuses it)
+    const underfloorTrunkPts = [
+      new THREE.Vector3(trunkX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
+    ];
     const underfloorTrunking = new THREE.Group();
     underfloorTrunking.name = "UnderfloorTrunking";
     for (let i = 0; i < underfloorTrunkPts.length - 1; i++) {
@@ -5473,7 +5546,7 @@
     powerCableGroup.frustumCulled = false;
     roomPower.add(powerCableGroup);
 
-    // Traveling pulse — MCB → Bypass → trunk → underfloor → Rack6 UPS
+    // Traveling pulse — full 32A TPN run: MCB → Bypass → UPS → Bypass → Dist
     const matPowerPulse = new THREE.MeshBasicMaterial({
       color: 0xb8ffe0,
       transparent: true,
@@ -5495,7 +5568,7 @@
     roomPower.add(powerPulse);
 
     const powerHighlights = [powerCableGroup, powerPulse];
-    const POWER_PULSE_SPEED = 0.22; // cycles per second along the full run
+    const POWER_PULSE_SPEED = 0.18; // slightly slower — path is longer (UPS return + Dist)
 
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
