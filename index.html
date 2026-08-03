@@ -5694,6 +5694,31 @@
       Math.PI / 2
     );
 
+    // --- Ceiling power trunk (U around both hot-aisle rears) ---
+    // Sits just above rear rack doors, a bit below Wyr-Grid. Later: Dist → hanging industrial plugs.
+    const CPT = 12; // ~5″ square ceiling busway
+    const CPT_Y = TOTAL_H + 8; // above rear doors; WG_Y = TOTAL_H * 1.3
+    const cptClear = 14; // stand-off behind rear doors into each hot aisle
+    const cptZA = ROW_SEP / 2 + OUTER_D / 2 + cptClear; // behind Rack1–3
+    const cptZB = -(ROW_SEP / 2 + OUTER_D / 2 + cptClear); // behind Rack4–6
+    const cptXMax = RACK_PITCH + OUTER_W / 2 + 10; // open end of U past Rack1 / toward wall
+    const cptXMinA = -RACK_PITCH - OUTER_W / 2 - 10; // past Rack3
+    const cptXMinB = -2 * RACK_PITCH - OUTER_W / 2 - 10; // past Rack6
+
+    const ceilingPowerTrunkPts = [
+      new THREE.Vector3(cptXMinA, CPT_Y, cptZA), // Rack3 end, row A rear
+      new THREE.Vector3(cptXMax, CPT_Y, cptZA), // Rack1 end, row A rear
+      new THREE.Vector3(cptXMax, CPT_Y, cptZB), // cross to row B rear
+      new THREE.Vector3(cptXMinB, CPT_Y, cptZB), // Rack6 end, row B rear
+    ];
+    const ceilingPowerTrunk = new THREE.Group();
+    ceilingPowerTrunk.name = "CeilingPowerTrunk";
+    for (let i = 0; i < ceilingPowerTrunkPts.length - 1; i++) {
+      const seg = trunkBetween(ceilingPowerTrunkPts[i], ceilingPowerTrunkPts[i + 1], CPT, matTrunkSilver);
+      if (seg) ceilingPowerTrunk.add(seg);
+    }
+    roomPower.add(ceilingPowerTrunk);
+
     // Door / power controls (+ drop-up menu)
     const doorState = {
       frontOpen: true,
