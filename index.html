@@ -78,6 +78,21 @@
       color: var(--steel);
     }
 
+    .brand .credit {
+      margin-top: 0.85rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--steel) 78%, var(--ink));
+    }
+
+    .brand .credit strong {
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: none;
+      color: var(--ink);
+    }
+
     .meta {
       align-self: end;
       display: flex;
@@ -502,6 +517,7 @@
       <div class="maker">Austin Hughes</div>
       <h1>Rack1–6</h1>
       <p>UltraRack SR 800W · 42U · 1072D · raised floor · face-to-face rows.</p>
+      <div class="credit">Made by <strong>Michael C.</strong></div>
     </header>
     <div></div>
     <footer class="meta">
@@ -778,7 +794,7 @@
       return g;
     }
 
-    function makePerforatedDoorLeaf(width, height) {
+    function makePerforatedDoorLeaf(width, height, { makerMark = false } = {}) {
       const g = new THREE.Group();
       const t = 1.4;
       g.add(box(width, t, 1.0, matDoor, 0, height / 2 - t / 2, 0));
@@ -794,7 +810,42 @@
       back.rotation.y = Math.PI;
       back.position.z = -0.05;
       g.add(back);
+
+      // Subtle credit on the interior face of front doors
+      if (makerMark) {
+        const mark = makeDoorMakerMark();
+        mark.position.set(0, -height * 0.38, -0.12);
+        g.add(mark);
+      }
       return g;
+    }
+
+    function makeDoorMakerMark() {
+      const pw = 256;
+      const ph = 48;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.fillStyle = "rgba(200, 208, 218, 0.28)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `500 ${Math.floor(ph * 0.42)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.fillText("Michael C.", pw / 2, ph / 2 + 1);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      // Small plate on the door leaf (~6 cm × 1.1 cm)
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 1.15), mat);
+      mesh.renderOrder = 1;
+      return mesh;
     }
 
     /** Shared front-rail RU strip: 1 at bottom … 42 at top (EIA bottom-up).
@@ -4129,7 +4180,7 @@
       const doorH = INNER_H - 1.5;
 
       const frontDoor = new THREE.Group();
-      const frontLeaf = makePerforatedDoorLeaf(doorW, doorH);
+      const frontLeaf = makePerforatedDoorLeaf(doorW, doorH, { makerMark: true });
       frontLeaf.position.x = doorW / 2;
       frontDoor.add(frontLeaf);
       const frontHandle = makeSwingHandle(16);
