@@ -544,15 +544,16 @@
     controls.maxPolarAngle = Math.PI * 0.495;
     controls.minPolarAngle = 0.08;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.35;
+    controls.autoRotateSpeed = 0.175; // 50% slower than previous 0.35
     controls.enablePan = true;
     controls.screenSpacePanning = true;
 
+    const IDLE_AUTOSPIN_MS = 9000; // twice the previous 4.5s delay
     let idleTimer;
     controls.addEventListener("start", () => {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
+      idleTimer = setTimeout(() => { controls.autoRotate = true; }, IDLE_AUTOSPIN_MS);
     });
 
     // Distinct finishes so frame / doors / rails / gear don't read as one black mass
@@ -4017,7 +4018,7 @@
       clearTimeout(idleTimer);
       // Don't auto-rotate while focused on a single rack
       if (viewMode !== "overview") return;
-      idleTimer = setTimeout(() => { controls.autoRotate = true; }, 4500);
+      idleTimer = setTimeout(() => { controls.autoRotate = true; }, IDLE_AUTOSPIN_MS);
     }
 
     function setFrontDoor(open) {
