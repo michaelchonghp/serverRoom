@@ -2526,6 +2526,308 @@
       return g;
     }
 
+    /** Ruijie RG-S5760C-48GT4XS-HP-X front — silver face, 48× GE RJ45 + 4× SFP+ */
+    let ruijieS5760FrontTex = null;
+    function makeRuijieS5760FrontTexture() {
+      if (ruijieS5760FrontTex) return ruijieS5760FrontTex;
+
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Dark chassis edge + silver/white faceplate
+      ctx.fillStyle = "#2a3038";
+      ctx.fillRect(0, 0, pw, ph);
+      const faceG = ctx.createLinearGradient(0, 0, 0, ph);
+      faceG.addColorStop(0, "#f2f4f7");
+      faceG.addColorStop(0.55, "#e4e8ee");
+      faceG.addColorStop(1, "#d0d6de");
+      ctx.fillStyle = faceG;
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      // Top honeycomb vent strip
+      const ventH = ph * 0.12;
+      ctx.fillStyle = "#9aa3ae";
+      ctx.fillRect(10, 8, pw - 20, ventH);
+      ctx.fillStyle = "rgba(50, 58, 68, 0.55)";
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 100; col++) {
+          ctx.beginPath();
+          ctx.arc(18 + col * 23 + (row % 2 ? 11 : 0), 12 + row * 9, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.12;
+        const iw = w * 0.76;
+        const ih = h * 0.76;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      const contentTop = 8 + ventH + 6;
+      const contentH = ph - contentTop - 22;
+      const margin = 14;
+      const usable = pw - margin * 2;
+      const zones = { brand: 0.11, copper: 0.72, uplink: 0.17 };
+      let zx = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x: zx, w: usable * f };
+        zx += usable * f;
+      }
+
+      // —— Brand + status LEDs + USB + Console/MGMT ——
+      {
+        const { x, w } = Z.brand;
+        ctx.fillStyle = "#1a5fb4";
+        ctx.font = `800 ${Math.floor(ph * 0.09)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Ruijie", x + 4, contentTop + 16);
+
+        const leds = ["Status", "MGMT", "PWR1", "PWR2", "FAN", "Mode"];
+        leds.forEach((lab, i) => {
+          const ly = contentTop + 36 + i * (contentH - 40) / leds.length;
+          ctx.fillStyle = i === 0 ? "#2ecc71" : "#3a454f";
+          ctx.beginPath();
+          ctx.arc(x + 12, ly, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#5a6572";
+          ctx.font = `600 ${Math.floor(ph * 0.035)}px "IBM Plex Mono", monospace`;
+          ctx.fillText(lab, x + 22, ly);
+        });
+
+        // USB
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(x + w * 0.55, contentTop + contentH * 0.25, 22, 32, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(x + w * 0.55 + 3, contentTop + contentH * 0.25 + 4, 16, 24);
+
+        // Console + MGMT stacked
+        const rjW = Math.min(36, w * 0.32);
+        const rjH = contentH * 0.28;
+        drawRj45Jack(x + w * 0.62, contentTop + contentH * 0.42, rjW, rjH);
+        drawRj45Jack(x + w * 0.62, contentTop + contentH * 0.72, rjW, rjH);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("CON", x + w * 0.62 + rjW / 2, contentTop + contentH * 0.42 - 4);
+        ctx.fillText("MGMT", x + w * 0.62 + rjW / 2, contentTop + contentH * 0.72 - 4);
+      }
+
+      // —— 48 GE RJ45 in 4 blocks of 2×6 (column-major: 1 above 2) ——
+      {
+        const { x, w } = Z.copper;
+        const blocks = 4;
+        const blockGap = 10;
+        const blockW = (w - blockGap * (blocks - 1)) / blocks;
+        const cols = 6;
+        const rows = 2;
+        const pad = 6;
+        const gapX = 3;
+        const gapY = 5;
+        const pW = (blockW - pad * 2 - gapX * (cols - 1)) / cols;
+        const pH = (contentH - 18 - gapY) / rows;
+
+        for (let b = 0; b < blocks; b++) {
+          const bx = x + b * (blockW + blockGap);
+          ctx.fillStyle = "rgba(245,247,250,0.9)";
+          roundRect(bx, contentTop, blockW, contentH - 4, 3);
+          ctx.fill();
+          ctx.strokeStyle = "#c0c6ce";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+              // Column-major numbering within block
+              const px = bx + pad + col * (pW + gapX);
+              const py = contentTop + 10 + r * (pH + gapY);
+              drawRj45Jack(px, py, pW, pH, { invert: r === 1 });
+            }
+          }
+          // Block start port hint
+          ctx.fillStyle = "#6a7380";
+          ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "left";
+          ctx.fillText(String(b * 12 + 1), bx + 4, contentTop + 8);
+        }
+      }
+
+      // —— 4× SFP+ uplink 2×2 ——
+      {
+        const { x, w } = Z.uplink;
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `700 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("RG-S5760C-48GT4XS-HP-X", x + w / 2, contentTop + 10);
+
+        const cols = 2;
+        const rows = 2;
+        const pad = 10;
+        const gapX = 6;
+        const gapY = 6;
+        const areaY = contentTop + 22;
+        const areaH = contentH - 28;
+        const pW = (w - pad * 2 - gapX) / cols;
+        const pH = (areaH - gapY) / rows;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            const px = x + pad + col * (pW + gapX);
+            const py = areaY + r * (pH + gapY);
+            drawSfpCage(px, py, pW, pH);
+            ctx.fillStyle = "#6a7380";
+            ctx.font = `600 ${Math.floor(ph * 0.03)}px "IBM Plex Mono", monospace`;
+            ctx.textAlign = "center";
+            const n = 49 + r * 2 + col;
+            ctx.fillText(`${n}F`, px + pW / 2, py - 2);
+          }
+        }
+      }
+
+      // Red accent line along bottom
+      ctx.fillStyle = "#c0392b";
+      ctx.fillRect(10, ph - 14, pw - 20, 3);
+      ctx.fillStyle = "#8a929c";
+      ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      ctx.fillText("On=Link  Flashing=ACT", 20, ph - 4);
+
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      ruijieS5760FrontTex = tex;
+      return tex;
+    }
+
+    /** Ruijie RG-S5760C-48GT4XS-HP-X — 1U access / PoE aggregation switch */
+    function makeRuijieS5760({ rackName = "Rack3", code = "" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 42.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0x2a3038, metalness: 0.45, roughness: 0.5,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeRuijieS5760FrontTexture(),
+        metalness: 0.22,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const tagText = code ? `Acc. ${code}` : "Acc.";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "access-switch";
+      g.userData.code = code;
+      g.userData.label = code
+        ? `Ruijie RG-S5760C-48GT4XS-HP-X (${code})`
+        : "Ruijie RG-S5760C-48GT4XS-HP-X";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: code ? `Access ${code} · ${rackName}` : `Access · ${rackName}`,
+        title: "Ruijie Campus Access Switch",
+        model: "RG-S5760C-48GT4XS-HP-X",
+        rating: "1U · 48× GE PoE+ · 4× 10G",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "48× 10/100/1000BASE-T PoE/PoE+ · 4× 1G/10G SFP+ uplinks · Console · MGMT · USB",
+          },
+          {
+            label: "Role",
+            text: "Layer 3 campus access / aggregation · VSU · Hardware redundant boot & hot-swap PSU",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · Silver front panel · Red accent · Dual PSU option",
+          },
+        ],
+      };
+      return g;
+    }
+
     /** Cisco Catalyst C8300-1N1S front — hex vent face, GE/SFP cluster, NIM + SM blanks */
     let ciscoC8300FrontTex = null;
     function makeCiscoC8300FrontTexture() {
@@ -3627,6 +3929,9 @@
         if (type === "sw-ruijie-s6510") {
           unit = makeRuijieS6510({ rackName: name, code });
         }
+        if (type === "sw-ruijie-s5760") {
+          unit = makeRuijieS5760({ rackName: name, code });
+        }
         if (type === "rt-cisco-c8300") {
           unit = makeCiscoC8300({ rackName: name });
         }
@@ -3890,7 +4195,7 @@
       ROW_SEP / 2,
       0,
       0,
-      { Rack1: ["CORE"], Rack2: ["CORE"] },
+      { Rack1: ["CORE"], Rack2: ["CORE"], Rack3: ["ACCESS"] },
       {
         // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
         // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
@@ -3916,6 +4221,15 @@
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
+          { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — fiber (same as Rack1)
+          { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
+        ],
+        Rack3: [
+          // Access top→down: A1 (RU24), A3 (RU23), A5 (RU20), A7 (RU18)
+          { type: "sw-ruijie-s5760", startU: 17, code: "A7" }, // RU 18
+          { type: "sw-ruijie-s5760", startU: 19, code: "A5" }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 22, code: "A3" }, // RU 23
+          { type: "sw-ruijie-s5760", startU: 23, code: "A1" }, // RU 24
         ],
       }
     );
@@ -3926,8 +4240,15 @@
       -ROW_SEP / 2,
       Math.PI,
       -RACK_PITCH,
-      { Rack5: ["ACS"], Rack6: ["UPS"] },
+      { Rack4: ["ACCESS"], Rack5: ["ACS"], Rack6: ["UPS"] },
       {
+        Rack4: [
+          // Access top→down: A2 (RU24), A4 (RU23), A6 (RU20), A8 (RU18)
+          { type: "sw-ruijie-s5760", startU: 17, code: "A8" }, // RU 18
+          { type: "sw-ruijie-s5760", startU: 19, code: "A6" }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 22, code: "A4" }, // RU 23
+          { type: "sw-ruijie-s5760", startU: 23, code: "A2" }, // RU 24
+        ],
         // APC Smart-UPS On-Line SRTG15KXLI 15kVA — 7U at bottom of Rack6
         // + 4× SRTG192XLBP2 192V battery packs (4U each) stacked above
         Rack6: [
