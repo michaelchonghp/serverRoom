@@ -4402,40 +4402,60 @@
     hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
     raisedFloor.add(hotB);
 
-    // --- Thin translucent wall indicator at rear floor edge + MCB ---
-    // Row A at +Z; wall sits at the +Z edge of the raised floor tiles.
+    // --- Thin translucent room outline (non-rectangular) + MCB ---
+    // Top-down: Row B (4–6) at −Z, Row A (1–3) at +Z; Rack6/3 at −X.
+    // Red outline: full left (−Z), short right (+Z), top (+X), diagonal on Rack6/−X end.
     const WALL_T = 1.2;
     const WALL_H = 290;
-    const wallFaceZ = floorD / 2; // flush with back edge of floor tiles
-    const wallCenterZ = wallFaceZ - WALL_T / 2; // thin plane just inside the floor
 
-    // Rack1 at +X; “left of Rack1” when viewing from behind = further +X
-    const rack1X = RACK_PITCH;
-    const rack3X = -RACK_PITCH;
+    const zMax = floorD / 2 - 0.5; // behind Rack1–3 (floor tile edge)
+    const zMin = -floorD / 2 + 0.5; // behind Rack4–6 (floor tile edge)
+    const xMax = floorW / 2 - 0.5; // past Rack1 / Rack4 end
+
+    // Diagonal: wider clearance past Rack6, tight past Rack3 (room narrows)
+    const rack6OuterX = -2 * RACK_PITCH - OUTER_W / 2;
+    const rack3OuterX = -RACK_PITCH - OUTER_W / 2;
+    const xDiagStart = Math.max(-floorW / 2 + 0.5, rack6OuterX - 4.5 * TILE);
+    const xDiagEnd = rack3OuterX - 0.75 * TILE;
+
     const mcbW = 36.4;
-    const mcbH = 54.6;
     const mcbD = 8.5;
     const mcbGap = OUTER_W * 1.55;
+    const rack1X = RACK_PITCH;
     const mcbX = rack1X + OUTER_W / 2 + mcbGap + mcbW / 2;
     const mcbY = TOTAL_H * 0.55;
-
-    const wallX0 = rack3X - OUTER_W / 2 - 50;
-    const wallX1 = mcbX + mcbW / 2 + 40;
-    const wallW = wallX1 - wallX0;
-    const wallCenterX = (wallX0 + wallX1) / 2;
 
     const roomPower = new THREE.Group();
     roomPower.name = "RoomPower";
     roomPower.position.y = FLOOR_H;
     scene.add(roomPower);
 
-    // Ghost wall — indicator only; see rack backs through it from outside
-    const backWall = box(wallW, WALL_H, WALL_T, matWall, wallCenterX, WALL_H / 2, wallCenterZ);
-    backWall.castShadow = false;
-    roomPower.add(backWall);
+    /** Thin ghost wall segment from (x0,z0) → (x1,z1) in the XZ plane */
+    function addGhostWall(x0, z0, x1, z1) {
+      const dx = x1 - x0;
+      const dz = z1 - z0;
+      const len = Math.hypot(dx, dz);
+      if (len < 1) return null;
+      const mesh = box(WALL_T, WALL_H, len, matWall, (x0 + x1) / 2, WALL_H / 2, (z0 + z1) / 2);
+      mesh.rotation.y = Math.atan2(dx, dz);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      roomPower.add(mesh);
+      return mesh;
+    }
+
+    // 1) Top (+X) — full depth between the two hot-aisle walls
+    addGhostWall(xMax, zMin, xMax, zMax);
+    // 2) Left (−Z) — behind Rack4–6, runs to the wide diagonal corner
+    addGhostWall(xMax, zMin, xDiagStart, zMin);
+    // 3) Right (+Z) — behind Rack1–3, shortened (stops near Rack3)
+    addGhostWall(xMax, zMax, xDiagEnd, zMax);
+    // 4) Lower diagonal — Rack6 side: wide at −Z, narrows toward Rack3 / +Z
+    addGhostWall(xDiagStart, zMin, xDiagEnd, zMax);
 
     const mcb = makeMcbBoard();
-    mcb.position.set(mcbX, mcbY, wallFaceZ - WALL_T - mcbD / 2);
+    // Still on the +Z wall, past Rack1 toward +X
+    mcb.position.set(mcbX, mcbY, zMax - WALL_T - mcbD / 2);
     roomPower.add(mcb);
     interactiveItems.push(mcb);
 
