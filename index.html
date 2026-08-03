@@ -4352,26 +4352,7 @@
     addTileInstances(solidAltTiles, matFloorTileAlt);
     addTileInstances(perfTiles, matFloorPerfMapped);
 
-    // Edge trim / ramp lip following the cut footprint
-    const lipH = FLOOR_H + 0.6;
-    const lipT = 3;
-    function addFloorLip(x0, z0, x1, z1) {
-      const dx = x1 - x0;
-      const dz = z1 - z0;
-      const len = Math.hypot(dx, dz);
-      if (len < 1) return;
-      const lip = new THREE.Mesh(new THREE.BoxGeometry(lipT, lipH, len + lipT * 0.5), matFloorEdge);
-      lip.position.set((x0 + x1) / 2, lipH / 2, (z0 + z1) / 2);
-      lip.rotation.y = Math.atan2(dx, dz);
-      lip.castShadow = true;
-      lip.receiveShadow = true;
-      raisedFloor.add(lip);
-    }
-    for (let i = 0; i < roomOutline.length; i++) {
-      const a = roomOutline[i];
-      const b = roomOutline[(i + 1) % roomOutline.length];
-      addFloorLip(a[0], a[1], b[0], b[1]);
-    }
+    // No side skirts / edge lips — keep the raised-floor void open and readable
 
     const bay = new THREE.Group();
     // Cabinets sit on the raised floor deck
