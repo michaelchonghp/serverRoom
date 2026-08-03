@@ -4938,14 +4938,15 @@
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
       syncPowerButton();
-      nudgeIdle();
+      if (on) framePowerPath();
+      else nudgeIdle();
     }
 
     function nudgeIdle() {
       controls.autoRotate = false;
       clearTimeout(idleTimer);
-      // Don't auto-rotate while focused on a single rack
-      if (viewMode !== "overview") return;
+      // Don't auto-rotate while focused on a rack or while power path is highlighted
+      if (viewMode !== "overview" || showPower) return;
       idleTimer = setTimeout(() => { controls.autoRotate = true; }, IDLE_AUTOSPIN_MS);
     }
 
@@ -5087,6 +5088,10 @@
 
     const framingBox = new THREE.Box3();
     function frameScene(forceReset = true) {
+      if (showPower) {
+        framePowerPath();
+        return;
+      }
       if (viewMode !== "overview") {
         focusRackFront(viewMode);
         return;
@@ -5127,6 +5132,52 @@
         controls.update();
       }
       syncRackButtons();
+    }
+
+    /** Fit the full power run (MCB → underfloor → Rack6 UPS) in view */
+    function framePowerPath() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+
+      camera.fov = mobile ? 52 : 38;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      const box = new THREE.Box3();
+      const tmp = new THREE.Vector3();
+      powerPathPoints.forEach((p) => {
+        tmp.copy(p);
+        roomPower.localToWorld(tmp);
+        box.expandByPoint(tmp);
+      });
+      box.expandByScalar(mobile ? 55 : 42);
+
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      const pad = mobile ? 1.48 : 1.32;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const distance = Math.max(
+        (size.y * pad * 0.5) / Math.tan(vFov / 2),
+        (size.x * pad * 0.5) / Math.tan(hFov / 2),
+        (size.z * pad * 0.5) / Math.tan(hFov / 2)
+      ) * (mobile ? 1.14 : 1.08);
+
+      // High corner view so wall stack, underfloor L, and Rack6 riser all read
+      const dir = new THREE.Vector3(0.58, mobile ? 0.68 : 0.78, -0.42).normalize();
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(dir, distance);
+      controls.minDistance = Math.max(32, distance * 0.18);
+      controls.maxDistance = Math.max(1600, distance * 3.8);
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      viewMode = "overview";
+      syncRackButtons();
+      controls.update();
     }
 
     frameScene(true);
