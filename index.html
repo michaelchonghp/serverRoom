@@ -2785,7 +2785,7 @@
       face.castShadow = true;
       g.add(face);
 
-      const tagText = code ? `Acc. ${code}` : "Acc.";
+      const tagText = code ? `Access ${code}` : "Access";
       const fieldTag = makeFieldLabel(tagText);
       const tagW = fieldTag.userData.labelW || 6.44;
       fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
@@ -4225,10 +4225,10 @@
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
         ],
         Rack3: [
-          // Access top→down: A1 (RU24), A3 (RU23), A5 (RU20), A7 (RU18)
+          // Access top→down: A7/A5/A3/A1 at RU 18, 20, 22, 24 (equally spaced)
           { type: "sw-ruijie-s5760", startU: 17, code: "A7" }, // RU 18
           { type: "sw-ruijie-s5760", startU: 19, code: "A5" }, // RU 20
-          { type: "sw-ruijie-s5760", startU: 22, code: "A3" }, // RU 23
+          { type: "sw-ruijie-s5760", startU: 21, code: "A3" }, // RU 22
           { type: "sw-ruijie-s5760", startU: 23, code: "A1" }, // RU 24
         ],
       }
@@ -4243,10 +4243,10 @@
       { Rack4: ["ACCESS"], Rack5: ["ACS"], Rack6: ["UPS"] },
       {
         Rack4: [
-          // Access top→down: A2 (RU24), A4 (RU23), A6 (RU20), A8 (RU18)
+          // Access top→down: A8/A6/A4/A2 at RU 18, 20, 22, 24 (equally spaced)
           { type: "sw-ruijie-s5760", startU: 17, code: "A8" }, // RU 18
           { type: "sw-ruijie-s5760", startU: 19, code: "A6" }, // RU 20
-          { type: "sw-ruijie-s5760", startU: 22, code: "A4" }, // RU 23
+          { type: "sw-ruijie-s5760", startU: 21, code: "A4" }, // RU 22
           { type: "sw-ruijie-s5760", startU: 23, code: "A2" }, // RU 24
         ],
         // APC Smart-UPS On-Line SRTG15KXLI 15kVA — 7U at bottom of Rack6
