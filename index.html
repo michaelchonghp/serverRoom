@@ -118,6 +118,47 @@
       animation: pulse 2.4s ease-in-out infinite;
     }
 
+    .power-legend {
+      position: fixed;
+      top: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-top));
+      right: clamp(1rem, 3vw, 2.5rem);
+      z-index: 3;
+      pointer-events: none;
+      display: none;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.55rem 0.85rem;
+      background: color-mix(in srgb, #0e141a 78%, transparent);
+      border: 1px solid color-mix(in srgb, #3dff9a 35%, transparent);
+      color: #e8f5ee;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .power-legend.visible { display: flex; }
+
+    .power-legend .swatch {
+      width: 1.35rem;
+      height: 0.28rem;
+      background: #3dff9a;
+      box-shadow: 0 0 10px color-mix(in srgb, #3dff9a 70%, transparent);
+      flex-shrink: 0;
+    }
+
+    .power-legend .title {
+      font-weight: 500;
+      color: #3dff9a;
+    }
+
+    .power-legend .sub {
+      color: color-mix(in srgb, #e8f5ee 72%, transparent);
+      letter-spacing: 0.04em;
+      text-transform: none;
+      font-size: 0.68rem;
+    }
+
     .hint {
       position: fixed;
       right: clamp(1rem, 3vw, 2.5rem);
@@ -465,6 +506,16 @@
       .brand p { max-width: 32ch; font-size: 0.7rem; }
       .meta { display: none; }
       .hint { display: none; }
+      .power-legend {
+        top: auto;
+        bottom: max(4.8rem, calc(env(safe-area-inset-bottom) + 4.2rem));
+        right: clamp(0.5rem, 2vw, 1rem);
+        left: clamp(0.5rem, 2vw, 1rem);
+        width: auto;
+        justify-content: center;
+        font-size: 0.62rem;
+        padding: 0.45rem 0.7rem;
+      }
       .door-controls {
         left: clamp(0.35rem, 1.5vw, 0.75rem);
         right: clamp(0.35rem, 1.5vw, 0.75rem);
@@ -529,6 +580,10 @@
     </footer>
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
+  <div class="power-legend" id="power-legend" hidden aria-live="polite">
+    <span class="swatch" aria-hidden="true"></span>
+    <span><span class="title">32A TPN</span> <span class="sub">· green power path</span></span>
+  </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
     <div class="ctrl-menu" id="ctrl-menu">
       <div class="ctrl-menu-panel" id="controls-panel" hidden role="menu" aria-label="View controls">
@@ -5410,7 +5465,7 @@
     const powerCableGroup = new THREE.Group();
     powerCableGroup.name = "PowerCableMcbToUps";
     powerPath.segs.forEach(({ a, b }) => {
-      const seg = cylinderBetween(a, b, 1.15, matPowerXray);
+      const seg = cylinderBetween(a, b, 1.265, matPowerXray); // +10% vs 1.15
       if (seg) powerCableGroup.add(seg);
     });
     powerCableGroup.visible = false;
@@ -5427,9 +5482,9 @@
       depthWrite: false,
     });
     const powerPulse = new THREE.Group();
-    powerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.35, 16, 12), matPowerPulse));
+    powerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matPowerPulse)); // +10%
     powerPulse.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(1.55, 1.55, 7.5, 12),
+      new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), // +10%
       matPowerPulse
     ));
     powerPulse.name = "PowerPulseMcbToUps";
@@ -5540,6 +5595,7 @@
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
     const btnShowPower = document.getElementById("btn-show-power");
+    const powerLegend = document.getElementById("power-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
     let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
@@ -5565,6 +5621,8 @@
         "aria-label",
         showPower ? "Hide power cable highlight" : "Show power cable highlight"
       );
+      powerLegend.hidden = !showPower;
+      powerLegend.classList.toggle("visible", showPower);
     }
 
     function setShowPower(on) {
