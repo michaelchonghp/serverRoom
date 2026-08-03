@@ -5415,7 +5415,7 @@
     // Short link: return trunk → Bypass (into the room, separate from outbound Bypass→trunk)
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
     const retLinkZ0 = returnTrunkZ + TRUNK / 2;
-    const retLinkZ1 = powerCableZ + mcbD / 2;
+    const retLinkZ1 = powerCableZ - mcbD / 2; // Bypass front (into room)
     const retLinkLen = Math.max(2, retLinkZ1 - retLinkZ0);
     const returnBypassLink = box(
       4.2,
