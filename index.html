@@ -4628,7 +4628,7 @@
         },
         {
           label: "Feed",
-          text: "Receives 5-wire 3P+N+E from the main MCB through the interconnect conduit",
+          text: "Receives 5-wire 3P+N+E from the main MCB, then onward to the vertical trunk under the raised floor",
         },
       ],
     });
@@ -4641,12 +4641,81 @@
     conduit.name = "McbBypassConduit";
     roomPower.add(conduit);
 
-    // Logical 5-wire 3P+N+E inside conduit/boxes — invisible until Show Power (x-ray)
-    // Path: top of MCB → center of UPS Bypass (not full panel heights)
+    // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
+    const TRUNK = 10.16; // 4 inches
+    const trunkGap = 8; // short clear for Bypass→trunk conduit
+    const trunkX = mcbX - mcbW / 2 - trunkGap - TRUNK / 2;
+    const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
+    const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
+    const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
+    const trunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, trunkX, trunkY, trunkZ);
+    trunk.name = "PowerTrunk";
+    roomPower.add(trunk);
+
+    // Short conduit: UPS Bypass → vertical trunk (fills the clear gap)
+    const bypassFaceX = mcbX - mcbW / 2;
+    const trunkFaceX = trunkX + TRUNK / 2;
+    const bypassTrunkConduitLen = bypassFaceX - trunkFaceX; // == trunkGap
+    const bypassTrunkConduit = box(
+      bypassTrunkConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (bypassFaceX + trunkFaceX) / 2,
+      bypassY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    bypassTrunkConduit.name = "BypassTrunkConduit";
+    roomPower.add(bypassTrunkConduit);
+
+    // Logical 5-wire 3P+N+E — invisible until Show Power (x-ray)
+    // Path: top of MCB → Bypass center → into trunk → down beneath raised floor
     const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
-    const powerCableStartY = mcbY + mcbH / 2;
-    const powerCableEndY = bypassY;
-    const powerCableLen = powerCableEndY - powerCableStartY;
+    const powerPathPoints = [
+      new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
+      new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(trunkX, -FLOOR_H + 1.5, trunkZ),
+    ];
+
+    function buildPolyline(points) {
+      const segs = [];
+      let total = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        const len = points[i].distanceTo(points[i + 1]);
+        segs.push({ a: points[i], b: points[i + 1], len, start: total });
+        total += len;
+      }
+      return {
+        total,
+        segs,
+        getPointAt(t) {
+          const d = Math.min(1, Math.max(0, t)) * total;
+          for (let i = 0; i < segs.length; i++) {
+            const s = segs[i];
+            if (d <= s.start + s.len || i === segs.length - 1) {
+              const u = s.len < 1e-6 ? 0 : (d - s.start) / s.len;
+              return new THREE.Vector3().lerpVectors(s.a, s.b, THREE.MathUtils.clamp(u, 0, 1));
+            }
+          }
+          return points[points.length - 1].clone();
+        },
+      };
+    }
+
+    function cylinderBetween(a, b, radius, mat) {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      if (len < 1e-4) return null;
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 12), mat);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      return mesh;
+    }
+
+    const powerPath = buildPolyline(powerPathPoints);
 
     const matPowerXray = new THREE.MeshBasicMaterial({
       color: 0x3dff9a,
@@ -4655,22 +4724,18 @@
       depthTest: false,
       depthWrite: false,
     });
-    const powerCable = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.15, 1.15, powerCableLen, 12),
-      matPowerXray
-    );
-    powerCable.position.set(
-      mcbX,
-      (powerCableStartY + powerCableEndY) / 2,
-      powerCableZ
-    );
-    powerCable.name = "PowerCableMcbToBypass";
-    powerCable.visible = false;
-    powerCable.renderOrder = 20;
-    powerCable.frustumCulled = false;
-    roomPower.add(powerCable);
+    const powerCableGroup = new THREE.Group();
+    powerCableGroup.name = "PowerCableMcbToFloor";
+    powerPath.segs.forEach(({ a, b }) => {
+      const seg = cylinderBetween(a, b, 1.15, matPowerXray);
+      if (seg) powerCableGroup.add(seg);
+    });
+    powerCableGroup.visible = false;
+    powerCableGroup.renderOrder = 20;
+    powerCableGroup.frustumCulled = false;
+    roomPower.add(powerCableGroup);
 
-    // Traveling pulse packet — MCB → Bypass along the x-ray path
+    // Traveling pulse packet — MCB → Bypass → trunk → underfloor
     const matPowerPulse = new THREE.MeshBasicMaterial({
       color: 0xb8ffe0,
       transparent: true,
@@ -4684,26 +4749,15 @@
       new THREE.CylinderGeometry(1.55, 1.55, 7.5, 12),
       matPowerPulse
     ));
-    powerPulse.name = "PowerPulseMcbToBypass";
+    powerPulse.name = "PowerPulseMcbToFloor";
     powerPulse.visible = false;
     powerPulse.renderOrder = 21;
     powerPulse.frustumCulled = false;
-    powerPulse.position.set(mcbX, powerCableStartY, powerCableZ);
+    powerPulse.position.copy(powerPathPoints[0]);
     roomPower.add(powerPulse);
 
-    const powerHighlights = [powerCable, powerPulse];
-    const POWER_PULSE_SPEED = 0.65; // cycles per second along the run
-
-    // 4″×4″ silver vertical trunk — right of MCB (toward racks), full wall + into raised floor
-    const TRUNK = 10.16; // 4 inches
-    const trunkGap = 2.5;
-    const trunkX = mcbX - mcbW / 2 - trunkGap - TRUNK / 2;
-    const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
-    const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
-    const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
-    const trunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, trunkX, trunkY, trunkZ);
-    trunk.name = "PowerTrunk";
-    roomPower.add(trunk);
+    const powerHighlights = [powerCableGroup, powerPulse];
+    const POWER_PULSE_SPEED = 0.35; // cycles per second along the full run
 
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
@@ -5371,12 +5425,20 @@
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
 
-      // Sci-fi pulse travels MCB → Bypass along the x-ray path
+      // Sci-fi pulse travels MCB → Bypass → trunk → underfloor
       if (showPower) {
         const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
-        const y = THREE.MathUtils.lerp(powerCableStartY, powerCableEndY, t);
-        powerPulse.position.set(mcbX, y, powerCableZ);
-        // Soft breathe on the static cable; pulse head stays bright
+        const p = powerPath.getPointAt(t);
+        powerPulse.position.copy(p);
+        // Orient the pulse capsule along the local path tangent
+        const p2 = powerPath.getPointAt(Math.min(1, t + 0.02));
+        const dir = new THREE.Vector3().subVectors(p2, p);
+        if (dir.lengthSq() > 1e-6) {
+          powerPulse.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            dir.normalize()
+          );
+        }
         matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
       }
