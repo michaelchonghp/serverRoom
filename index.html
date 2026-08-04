@@ -4549,6 +4549,148 @@
       return g;
     }
 
+    /** Zero-U vertical PDU — mounts in rear side channel; outlets face rack bay */
+    const pduFaceTexCache = new Map();
+    function makeVerticalPduFaceTexture(code = "PDU1") {
+      if (pduFaceTexCache.has(code)) return pduFaceTexCache.get(code);
+      const pw = 128;
+      const ph = 2048;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      // Side bevels
+      ctx.fillStyle = "#2a313a";
+      ctx.fillRect(0, 0, 8, ph);
+      ctx.fillRect(pw - 8, 0, 8, ph);
+
+      // Header badge
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(12, 18, pw - 24, 90);
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(12.5, 18.5, pw - 25, 89);
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(code, pw / 2, 48);
+      ctx.font = "600 14px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#9aa3ad";
+      ctx.fillText("32A · C13/C19", pw / 2, 78);
+
+      // Outlet banks — alternating C13 pairs down the length
+      const startY = 130;
+      const endY = ph - 40;
+      const slotH = 28;
+      const gap = 6;
+      let y = startY;
+      let n = 0;
+      while (y + slotH < endY) {
+        const isC19 = n % 7 === 6;
+        const oh = isC19 ? 34 : slotH;
+        const ox = 18;
+        const ow = pw - 36;
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(ox, y, ow, oh);
+        ctx.strokeStyle = "#5a6570";
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(ox + 0.5, y + 0.5, ow - 1, oh - 1);
+        // Socket holes
+        ctx.fillStyle = "#2a313a";
+        if (isC19) {
+          [[0.28, 0.35], [0.72, 0.35], [0.5, 0.7]].forEach(([fx, fy]) => {
+            ctx.beginPath();
+            ctx.arc(ox + ow * fx, y + oh * fy, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        } else {
+          [[0.3, 0.5], [0.7, 0.5]].forEach(([fx, fy]) => {
+            ctx.fillRect(ox + ow * fx - 5, y + oh * fy - 7, 10, 14);
+          });
+          ctx.beginPath();
+          ctx.arc(ox + ow * 0.5, y + oh * 0.55, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Status LED
+        ctx.beginPath();
+        ctx.arc(ox + ow - 8, y + oh / 2, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = n % 3 === 0 ? "#3dd68c" : "#243028";
+        ctx.fill();
+        y += oh + gap;
+        n += 1;
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      pduFaceTexCache.set(code, tex);
+      return tex;
+    }
+
+    function makeVerticalPdu({ rackName = "Rack1", code = "PDU1" } = {}) {
+      const g = new THREE.Group();
+      g.name = `${rackName}-${code}`;
+
+      // Zero-U stick in the rear side channel (thin in X, along rear in Z)
+      const w = 5.2;
+      const d = 8.5;
+      const h = INNER_H - 4;
+      // PDU1 sits on +X (rear-view left) → outlets face −X into the bay
+      // PDU2 sits on −X (rear-view right) → outlets face +X into the bay
+      const faceDir = code === "PDU1" ? -1 : 1;
+
+      const matBody = new THREE.MeshStandardMaterial({
+        color: 0x1e2530, metalness: 0.35, roughness: 0.5,
+      });
+      g.add(box(w, h, d, matBody, 0, 0, 0));
+
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: makeVerticalPduFaceTexture(code),
+        metalness: 0.15,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x101418,
+        emissiveIntensity: 0.25,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(d - 0.4, h - 0.6), faceMat);
+      face.position.set(faceDir * (w / 2 + 0.06), 0, 0);
+      face.rotation.y = faceDir === -1 ? -Math.PI / 2 : Math.PI / 2;
+      g.add(face);
+
+      // End caps / mount brackets
+      g.add(box(w + 0.4, 1.2, d + 0.4, matChrome, 0, h / 2 - 0.4, 0));
+      g.add(box(w + 0.4, 1.2, d + 0.4, matChrome, 0, -h / 2 + 0.4, 0));
+
+      g.userData.interactive = true;
+      g.userData.kind = "pdu";
+      g.userData.label = `${rackName} ${code}`;
+      g.userData.frontMat = faceMat;
+      g.userData.info = {
+        eyebrow: `Power · ${rackName}`,
+        title: `Vertical PDU · ${code}`,
+        model: "Zero-U rear vertical PDU",
+        rating: "32A · C13 / C19",
+        blocks: [
+          {
+            label: "Mount",
+            text: code === "PDU1"
+              ? "Rear-left when facing the rack rear · Outlets face into the bay"
+              : "Rear-right when facing the rack rear · Outlets face into the bay",
+          },
+          {
+            label: "Feed",
+            text: "To be fed from ceiling power trunk / industrial plug (pending)",
+          },
+        ],
+      };
+      return g;
+    }
+
     /** 1U inverted-L fixed shelf — open top for sliding gear on; flange hangs below front */
     function makeFixedShelf({ rackName = "Rack1" } = {}) {
       const heightU = 1;
@@ -4845,6 +4987,20 @@
         unit.position.set(0, y, railFrontFaceZ - mountZ);
         rack.add(unit);
         if (unit.userData.interactive) interactiveItems.push(unit);
+      });
+
+      // Zero-U vertical PDUs — rear side channels
+      // Facing the rear: left = PDU1 (+X), right = PDU2 (−X)
+      const pduX = (railInsetX + OUTER_W / 2 - FRAME_T) / 2 + 1.5;
+      const pduZ = railZRear + 1.5; // at rear rails, inside the cabinet
+      [
+        { code: "PDU1", x: pduX },
+        { code: "PDU2", x: -pduX },
+      ].forEach(({ code, x }) => {
+        const pdu = makeVerticalPdu({ rackName: name, code });
+        pdu.position.set(x, sideY, pduZ);
+        rack.add(pdu);
+        interactiveItems.push(pdu);
       });
 
       const doorW = OUTER_W - 3.2;
