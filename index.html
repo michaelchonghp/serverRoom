@@ -4778,6 +4778,61 @@
       return g;
     }
 
+    /** IEC 60309 male industrial plug — pins up into a downward socket (not interactive) */
+    function makeIndustrialPlug({ scale = 1 } = {}) {
+      const g = new THREE.Group();
+      g.name = "IndustrialPlug";
+
+      const matBlue = new THREE.MeshStandardMaterial({
+        color: 0x1a6fd4, metalness: 0.25, roughness: 0.45,
+      });
+      const matGrip = new THREE.MeshStandardMaterial({
+        color: 0x155bb0, metalness: 0.2, roughness: 0.5,
+      });
+      const matPin = new THREE.MeshStandardMaterial({
+        color: 0xe8ecf0, metalness: 0.9, roughness: 0.2,
+      });
+      const matCableBoot = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.05, roughness: 0.75,
+      });
+
+      // Origin at the mating face (inserts up into socket). Body hangs below.
+      const face = new THREE.Mesh(new THREE.CylinderGeometry(2.85, 2.85, 0.5, 24), matBlue);
+      face.position.y = 0.15;
+      g.add(face);
+      // Pins up (+Y) into socket
+      const pinR = 1.2;
+      [0, 72, 144, 216, 288].forEach((deg) => {
+        const a = (deg * Math.PI) / 180;
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.1, 8), matPin);
+        pin.position.set(Math.cos(a) * pinR, 0.85, Math.sin(a) * pinR);
+        g.add(pin);
+      });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(2.9, 3.05, 4.2, 24), matBlue);
+      body.position.y = -2.0;
+      g.add(body);
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 2.6, 1.6, 24), matGrip);
+      grip.position.y = -4.3;
+      g.add(grip);
+      // Cable entry boot at bottom
+      const boot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.85, 1.4, 12), matCableBoot);
+      boot.position.y = -5.5;
+      g.add(boot);
+
+      if (scale !== 1) g.scale.setScalar(scale);
+      g.userData.cableAttachLocalY = -5.5 * scale; // bottom of boot
+      return g;
+    }
+
+    function makeCableTube(points, radius, mat) {
+      if (points.length < 2) return null;
+      const curve = new THREE.CatmullRomCurve3(points);
+      const geo = new THREE.TubeGeometry(curve, Math.max(24, points.length * 8), radius, 8, false);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      return mesh;
+    }
+
     /** 1U inverted-L fixed shelf — open top for sliding gear on; flange hangs below front */
     function makeFixedShelf({ rackName = "Rack1" } = {}) {
       const heightU = 1;
@@ -4984,8 +5039,53 @@
         rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, sideD / 2 + 0.2));
       });
 
-      rack.add(rounded(OUTER_W + 0.8, TOP_H, OUTER_D + 0.8, 0.25, matFrame, 0, BASE_H + INNER_H + TOP_H / 2, 0));
-      rack.add(box(OUTER_W * 0.55, 0.4, OUTER_D * 0.35, matAccent, 0, BASE_H + INNER_H + TOP_H - 0.5, 0));
+      const topY = BASE_H + INNER_H + TOP_H / 2;
+      // Rear rectangular cable opening (brush/pass-through) in the top cover
+      const cableOpenW = OUTER_W * 0.64;
+      const cableOpenD = 14;
+      const cableOpenZ = OUTER_D / 2 - cableOpenD / 2 - 1.2;
+      const topFrontD = OUTER_D + 0.8 - cableOpenD - 2.2;
+      const earW = (OUTER_W + 0.8 - cableOpenW) / 2;
+      // Main top plate — stops short of the rear opening
+      rack.add(rounded(
+        OUTER_W + 0.8,
+        TOP_H,
+        topFrontD,
+        0.25,
+        matFrame,
+        0,
+        topY,
+        -OUTER_D / 2 + 0.4 + topFrontD / 2
+      ));
+      // Left / right rear ears beside the opening
+      [-1, 1].forEach((side) => {
+        rack.add(box(
+          earW,
+          TOP_H,
+          cableOpenD + 0.6,
+          matFrame,
+          side * (cableOpenW / 2 + earW / 2),
+          topY,
+          cableOpenZ
+        ));
+      });
+      // Dark void + thin brush lip so the opening reads as a cable cutout
+      const matCableOpen = new THREE.MeshStandardMaterial({
+        color: 0x0a0c10, metalness: 0.1, roughness: 0.85,
+      });
+      rack.add(box(cableOpenW - 0.6, 0.35, cableOpenD - 0.8, matCableOpen, 0, topY + TOP_H / 2 - 0.15, cableOpenZ));
+      // Brush strip hint across the opening
+      for (let i = 0; i < 14; i++) {
+        const bx = -cableOpenW * 0.42 + (i / 13) * cableOpenW * 0.84;
+        rack.add(box(0.35, 1.1, cableOpenD * 0.7, matCableOpen, bx, topY + TOP_H / 2 + 0.2, cableOpenZ));
+      }
+      rack.userData.cableOpen = {
+        y: BASE_H + INNER_H + TOP_H,
+        z: cableOpenZ,
+        w: cableOpenW,
+        d: cableOpenD,
+      };
+      rack.add(box(OUTER_W * 0.55, 0.4, OUTER_D * 0.28, matAccent, 0, BASE_H + INNER_H + TOP_H - 0.5, -8));
 
       const railInsetX = RAIL_WIDTH / 2;
       const railZFront = -OUTER_D / 2 + 10;
@@ -5970,6 +6070,7 @@
     }
     // Industrial sockets on trunk underside — one above each rack PDU, facing down
     const sockY = CPT_Y - CPT / 2 - 0.35;
+    const industrialSocketByKey = new Map(); // `${rackName}|${pdu}` → { x, y, z, scale }
     racks.forEach(({ group }) => {
       const rackName = group.name;
       const rackX = group.position.x;
@@ -5987,9 +6088,49 @@
         const sock = makeIndustrialSocket({ rackName, pdu, scale });
         sock.position.set(sockX, sockY, sockZ);
         ceilingPowerTrunk.add(sock);
+        industrialSocketByKey.set(`${rackName}|${pdu}`, { x: sockX, y: sockY, z: sockZ, scale });
       });
     });
     roomPower.add(ceilingPowerTrunk);
+
+    // --- Prototype whip: Rack1 PDU1 → top cable opening → blue plug into ceiling socket ---
+    {
+      const rack1 = racks.find((r) => r.group.name === "Rack1")?.group;
+      const sockInfo = industrialSocketByKey.get("Rack1|PDU1");
+      if (rack1 && sockInfo) {
+        const matWhip = new THREE.MeshStandardMaterial({
+          color: 0x12151a, metalness: 0.05, roughness: 0.72,
+        });
+        const pduH = (INNER_H - 4) * 0.6;
+        const pduTopY = BASE_H + INNER_H / 2 + pduH / 2;
+        const pduX = rack1.position.x + PDU_LOCAL_X;
+        const pduZ = rack1.position.z + (OUTER_D / 2 - 12 + 1.5);
+        const open = rack1.userData.cableOpen;
+        const openY = open?.y ?? BASE_H + INNER_H + TOP_H;
+        const openZ = rack1.position.z + (open?.z ?? OUTER_D / 2 - 8);
+
+        const plugScale = sockInfo.scale;
+        const sockFaceY = sockInfo.y - 5.95 * plugScale;
+        const plug = makeIndustrialPlug({ scale: plugScale });
+        plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
+        roomPower.add(plug);
+
+        const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
+        const whipPts = [
+          new THREE.Vector3(pduX, pduTopY + 0.4, pduZ),
+          new THREE.Vector3(pduX, openY - 4, pduZ),
+          new THREE.Vector3(pduX, openY + 1.2, openZ), // through rear top opening
+          new THREE.Vector3(pduX, openY + 14, (openZ + sockInfo.z) * 0.5),
+          new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
+          new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
+        ];
+        const whip = makeCableTube(whipPts, 0.85, matWhip);
+        if (whip) {
+          whip.name = "Rack1-PDU1-Whip";
+          roomPower.add(whip);
+        }
+      }
+    }
 
     // Door / power controls (+ drop-up menu)
     const doorState = {
