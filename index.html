@@ -6116,9 +6116,17 @@
         roomPower.add(plug);
 
         const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
+        // In-rack run: ~5% slack (gentle bow toward bay) so it doesn't read as taut
+        const whipStartY = pduTopY + 0.4;
+        const whipExitY = openY - 2.5;
+        const inSpan = Math.max(8, whipExitY - whipStartY);
+        const slack = inSpan * 0.05;
+        const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55; // lateral drape from extra length
         const whipPts = [
-          new THREE.Vector3(pduX, pduTopY + 0.4, pduZ),
-          new THREE.Vector3(pduX, openY - 4, pduZ),
+          new THREE.Vector3(pduX, whipStartY, pduZ),
+          new THREE.Vector3(pduX - bow * 0.55, whipStartY + inSpan * 0.3, pduZ + bow * 0.25),
+          new THREE.Vector3(pduX - bow, whipStartY + inSpan * 0.58, pduZ + bow * 0.4),
+          new THREE.Vector3(pduX - bow * 0.3, whipExitY, pduZ + bow * 0.15),
           new THREE.Vector3(pduX, openY + 1.2, openZ), // through rear top opening
           new THREE.Vector3(pduX, openY + 14, (openZ + sockInfo.z) * 0.5),
           new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
