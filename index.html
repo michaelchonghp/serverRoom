@@ -4560,29 +4560,36 @@
       c.height = ph;
       const ctx = c.getContext("2d");
 
-      ctx.fillStyle = "#1a1e24";
+      // Light aluminum face — reads against dark rack interior
+      ctx.fillStyle = "#c5ced8";
       ctx.fillRect(0, 0, pw, ph);
-      // Side bevels
-      ctx.fillStyle = "#2a313a";
+      ctx.fillStyle = "#aeb8c4";
       ctx.fillRect(0, 0, 8, ph);
       ctx.fillRect(pw - 8, 0, 8, ph);
+      // Soft vertical sheen
+      const sheen = ctx.createLinearGradient(0, 0, pw, 0);
+      sheen.addColorStop(0, "rgba(255,255,255,0.22)");
+      sheen.addColorStop(0.45, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.12)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, pw, ph);
 
       // Header badge
-      ctx.fillStyle = "#0e1116";
+      ctx.fillStyle = "#1a222c";
       ctx.fillRect(12, 18, pw - 24, 90);
-      ctx.strokeStyle = "#6a7380";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(12.5, 18.5, pw - 25, 89);
-      ctx.fillStyle = "#e8ecf0";
+      ctx.strokeStyle = "#f0c040";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(13.5, 19.5, pw - 27, 87);
+      ctx.fillStyle = "#f5f7fa";
       ctx.font = "800 28px 'IBM Plex Mono', monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(code, pw / 2, 48);
       ctx.font = "600 14px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "#9aa3ad";
+      ctx.fillStyle = "#c5ccd6";
       ctx.fillText("32A · C13/C19", pw / 2, 78);
 
-      // Outlet banks — alternating C13 pairs down the length
+      // Outlet banks
       const startY = 130;
       const endY = ph - 40;
       const slotH = 28;
@@ -4594,13 +4601,12 @@
         const oh = isC19 ? 34 : slotH;
         const ox = 18;
         const ow = pw - 36;
-        ctx.fillStyle = "#0a0c10";
+        ctx.fillStyle = "#2a313a";
         ctx.fillRect(ox, y, ow, oh);
         ctx.strokeStyle = "#5a6570";
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.4;
         ctx.strokeRect(ox + 0.5, y + 0.5, ow - 1, oh - 1);
-        // Socket holes
-        ctx.fillStyle = "#2a313a";
+        ctx.fillStyle = "#0a0c10";
         if (isC19) {
           [[0.28, 0.35], [0.72, 0.35], [0.5, 0.7]].forEach(([fx, fy]) => {
             ctx.beginPath();
@@ -4615,10 +4621,9 @@
           ctx.arc(ox + ow * 0.5, y + oh * 0.55, 3.5, 0, Math.PI * 2);
           ctx.fill();
         }
-        // Status LED
         ctx.beginPath();
-        ctx.arc(ox + ow - 8, y + oh / 2, 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = n % 3 === 0 ? "#3dd68c" : "#243028";
+        ctx.arc(ox + ow - 8, y + oh / 2, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = n % 3 === 0 ? "#3dd68c" : "#3a4540";
         ctx.fill();
         y += oh + gap;
         n += 1;
@@ -4636,26 +4641,31 @@
       const g = new THREE.Group();
       g.name = `${rackName}-${code}`;
 
-      // Zero-U stick in the rear side channel (thin in X, along rear in Z)
+      // Zero-U stick — 40% shorter than full channel, still vertically centered on mount
       const w = 5.2;
       const d = 8.5;
-      const h = INNER_H - 4;
+      const h = (INNER_H - 4) * 0.6;
       // PDU1 sits on +X (rear-view left) → outlets face −X into the bay
       // PDU2 sits on −X (rear-view right) → outlets face +X into the bay
       const faceDir = code === "PDU1" ? -1 : 1;
 
+      // Light slate body + brighter rear spine so it separates from dark interior
       const matBody = new THREE.MeshStandardMaterial({
-        color: 0x1e2530, metalness: 0.35, roughness: 0.5,
+        color: 0x8a949e, metalness: 0.42, roughness: 0.42,
+      });
+      const matSpine = new THREE.MeshStandardMaterial({
+        color: 0xd0d6de, metalness: 0.55, roughness: 0.32,
       });
       g.add(box(w, h, d, matBody, 0, 0, 0));
+      g.add(box(0.55, h - 0.4, d - 0.6, matSpine, -faceDir * (w / 2 + 0.2), 0, 0));
 
       const faceMat = new THREE.MeshStandardMaterial({
         map: makeVerticalPduFaceTexture(code),
-        metalness: 0.15,
-        roughness: 0.55,
+        metalness: 0.18,
+        roughness: 0.48,
         side: THREE.DoubleSide,
-        emissive: 0x101418,
-        emissiveIntensity: 0.25,
+        emissive: 0x2a3340,
+        emissiveIntensity: 0.22,
       });
       const face = new THREE.Mesh(new THREE.PlaneGeometry(d - 0.4, h - 0.6), faceMat);
       face.position.set(faceDir * (w / 2 + 0.06), 0, 0);
@@ -4663,8 +4673,8 @@
       g.add(face);
 
       // End caps / mount brackets
-      g.add(box(w + 0.4, 1.2, d + 0.4, matChrome, 0, h / 2 - 0.4, 0));
-      g.add(box(w + 0.4, 1.2, d + 0.4, matChrome, 0, -h / 2 + 0.4, 0));
+      g.add(box(w + 0.6, 1.4, d + 0.5, matChrome, 0, h / 2 - 0.5, 0));
+      g.add(box(w + 0.6, 1.4, d + 0.5, matChrome, 0, -h / 2 + 0.5, 0));
 
       g.userData.interactive = true;
       g.userData.kind = "pdu";
