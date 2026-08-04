@@ -611,7 +611,7 @@
     <span class="item">
       <span class="swatch blue" aria-hidden="true"></span>
       <span class="title blue">UPS feed</span>
-      <span class="sub">Dist → trunk → PDU1 → Dist</span>
+      <span class="sub">Dist → trunk → splits → PDU1</span>
     </span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
@@ -6188,7 +6188,8 @@
       }
     });
 
-    // Blue x-ray: Dist → ceiling feeder → U trunk (Row A PDU1s → cross → Row B PDU1s) → return to Dist
+    // Blue x-ray: Dist → ceiling U trunk → one-way spur to each PDU1 (tree, no return)
+    // Pulses split at each socket junction: one leg to that PDU (ends), one continues along trunk.
     const matBlueXray = new THREE.MeshBasicMaterial({
       color: 0x4da3ff,
       transparent: true,
@@ -6198,70 +6199,82 @@
     });
     const bluePowerCableGroup = new THREE.Group();
     bluePowerCableGroup.name = "PowerCableDistToPdu1";
-    const bluePowerPathPoints = [];
+    const bluePowerPathPoints = []; // framing + static draw samples
+    const blueTrunkLegs = []; // Dist→J1, J1→J2, … each Vector3[]
+    const blueSpurPaths = []; // Ji → socket → PDU1 top
     const distFeedOrigin = new THREE.Vector3(distX, bypassY, powerCableZ);
 
-    function appendBlueTrunk(x, z) {
-      const p = new THREE.Vector3(x, CPT_Y, z);
-      const last = bluePowerPathPoints[bluePowerPathPoints.length - 1];
-      if (!last || last.distanceTo(p) > 0.5) bluePowerPathPoints.push(p);
-    }
-
-    function appendBluePdu1Spur(rackName) {
+    function pdu1FeedGeom(rackName) {
       const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
       const rack = racks.find((r) => r.group.name === rackName)?.group;
-      if (!sockInfo || !rack) return;
-      // Stay on the ceiling trunk (same Z as busway) until above this socket
-      appendBlueTrunk(sockInfo.x, sockInfo.z);
+      if (!sockInfo || !rack) return null;
       const rotY = rack.rotation.y;
       const cos = Math.cos(rotY);
       const sin = Math.sin(rotY);
+      const junction = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
+      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
       const pduTop = new THREE.Vector3(
         rack.position.x + PDU_LOCAL_X * cos - pduLocalZ * sin,
         pduTopY + 0.4,
         rack.position.z + PDU_LOCAL_X * sin + pduLocalZ * cos
       );
-      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
-      bluePowerPathPoints.push(sockFace, pduTop, sockFace.clone());
-      appendBlueTrunk(sockInfo.x, sockInfo.z);
+      return { junction, sockFace, pduTop };
     }
 
-    // Outbound: Dist → rise → feeder into U (+X / row A corner)
-    bluePowerPathPoints.push(
-      distFeedOrigin.clone(),
-      new THREE.Vector3(distX, CPT_Y, powerCableZ),
-      new THREE.Vector3(distX, CPT_Y, trunkZ)
-    );
-    appendBlueTrunk(trunkX, trunkZ);
-    appendBlueTrunk(cptXMax, trunkZ);
-    appendBlueTrunk(cptXMax, cptZA);
+    let blueLeg = [];
+    function pushBlueLegPoint(p) {
+      const last = blueLeg[blueLeg.length - 1];
+      if (!last || last.distanceTo(p) > 0.5) {
+        const c = p.clone();
+        blueLeg.push(c);
+        bluePowerPathPoints.push(c.clone());
+      }
+    }
+    function pushBlueTrunk(x, z) {
+      pushBlueLegPoint(new THREE.Vector3(x, CPT_Y, z));
+    }
+    function closeBlueLegAtPdu(rackName) {
+      const g = pdu1FeedGeom(rackName);
+      if (!g) return;
+      pushBlueLegPoint(g.junction);
+      blueTrunkLegs.push(blueLeg);
+      const spur = [g.junction.clone(), g.sockFace.clone(), g.pduTop.clone()];
+      blueSpurPaths.push(spur);
+      spur.forEach((p) => bluePowerPathPoints.push(p.clone()));
+      blueLeg = [g.junction.clone()];
+    }
 
-    // Row A rear trunk (−X): Rack1 → Rack2 → Rack3
-    ["Rack1", "Rack2", "Rack3"].forEach(appendBluePdu1Spur);
+    pushBlueLegPoint(distFeedOrigin);
+    pushBlueLegPoint(new THREE.Vector3(distX, CPT_Y, powerCableZ));
+    pushBlueLegPoint(new THREE.Vector3(distX, CPT_Y, trunkZ));
+    pushBlueTrunk(trunkX, trunkZ);
+    pushBlueTrunk(cptXMax, trunkZ);
+    pushBlueTrunk(cptXMax, cptZA);
 
+    ["Rack1", "Rack2", "Rack3"].forEach(closeBlueLegAtPdu);
     // Around the U to row B (follow trunk — do not cut across the aisle)
-    appendBlueTrunk(cptXMax, cptZA);
-    appendBlueTrunk(cptXMax, cptZB);
+    pushBlueTrunk(cptXMax, cptZA);
+    pushBlueTrunk(cptXMax, cptZB);
+    ["Rack4", "Rack5", "Rack6"].forEach(closeBlueLegAtPdu);
 
-    // Row B rear trunk (−X): Rack4 → Rack5 → Rack6
-    ["Rack4", "Rack5", "Rack6"].forEach(appendBluePdu1Spur);
-
-    // Return along the same trunk (no PDU spurs) → feeder → Dist
-    appendBlueTrunk(cptXMax, cptZB);
-    appendBlueTrunk(cptXMax, cptZA);
-    appendBlueTrunk(cptXMax, trunkZ);
-    appendBlueTrunk(trunkX, trunkZ);
-    appendBlueTrunk(distX, trunkZ);
-    bluePowerPathPoints.push(
-      new THREE.Vector3(distX, CPT_Y, powerCableZ),
-      distFeedOrigin.clone()
-    );
-
-    const bluePowerPath = buildPolyline(bluePowerPathPoints);
-    bluePowerPath.segs.forEach(({ a, b }) => {
-      const seg = cylinderBetween(a, b, 1.265, matBlueXray);
-      if (seg) bluePowerCableGroup.add(seg);
-    });
+    function addBlueXrayPolyline(points) {
+      buildPolyline(points).segs.forEach(({ a, b }) => {
+        const seg = cylinderBetween(a, b, 1.265, matBlueXray);
+        if (seg) bluePowerCableGroup.add(seg);
+      });
+    }
+    {
+      const spine = [];
+      blueTrunkLegs.forEach((leg, i) => {
+        leg.forEach((p, j) => {
+          if (i > 0 && j === 0) return; // shared junction with previous leg
+          const last = spine[spine.length - 1];
+          if (!last || last.distanceTo(p) > 0.5) spine.push(p);
+        });
+      });
+      addBlueXrayPolyline(spine);
+      blueSpurPaths.forEach((spur) => addBlueXrayPolyline(spur));
+    }
     bluePowerCableGroup.visible = false;
     bluePowerCableGroup.renderOrder = 20;
     bluePowerCableGroup.frustumCulled = false;
@@ -6274,22 +6287,113 @@
       depthTest: false,
       depthWrite: false,
     });
-    const bluePowerPulse = new THREE.Group();
-    bluePowerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matBluePulse));
-    bluePowerPulse.add(new THREE.Mesh(
-      new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12),
-      matBluePulse
-    ));
-    bluePowerPulse.name = "PowerPulseDistToPdu1";
-    bluePowerPulse.visible = false;
-    bluePowerPulse.renderOrder = 21;
-    bluePowerPulse.frustumCulled = false;
-    bluePowerPulse.position.copy(bluePowerPathPoints[0]);
-    roomPower.add(bluePowerPulse);
+    const bluePulseGroup = new THREE.Group();
+    bluePulseGroup.name = "PowerPulsesDistToPdu1";
+    bluePulseGroup.visible = false;
+    roomPower.add(bluePulseGroup);
 
-    // Longer path (U + return); keep similar on-screen travel pace to green
-    const BLUE_PULSE_SPEED = 0.11;
-    powerHighlights.push(bluePowerCableGroup, bluePowerPulse);
+    function makeBluePulseMesh() {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matBluePulse));
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), matBluePulse));
+      g.visible = false;
+      g.renderOrder = 21;
+      g.frustumCulled = false;
+      g.userData.busy = false;
+      bluePulseGroup.add(g);
+      return g;
+    }
+    // Worst case: 1 continuing trunk pulse + 6 spur pulses still in flight
+    const bluePulsePool = Array.from({ length: 8 }, makeBluePulseMesh);
+    const BLUE_PULSE_SPEED = 165; // cm / s along path
+    const BLUE_WAVE_RESTART_MS = 450;
+    const activeBluePulses = [];
+    let blueArrivedCount = 0;
+    let blueWaveRestartAt = 0;
+
+    function releaseBluePulse(mesh) {
+      mesh.visible = false;
+      mesh.userData.busy = false;
+    }
+
+    function acquireBluePulse() {
+      const mesh = bluePulsePool.find((m) => !m.userData.busy) || makeBluePulseMesh();
+      mesh.userData.busy = true;
+      mesh.visible = true;
+      return mesh;
+    }
+
+    function clearBluePulses() {
+      activeBluePulses.length = 0;
+      bluePulsePool.forEach(releaseBluePulse);
+      blueArrivedCount = 0;
+      blueWaveRestartAt = 0;
+    }
+
+    function spawnBluePulse(points, onArrive) {
+      if (!points || points.length < 2) {
+        onArrive?.();
+        return;
+      }
+      const path = buildPolyline(points);
+      if (path.total < 1e-3) {
+        onArrive?.();
+        return;
+      }
+      const mesh = acquireBluePulse();
+      mesh.position.copy(points[0]);
+      activeBluePulses.push({ mesh, path, traveled: 0, onArrive });
+    }
+
+    function onBluePduArrived() {
+      blueArrivedCount += 1;
+      if (blueArrivedCount >= blueSpurPaths.length) {
+        blueWaveRestartAt = performance.now() + BLUE_WAVE_RESTART_MS;
+      }
+    }
+
+    function onBlueReachedJunction(index) {
+      // Split: branch to this PDU (ends there); continue along trunk to the next junction
+      spawnBluePulse(blueSpurPaths[index], onBluePduArrived);
+      if (index + 1 < blueTrunkLegs.length) {
+        spawnBluePulse(blueTrunkLegs[index + 1], () => onBlueReachedJunction(index + 1));
+      }
+    }
+
+    function startBlueFeedWave() {
+      clearBluePulses();
+      if (!blueTrunkLegs.length) return;
+      spawnBluePulse(blueTrunkLegs[0], () => onBlueReachedJunction(0));
+    }
+
+    function updateBluePulses(dt) {
+      if (blueWaveRestartAt && performance.now() >= blueWaveRestartAt) {
+        startBlueFeedWave();
+        return;
+      }
+      for (let i = activeBluePulses.length - 1; i >= 0; i--) {
+        const pulse = activeBluePulses[i];
+        pulse.traveled += BLUE_PULSE_SPEED * dt;
+        if (pulse.traveled >= pulse.path.total) {
+          const cb = pulse.onArrive;
+          releaseBluePulse(pulse.mesh);
+          activeBluePulses.splice(i, 1);
+          cb?.();
+          continue;
+        }
+        const t = pulse.traveled / pulse.path.total;
+        const p = pulse.path.getPointAt(t);
+        pulse.mesh.position.copy(p);
+        const p2 = pulse.path.getPointAt(Math.min(1, t + 0.02));
+        const dir = new THREE.Vector3().subVectors(p2, p);
+        if (dir.lengthSq() > 1e-6) {
+          pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        }
+      }
+      matBluePulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
+    }
+
+    powerHighlights.push(bluePowerCableGroup, bluePulseGroup);
 
     // Door / power controls (+ drop-up menu)
     const doorState = {
@@ -6345,8 +6449,10 @@
         // Pull fog back so the wide power overview stays readable
         scene.fog.near = FOG_NEAR_POWER;
         scene.fog.far = FOG_FAR_POWER;
+        startBlueFeedWave();
         framePowerPath();
       } else {
+        clearBluePulses();
         scene.fog.near = FOG_NEAR;
         scene.fog.far = FOG_FAR;
         nudgeIdle();
@@ -6954,20 +7060,9 @@
         matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
 
-        // Path starts and ends at Dist — wrap continuously so the pulse returns
-        const bt = (clock.elapsedTime * BLUE_PULSE_SPEED) % 1;
-        const bp = bluePowerPath.getPointAt(bt);
-        bluePowerPulse.position.copy(bp);
-        const bp2 = bluePowerPath.getPointAt((bt + 0.015) % 1);
-        const bdir = new THREE.Vector3().subVectors(bp2, bp);
-        if (bdir.lengthSq() > 1e-6) {
-          bluePowerPulse.quaternion.setFromUnitVectors(
-            new THREE.Vector3(0, 1, 0),
-            bdir.normalize()
-          );
-        }
+        // Blue: split at each trunk junction → spur ends at PDU; restart after all 6 arrive
+        updateBluePulses(dt);
         matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
-        matBluePulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
       }
 
       controls.update();
