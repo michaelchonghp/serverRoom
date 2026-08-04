@@ -6188,7 +6188,7 @@
       }
     });
 
-    // Blue x-ray: Dist → ceiling → each PDU1 industrial socket → PDU1 (UPS-protected feed)
+    // Blue x-ray: Dist → ceiling feeder → U trunk (Row A PDU1s → cross → Row B PDU1s) → return to Dist
     const matBlueXray = new THREE.MeshBasicMaterial({
       color: 0x4da3ff,
       transparent: true,
@@ -6200,29 +6200,62 @@
     bluePowerCableGroup.name = "PowerCableDistToPdu1";
     const bluePowerPathPoints = [];
     const distFeedOrigin = new THREE.Vector3(distX, bypassY, powerCableZ);
-    const blueCeilJunction = new THREE.Vector3(trunkX, CPT_Y, trunkZ);
-    bluePowerPathPoints.push(
-      distFeedOrigin.clone(),
-      new THREE.Vector3(distX, CPT_Y, powerCableZ),
-      new THREE.Vector3(distX, CPT_Y, trunkZ),
-      blueCeilJunction.clone()
-    );
-    // Visit PDU1 sockets in ceiling-U order: Rack1→3 along +Z rear, then Rack4→6 along −Z rear
-    const pdu1VisitOrder = ["Rack1", "Rack2", "Rack3", "Rack4", "Rack5", "Rack6"];
-    pdu1VisitOrder.forEach((rackName) => {
+
+    function appendBlueTrunk(x, z) {
+      const p = new THREE.Vector3(x, CPT_Y, z);
+      const last = bluePowerPathPoints[bluePowerPathPoints.length - 1];
+      if (!last || last.distanceTo(p) > 0.5) bluePowerPathPoints.push(p);
+    }
+
+    function appendBluePdu1Spur(rackName) {
       const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
       const rack = racks.find((r) => r.group.name === rackName)?.group;
       if (!sockInfo || !rack) return;
+      // Stay on the ceiling trunk (same Z as busway) until above this socket
+      appendBlueTrunk(sockInfo.x, sockInfo.z);
+      const rotY = rack.rotation.y;
+      const cos = Math.cos(rotY);
+      const sin = Math.sin(rotY);
       const pduTop = new THREE.Vector3(
-        rack.position.x + PDU_LOCAL_X * Math.cos(rack.rotation.y),
+        rack.position.x + PDU_LOCAL_X * cos - pduLocalZ * sin,
         pduTopY + 0.4,
-        rack.position.z + PDU_LOCAL_X * Math.sin(rack.rotation.y) + pduLocalZ * Math.cos(rack.rotation.y)
+        rack.position.z + PDU_LOCAL_X * sin + pduLocalZ * cos
       );
-      const sockCeil = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
       const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
-      bluePowerPathPoints.push(sockCeil, sockFace, pduTop.clone(), sockFace.clone(), sockCeil.clone());
-    });
-    bluePowerPathPoints.push(blueCeilJunction.clone());
+      bluePowerPathPoints.push(sockFace, pduTop, sockFace.clone());
+      appendBlueTrunk(sockInfo.x, sockInfo.z);
+    }
+
+    // Outbound: Dist → rise → feeder into U (+X / row A corner)
+    bluePowerPathPoints.push(
+      distFeedOrigin.clone(),
+      new THREE.Vector3(distX, CPT_Y, powerCableZ),
+      new THREE.Vector3(distX, CPT_Y, trunkZ)
+    );
+    appendBlueTrunk(trunkX, trunkZ);
+    appendBlueTrunk(cptXMax, trunkZ);
+    appendBlueTrunk(cptXMax, cptZA);
+
+    // Row A rear trunk (−X): Rack1 → Rack2 → Rack3
+    ["Rack1", "Rack2", "Rack3"].forEach(appendBluePdu1Spur);
+
+    // Around the U to row B (follow trunk — do not cut across the aisle)
+    appendBlueTrunk(cptXMax, cptZA);
+    appendBlueTrunk(cptXMax, cptZB);
+
+    // Row B rear trunk (−X): Rack4 → Rack5 → Rack6
+    ["Rack4", "Rack5", "Rack6"].forEach(appendBluePdu1Spur);
+
+    // Return along the same trunk (no PDU spurs) → feeder → Dist
+    appendBlueTrunk(cptXMax, cptZB);
+    appendBlueTrunk(cptXMax, cptZA);
+    appendBlueTrunk(cptXMax, trunkZ);
+    appendBlueTrunk(trunkX, trunkZ);
+    appendBlueTrunk(distX, trunkZ);
+    bluePowerPathPoints.push(
+      new THREE.Vector3(distX, CPT_Y, powerCableZ),
+      distFeedOrigin.clone()
+    );
 
     const bluePowerPath = buildPolyline(bluePowerPathPoints);
     bluePowerPath.segs.forEach(({ a, b }) => {
@@ -6254,7 +6287,8 @@
     bluePowerPulse.position.copy(bluePowerPathPoints[0]);
     roomPower.add(bluePowerPulse);
 
-    const BLUE_PULSE_SPEED = 0.14;
+    // Longer path (U + return); keep similar on-screen travel pace to green
+    const BLUE_PULSE_SPEED = 0.11;
     powerHighlights.push(bluePowerCableGroup, bluePowerPulse);
 
     // Door / power controls (+ drop-up menu)
@@ -6920,10 +6954,11 @@
         matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
 
+        // Path starts and ends at Dist — wrap continuously so the pulse returns
         const bt = (clock.elapsedTime * BLUE_PULSE_SPEED) % 1;
         const bp = bluePowerPath.getPointAt(bt);
         bluePowerPulse.position.copy(bp);
-        const bp2 = bluePowerPath.getPointAt(Math.min(1, bt + 0.02));
+        const bp2 = bluePowerPath.getPointAt((bt + 0.015) % 1);
         const bdir = new THREE.Vector3().subVectors(bp2, bp);
         if (bdir.lengthSq() > 1e-6) {
           bluePowerPulse.quaternion.setFromUnitVectors(
@@ -6932,7 +6967,7 @@
           );
         }
         matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
-        matBluePulse.opacity = 0.85 + 0.15 * Math.sin(bt * Math.PI);
+        matBluePulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
       }
 
       controls.update();
