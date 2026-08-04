@@ -6093,52 +6093,66 @@
     });
     roomPower.add(ceilingPowerTrunk);
 
-    // --- Prototype whip: Rack1 PDU1 → top cable opening → blue plug into ceiling socket ---
-    {
-      const rack1 = racks.find((r) => r.group.name === "Rack1")?.group;
-      const sockInfo = industrialSocketByKey.get("Rack1|PDU1");
-      if (rack1 && sockInfo) {
-        const matWhip = new THREE.MeshStandardMaterial({
-          color: 0x12151a, metalness: 0.05, roughness: 0.72,
-        });
-        const pduH = (INNER_H - 4) * 0.6;
-        const pduTopY = BASE_H + INNER_H / 2 + pduH / 2;
-        const pduX = rack1.position.x + PDU_LOCAL_X;
-        const pduZ = rack1.position.z + (OUTER_D / 2 - 12 + 1.5);
-        const open = rack1.userData.cableOpen;
-        const openY = open?.y ?? BASE_H + INNER_H + TOP_H;
-        const openZ = rack1.position.z + (open?.z ?? OUTER_D / 2 - 8);
+    // --- PDU1 whips: each rack PDU1 → top cable opening → blue plug into ceiling socket ---
+    const matWhip = new THREE.MeshStandardMaterial({
+      color: 0x12151a, metalness: 0.05, roughness: 0.72,
+    });
+    const pduH = (INNER_H - 4) * 0.6;
+    const pduTopY = BASE_H + INNER_H / 2 + pduH / 2;
+    const pduLocalZ = OUTER_D / 2 - 12 + 1.5; // railZRear + 1.5
+    racks.forEach(({ group: rack }) => {
+      const rackName = rack.name;
+      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
+      if (!sockInfo) return;
 
-        const plugScale = sockInfo.scale;
-        const sockFaceY = sockInfo.y - 5.95 * plugScale;
-        const plug = makeIndustrialPlug({ scale: plugScale });
-        plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
-        roomPower.add(plug);
+      const rotY = rack.rotation.y;
+      const cos = Math.cos(rotY);
+      const sin = Math.sin(rotY);
+      const toWorld = (lx, ly, lz) => new THREE.Vector3(
+        rack.position.x + lx * cos - lz * sin,
+        ly,
+        rack.position.z + lx * sin + lz * cos
+      );
 
-        const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
-        // In-rack run: ~5% slack (gentle bow toward bay) so it doesn't read as taut
-        const whipStartY = pduTopY + 0.4;
-        const whipExitY = openY - 2.5;
-        const inSpan = Math.max(8, whipExitY - whipStartY);
-        const slack = inSpan * 0.05;
-        const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55; // lateral drape from extra length
-        const whipPts = [
-          new THREE.Vector3(pduX, whipStartY, pduZ),
-          new THREE.Vector3(pduX - bow * 0.55, whipStartY + inSpan * 0.3, pduZ + bow * 0.25),
-          new THREE.Vector3(pduX - bow, whipStartY + inSpan * 0.58, pduZ + bow * 0.4),
-          new THREE.Vector3(pduX - bow * 0.3, whipExitY, pduZ + bow * 0.15),
-          new THREE.Vector3(pduX, openY + 1.2, openZ), // through rear top opening
-          new THREE.Vector3(pduX, openY + 14, (openZ + sockInfo.z) * 0.5),
-          new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
-          new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
-        ];
-        const whip = makeCableTube(whipPts, 0.85, matWhip);
-        if (whip) {
-          whip.name = "Rack1-PDU1-Whip";
-          roomPower.add(whip);
-        }
+      const open = rack.userData.cableOpen;
+      const openY = open?.y ?? BASE_H + INNER_H + TOP_H;
+      const openLocalZ = open?.z ?? OUTER_D / 2 - 8;
+
+      const plugScale = sockInfo.scale; // Rack1 32A larger; others 16A
+      const sockFaceY = sockInfo.y - 5.95 * plugScale;
+      const plug = makeIndustrialPlug({ scale: plugScale });
+      plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
+      plug.name = `${rackName}-PDU1-Plug`;
+      roomPower.add(plug);
+
+      const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
+      // In-rack run: ~3% slack (gentle bow toward bay)
+      const whipStartY = pduTopY + 0.4;
+      const whipExitY = openY - 2.5;
+      const inSpan = Math.max(8, whipExitY - whipStartY);
+      const slack = inSpan * 0.03;
+      const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55;
+      // PDU1 at +local X; bow toward bay = −local X, slight +local Z toward rear opening
+      const whipPts = [
+        toWorld(PDU_LOCAL_X, whipStartY, pduLocalZ),
+        toWorld(PDU_LOCAL_X - bow * 0.55, whipStartY + inSpan * 0.3, pduLocalZ + bow * 0.25),
+        toWorld(PDU_LOCAL_X - bow, whipStartY + inSpan * 0.58, pduLocalZ + bow * 0.4),
+        toWorld(PDU_LOCAL_X - bow * 0.3, whipExitY, pduLocalZ + bow * 0.15),
+        toWorld(PDU_LOCAL_X, openY + 1.2, openLocalZ),
+        new THREE.Vector3(
+          rack.position.x + PDU_LOCAL_X * cos,
+          openY + 14,
+          (toWorld(PDU_LOCAL_X, 0, openLocalZ).z + sockInfo.z) * 0.5
+        ),
+        new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
+        new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
+      ];
+      const whip = makeCableTube(whipPts, 0.85, matWhip);
+      if (whip) {
+        whip.name = `${rackName}-PDU1-Whip`;
+        roomPower.add(whip);
       }
-    }
+    });
 
     // Door / power controls (+ drop-up menu)
     const doorState = {
