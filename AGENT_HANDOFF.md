@@ -8,8 +8,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 |------|--------|
 | App | Single file: `index.html` (~7k lines, Three.js module, no build) |
 | Author | Michael C. — keep credit / LICENSE / maker mark |
-| Branch | `cursor/42u-rack-3d-2483` |
-| PR | https://github.com/michaelchonghp/telegramTestOne/pull/4 — title may be human-edited (**preserve PR title** when updating via tools) |
+| Branch | `cursor/42u-rack-3d-2483` (GitHub Pages serves this branch) |
+| Live | https://michaelchonghp.github.io/telegramTestOne/ |
 | Base | `main` |
 | Units | cm |
 
@@ -18,6 +18,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - **Row A:** Rack1–3 at `+ROW_SEP/2`, `rotY = 0`
 - **Row B:** Rack4–6 at `-ROW_SEP/2`, `rotY = π`, `xShift = -RACK_PITCH`
 - **Power wall:** MCB (bottom) → UPS Bypass (above) → vertical trunk → **Dist panel on far side of trunk** (toward racks / −X)
+- Conduits into trunk: **MCB→trunk** (at MCB height, PDU2 / building feed) · **Bypass→trunk** · **trunk→Dist**
 - Parallel **return trunk** into room for UPS output return (separate lane, not reverse of outbound)
 - Underfloor: outbound + separate return lane
 - Ceiling **U-shaped power trunk** just below Wyr-Grid (`CPT_Y = WG_Y - CPT*0.5 - 8`), feeder from Rack1-end corner into wall trunk
@@ -31,29 +32,38 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - **Ends at Dist.** No more 32A TPN after the distribution board (by design).
 - Single looping pulse along that polyline.
 
-### Dist → PDU1 (UPS-protected feed)
+### Dist → PDU1 (UPS-protected feed) — blue
 
-- Dist feeds **only PDU1** of each rack (what is connected today).
-- Dist detail circuits: **L1–L6 → Rack1–6 PDU1**
+- Dist feeds **only PDU1** of each rack.
+- Dist detail circuits: **L1–L6 → Rack1–6 PDU1** · **L7 → Security system** (details only; **no cable drawn**)
 - Ratings: Rack1 PDU1 = **32A** industrial socket; Rack2–6 = **16A**
 - PDU1 detail: powered from **UPS via Dist → ceiling industrial socket → whip**
-- PDU2: **not** on Dist PDU1 circuits (spare / future)
 
-### Blue x-ray + pulses
+### MCB → PDU2 (building power) — red
 
-- Static blue line: **outbound tree only** — Dist → **horizontal to wall trunk** → **up trunk** → feeder → **U corner** → arm A (Rack1–3) + arm B (cross → Rack4–6) + **one-way spur** down to each PDU1. **No return path** (power does not flow back).
-- Must **follow wall trunk then ceiling trunk** (no vertical rise at Dist; no aisle shortcuts for far racks).
-- Pulses (not one continuous loop):
-  1. One pulse leaves **Dist** → arrives at **U corner** (`cptXMax`, row A)
-  2. At the U corner it **splits into two arms** (row A and row B) — **no backtrack** after Rack1–3
-  3. On each arm, at each PDU1 socket junction it **splits**: spur → that PDU and **disappears on arrival**; another pulse **continues** along that arm
-  4. After **all 6** PDU arrivals + short pause → **restart** from Dist
-- Legend (one line): green **32A TPN** · blue **UPS feed** (`Dist → trunk → splits → PDU1`)
+- PDU2 of each rack is fed from **MCB directly** (building power, **not** UPS).
+- Logic: PDU1 = UPS-protected · PDU2 = raw building feed.
+- Path mirrors blue tree: **MCB → trunk conduit → up trunk → feeder → U corner → arm A (1–3) + arm B (cross → 4–6) → spur to each PDU2**.
+- Same U-corner split / no-backtrack / per-PDU spur pulse model as blue.
+- Legend: red **Building feed** (`MCB → trunk → splits → PDU2`)
+- Physical PDU2 whips/plugs: **not** modeled yet (sockets exist; red is x-ray only for now)
+
+### Blue / red x-ray + pulses (shared tree rules)
+
+- Static line: **outbound tree only** — no return path.
+- Must **follow wall trunk then ceiling trunk** (no aisle shortcuts).
+- Pulses:
+  1. One pulse leaves origin (Dist blue / MCB red) → **U corner**
+  2. At U corner **splits into two arms** (row A + row B) — **no backtrack**
+  3. On each arm, at each PDU socket junction **splits**: spur → that PDU (ends); continue along arm
+  4. After **all 6** arrivals + short pause → **restart** from origin
+- Legend: green **32A TPN** · blue **UPS feed** · red **Building feed**
 
 ### Physical wiring already in scene
 
-- Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look)
+- Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 whips on all racks: black cable, **~3%** in-rack slack, through top opening → blue plug into ceiling socket
+- Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
 
 ## Design / product constraints
 
@@ -68,17 +78,17 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
    - `main` ≈610-line dark generic single 42U rack (PR #3)  
    - this branch ≈7k-line UltraRack facility  
    - **Conflicting intents** — needs explicit choose-ours / keep-main / dual-path decision. Merge was **aborted**; not resolved.
-2. **PDU2** not fed (no Dist circuits / whips story yet).
-3. Dist→ceiling feed is conceptual via blue x-ray (physical Dist→ceiling cables not fully modeled).
+2. **PDU2 physical whips/plugs** not drawn yet (red path is Show Power x-ray only).
+3. Dist→ceiling / MCB→ceiling feeds are conceptual via colored x-rays (physical Dist/MCB→ceiling cables not fully modeled beyond wall conduits into trunk).
 
 ## Major checkpoints (newest first)
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
+| (this) | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |
+| `70e6c61` | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
 | `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
 | `10c0948` | Blue pulses split at junctions; end at PDU; restart after 6; no return x-ray |
-| `ac5166f` / legend | Blue path follows U trunk; (pulse return later replaced by split model) |
 | PDU1 whips + sockets | All racks whipped; Rack1 32A size; non-interactive sockets |
 | Ceiling U trunk | Under Wyr-Grid; feeder into wall trunk |
 | Dist past trunk + UPS return | Separate return lane; green ends at Dist |
@@ -88,7 +98,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 ## How a new agent should start
 
 1. Read **this file**
-2. Open `index.html` — power section near ceiling trunk / `blueTrunkLegs` / `startBlueFeedWave`
-3. Branch `cursor/42u-rack-3d-2483`, PR #4
-4. Do **not** casually rewrite PR title
+2. Open `index.html` — power section near ceiling trunk / `startBlueFeedWave` / `startRedFeedWave`
+3. Branch `cursor/42u-rack-3d-2483` (Pages); feature work on `cursor/<name>-4d50` then merge into Pages branch
+4. Do **not** casually rewrite PR titles
 5. Update **this file** when decisions change

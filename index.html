@@ -130,13 +130,13 @@
       gap: 0.45rem 0.75rem;
       padding: 0.5rem 0.8rem;
       background: color-mix(in srgb, #0e141a 78%, transparent);
-      border: 1px solid color-mix(in srgb, #3dff9a 28%, #4da3ff 28%);
+      border: 1px solid color-mix(in srgb, #3dff9a 22%, color-mix(in srgb, #4da3ff 22%, #ff5c5c 22%));
       color: #e8f5ee;
       font-size: 0.68rem;
       letter-spacing: 0.05em;
       text-transform: uppercase;
       animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-      max-width: min(92vw, 36rem);
+      max-width: min(96vw, 48rem);
       justify-content: flex-end;
     }
 
@@ -165,8 +165,14 @@
       box-shadow: 0 0 10px color-mix(in srgb, #4da3ff 70%, transparent);
     }
 
+    .power-legend .swatch.red {
+      background: #ff5c5c;
+      box-shadow: 0 0 10px color-mix(in srgb, #ff5c5c 70%, transparent);
+    }
+
     .power-legend .title.green { font-weight: 500; color: #3dff9a; }
     .power-legend .title.blue { font-weight: 500; color: #4da3ff; }
+    .power-legend .title.red { font-weight: 500; color: #ff5c5c; }
 
     .power-legend .sub {
       color: color-mix(in srgb, #e8f5ee 72%, transparent);
@@ -612,6 +618,12 @@
       <span class="swatch blue" aria-hidden="true"></span>
       <span class="title blue">UPS feed</span>
       <span class="sub">Dist → trunk → splits → PDU1</span>
+    </span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span class="item">
+      <span class="swatch red" aria-hidden="true"></span>
+      <span class="title red">Building feed</span>
+      <span class="sub">MCB → trunk → splits → PDU2</span>
     </span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
@@ -4735,7 +4747,7 @@
         model: "Zero-U rear vertical PDU",
         rating: code === "PDU1"
           ? (rackName === "Rack1" ? "32A feed · IEC C13" : "16A feed · IEC C13")
-          : "IEC C13 · not on Dist feed",
+          : "Building power · IEC C13",
         blocks: [
           {
             label: "Mount",
@@ -4751,7 +4763,7 @@
             label: "Feed",
             text: code === "PDU1"
               ? "Powered from the UPS via the Distribution Panel → ceiling industrial socket → whip"
-              : "Not fed from the UPS / Distribution Panel PDU1 circuits (spare / future)",
+              : "Powered from the MCB (building power, not UPS) via ceiling trunk → industrial socket",
           },
         ],
       };
@@ -5664,7 +5676,7 @@
       blocks: [
         {
           label: "Role",
-          text: "Main circuit breaker for the room — feeds UPS Bypass (not the final IT distribution)",
+          text: "Main circuit breaker for the room — feeds UPS Bypass and direct building-power circuits",
         },
         {
           label: "Supply",
@@ -5672,7 +5684,7 @@
         },
         {
           label: "Routing",
-          text: "Feeds UPS Bypass via wall conduit (5-wire 3P+N+E)",
+          text: "Feeds UPS Bypass via wall conduit (5-wire 3P+N+E); also feeds PDU2 circuits via vertical trunk (building power, not UPS)",
         },
       ],
     });
@@ -5724,7 +5736,11 @@
         },
         {
           label: "Circuits",
-          text: "L1: Rack1 PDU1 · L2: Rack2 PDU1 · L3: Rack3 PDU1 · L4: Rack4 PDU1 · L5: Rack5 PDU1 · L6: Rack6 PDU1",
+          text: "L1: Rack1 PDU1 · L2: Rack2 PDU1 · L3: Rack3 PDU1 · L4: Rack4 PDU1 · L5: Rack5 PDU1 · L6: Rack6 PDU1 · L7: Security system",
+        },
+        {
+          label: "L7",
+          text: "Security system supply (UPS-protected) — circuit reserved; no cable drawn in this scene",
         },
         {
           label: "Ratings",
@@ -5771,6 +5787,19 @@
     );
     bypassTrunkConduit.name = "BypassTrunkConduit";
     roomPower.add(bypassTrunkConduit);
+
+    // Short conduit: MCB → outbound vertical trunk (building-power / PDU2 feed entry)
+    const mcbTrunkConduit = box(
+      bypassTrunkConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (bypassFaceX + trunkFaceX) / 2,
+      mcbY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    mcbTrunkConduit.name = "McbTrunkConduit";
+    roomPower.add(mcbTrunkConduit);
 
     // Conduit: outbound trunk → Dist (Dist sits on the far side of the trunk)
     const trunkOuterX = trunkX - TRUNK / 2;
@@ -6415,6 +6444,227 @@
 
     powerHighlights.push(bluePowerCableGroup, bluePulseGroup);
 
+    // Red x-ray: MCB → trunk → up → feeder → U-corner, then tree to PDU2 (building power, not UPS)
+    const matRedXray = new THREE.MeshBasicMaterial({
+      color: 0xff5c5c,
+      transparent: true,
+      opacity: 0.55,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const redPowerCableGroup = new THREE.Group();
+    redPowerCableGroup.name = "PowerCableMcbToPdu2";
+    const redPowerPathPoints = [];
+    const redToCorner = [];
+    const redArms = [];
+    const redSpurPaths = [];
+    const mcbFeedOrigin = new THREE.Vector3(mcbX, mcbY, powerCableZ);
+
+    function pdu2FeedGeom(rackName) {
+      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU2`);
+      const rack = racks.find((r) => r.group.name === rackName)?.group;
+      if (!sockInfo || !rack) return null;
+      const rotY = rack.rotation.y;
+      const cos = Math.cos(rotY);
+      const sin = Math.sin(rotY);
+      const localX = -PDU_LOCAL_X; // PDU2 on rear-view right
+      const junction = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
+      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
+      const pduTop = new THREE.Vector3(
+        rack.position.x + localX * cos - pduLocalZ * sin,
+        pduTopY + 0.4,
+        rack.position.z + localX * sin + pduLocalZ * cos
+      );
+      return { junction, sockFace, pduTop };
+    }
+
+    function pushRedPoint(arr, p) {
+      const last = arr[arr.length - 1];
+      if (!last || last.distanceTo(p) > 0.5) {
+        const c = p.clone();
+        arr.push(c);
+        redPowerPathPoints.push(c.clone());
+      }
+    }
+
+    // MCB → MCB–trunk conduit → up outbound trunk → ceiling feeder → U corner
+    pushRedPoint(redToCorner, mcbFeedOrigin);
+    pushRedPoint(redToCorner, new THREE.Vector3(trunkX, mcbY, trunkZ));
+    pushRedPoint(redToCorner, new THREE.Vector3(trunkX, CPT_Y, trunkZ));
+    pushRedPoint(redToCorner, new THREE.Vector3(cptXMax, CPT_Y, trunkZ));
+    pushRedPoint(redToCorner, uCorner);
+
+    function buildRedArm(rackNames, leadPts) {
+      const arm = { legs: [], spurs: [] };
+      let leg = [];
+      (leadPts || []).forEach((p) => pushRedPoint(leg, p));
+      rackNames.forEach((rackName) => {
+        const g = pdu2FeedGeom(rackName);
+        if (!g) return;
+        pushRedPoint(leg, g.junction);
+        arm.legs.push(leg);
+        const spur = [g.junction.clone(), g.sockFace.clone(), g.pduTop.clone()];
+        arm.spurs.push(spur);
+        redSpurPaths.push(spur);
+        spur.forEach((p) => redPowerPathPoints.push(p.clone()));
+        leg = [g.junction.clone()];
+      });
+      redArms.push(arm);
+      return arm;
+    }
+
+    buildRedArm(["Rack1", "Rack2", "Rack3"], [uCorner]);
+    buildRedArm(
+      ["Rack4", "Rack5", "Rack6"],
+      [uCorner, new THREE.Vector3(cptXMax, CPT_Y, cptZB)]
+    );
+
+    function addRedXrayPolyline(points) {
+      buildPolyline(points).segs.forEach(({ a, b }) => {
+        const seg = cylinderBetween(a, b, 1.265, matRedXray);
+        if (seg) redPowerCableGroup.add(seg);
+      });
+    }
+    {
+      addRedXrayPolyline(redToCorner);
+      redArms.forEach((arm) => {
+        const spine = [];
+        arm.legs.forEach((leg, i) => {
+          leg.forEach((p, j) => {
+            if (i > 0 && j === 0) return;
+            const last = spine[spine.length - 1];
+            if (!last || last.distanceTo(p) > 0.5) spine.push(p);
+          });
+        });
+        addRedXrayPolyline(spine);
+        arm.spurs.forEach((spur) => addRedXrayPolyline(spur));
+      });
+    }
+    redPowerCableGroup.visible = false;
+    redPowerCableGroup.renderOrder = 20;
+    redPowerCableGroup.frustumCulled = false;
+    roomPower.add(redPowerCableGroup);
+
+    const matRedPulse = new THREE.MeshBasicMaterial({
+      color: 0xffb0b0,
+      transparent: true,
+      opacity: 1,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const redPulseGroup = new THREE.Group();
+    redPulseGroup.name = "PowerPulsesMcbToPdu2";
+    redPulseGroup.visible = false;
+    roomPower.add(redPulseGroup);
+
+    function makeRedPulseMesh() {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matRedPulse));
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), matRedPulse));
+      g.visible = false;
+      g.renderOrder = 21;
+      g.frustumCulled = false;
+      g.userData.busy = false;
+      redPulseGroup.add(g);
+      return g;
+    }
+    const redPulsePool = Array.from({ length: 10 }, makeRedPulseMesh);
+    const RED_PULSE_SPEED = 165;
+    const RED_WAVE_RESTART_MS = 450;
+    const activeRedPulses = [];
+    let redArrivedCount = 0;
+    let redWaveRestartAt = 0;
+
+    function releaseRedPulse(mesh) {
+      mesh.visible = false;
+      mesh.userData.busy = false;
+    }
+
+    function acquireRedPulse() {
+      const mesh = redPulsePool.find((m) => !m.userData.busy) || makeRedPulseMesh();
+      mesh.userData.busy = true;
+      mesh.visible = true;
+      return mesh;
+    }
+
+    function clearRedPulses() {
+      activeRedPulses.length = 0;
+      redPulsePool.forEach(releaseRedPulse);
+      redArrivedCount = 0;
+      redWaveRestartAt = 0;
+    }
+
+    function spawnRedPulse(points, onArrive) {
+      if (!points || points.length < 2) {
+        onArrive?.();
+        return;
+      }
+      const path = buildPolyline(points);
+      if (path.total < 1e-3) {
+        onArrive?.();
+        return;
+      }
+      const mesh = acquireRedPulse();
+      mesh.position.copy(points[0]);
+      activeRedPulses.push({ mesh, path, traveled: 0, onArrive });
+    }
+
+    function onRedPduArrived() {
+      redArrivedCount += 1;
+      if (redArrivedCount >= redSpurPaths.length) {
+        redWaveRestartAt = performance.now() + RED_WAVE_RESTART_MS;
+      }
+    }
+
+    function onRedReachedArmJunction(arm, index) {
+      spawnRedPulse(arm.spurs[index], onRedPduArrived);
+      if (index + 1 < arm.legs.length) {
+        spawnRedPulse(arm.legs[index + 1], () => onRedReachedArmJunction(arm, index + 1));
+      }
+    }
+
+    function onRedReachedUCorner() {
+      redArms.forEach((arm) => {
+        if (!arm.legs.length) return;
+        spawnRedPulse(arm.legs[0], () => onRedReachedArmJunction(arm, 0));
+      });
+    }
+
+    function startRedFeedWave() {
+      clearRedPulses();
+      if (redToCorner.length < 2 || !redArms.length) return;
+      spawnRedPulse(redToCorner, onRedReachedUCorner);
+    }
+
+    function updateRedPulses(dt) {
+      if (redWaveRestartAt && performance.now() >= redWaveRestartAt) {
+        startRedFeedWave();
+        return;
+      }
+      for (let i = activeRedPulses.length - 1; i >= 0; i--) {
+        const pulse = activeRedPulses[i];
+        pulse.traveled += RED_PULSE_SPEED * dt;
+        if (pulse.traveled >= pulse.path.total) {
+          const cb = pulse.onArrive;
+          releaseRedPulse(pulse.mesh);
+          activeRedPulses.splice(i, 1);
+          cb?.();
+          continue;
+        }
+        const t = pulse.traveled / pulse.path.total;
+        const p = pulse.path.getPointAt(t);
+        pulse.mesh.position.copy(p);
+        const p2 = pulse.path.getPointAt(Math.min(1, t + 0.02));
+        const dir = new THREE.Vector3().subVectors(p2, p);
+        if (dir.lengthSq() > 1e-6) {
+          pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        }
+      }
+      matRedPulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
+    }
+
+    powerHighlights.push(redPowerCableGroup, redPulseGroup);
+
     // Door / power controls (+ drop-up menu)
     const doorState = {
       frontOpen: true,
@@ -6470,9 +6720,11 @@
         scene.fog.near = FOG_NEAR_POWER;
         scene.fog.far = FOG_FAR_POWER;
         startBlueFeedWave();
+        startRedFeedWave();
         framePowerPath();
       } else {
         clearBluePulses();
+        clearRedPulses();
         scene.fog.near = FOG_NEAR;
         scene.fog.far = FOG_FAR;
         nudgeIdle();
@@ -6671,7 +6923,7 @@
       syncRackButtons();
     }
 
-    /** Fit the full power run (green 32A TPN + blue Dist→PDU1) in view */
+    /** Fit the full power run (green 32A TPN + blue Dist→PDU1 + red MCB→PDU2) in view */
     function framePowerPath() {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -6684,7 +6936,7 @@
 
       const box = new THREE.Box3();
       const tmp = new THREE.Vector3();
-      [...powerPathPoints, ...bluePowerPathPoints].forEach((p) => {
+      [...powerPathPoints, ...bluePowerPathPoints, ...redPowerPathPoints].forEach((p) => {
         tmp.copy(p);
         roomPower.localToWorld(tmp);
         box.expandByPoint(tmp);
@@ -7064,7 +7316,7 @@
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
 
-      // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 UPS feed
+      // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
       if (showPower) {
         const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
         const p = powerPath.getPointAt(t);
@@ -7080,9 +7332,11 @@
         matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
 
-        // Blue: split at each trunk junction → spur ends at PDU; restart after all 6 arrive
+        // Blue: UPS Dist→PDU1 · Red: building MCB→PDU2 (both split at U corner)
         updateBluePulses(dt);
+        updateRedPulses(dt);
         matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
+        matRedXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 1.9);
       }
 
       controls.update();
