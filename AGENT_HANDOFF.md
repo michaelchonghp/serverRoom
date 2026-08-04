@@ -74,7 +74,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this branch) | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
+| (this branch) `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
 | `10c0948` | Blue pulses split at junctions; end at PDU; restart after 6; no return x-ray |
 | `ac5166f` / legend | Blue path follows U trunk; (pulse return later replaced by split model) |
 | PDU1 whips + sockets | All racks whipped; Rack1 32A size; non-interactive sockets |
