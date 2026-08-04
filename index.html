@@ -126,37 +126,58 @@
       pointer-events: none;
       display: none;
       align-items: center;
-      gap: 0.65rem;
-      padding: 0.55rem 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      padding: 0.5rem 0.8rem;
       background: color-mix(in srgb, #0e141a 78%, transparent);
-      border: 1px solid color-mix(in srgb, #3dff9a 35%, transparent);
+      border: 1px solid color-mix(in srgb, #3dff9a 28%, #4da3ff 28%);
       color: #e8f5ee;
-      font-size: 0.72rem;
-      letter-spacing: 0.06em;
+      font-size: 0.68rem;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+      max-width: min(92vw, 36rem);
+      justify-content: flex-end;
     }
 
     .power-legend.visible { display: flex; }
 
+    .power-legend .item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+
     .power-legend .swatch {
-      width: 1.35rem;
-      height: 0.28rem;
-      background: #3dff9a;
-      box-shadow: 0 0 10px color-mix(in srgb, #3dff9a 70%, transparent);
+      width: 1.15rem;
+      height: 0.26rem;
       flex-shrink: 0;
     }
 
-    .power-legend .title {
-      font-weight: 500;
-      color: #3dff9a;
+    .power-legend .swatch.green {
+      background: #3dff9a;
+      box-shadow: 0 0 10px color-mix(in srgb, #3dff9a 70%, transparent);
     }
+
+    .power-legend .swatch.blue {
+      background: #4da3ff;
+      box-shadow: 0 0 10px color-mix(in srgb, #4da3ff 70%, transparent);
+    }
+
+    .power-legend .title.green { font-weight: 500; color: #3dff9a; }
+    .power-legend .title.blue { font-weight: 500; color: #4da3ff; }
 
     .power-legend .sub {
       color: color-mix(in srgb, #e8f5ee 72%, transparent);
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
       text-transform: none;
-      font-size: 0.68rem;
+      font-size: 0.64rem;
+    }
+
+    .power-legend .sep {
+      color: color-mix(in srgb, #e8f5ee 35%, transparent);
+      font-weight: 500;
     }
 
     .hint {
@@ -581,8 +602,17 @@
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
   <div class="power-legend" id="power-legend" hidden aria-live="polite">
-    <span class="swatch" aria-hidden="true"></span>
-    <span><span class="title">32A TPN</span> <span class="sub">· MCB → Bypass → UPS → Dist</span></span>
+    <span class="item">
+      <span class="swatch green" aria-hidden="true"></span>
+      <span class="title green">32A TPN</span>
+      <span class="sub">MCB → Bypass → UPS → Dist</span>
+    </span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span class="item">
+      <span class="swatch blue" aria-hidden="true"></span>
+      <span class="title blue">UPS feed</span>
+      <span class="sub">Dist → sockets → PDU1</span>
+    </span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
     <div class="ctrl-menu" id="ctrl-menu">
@@ -4703,7 +4733,9 @@
         eyebrow: `Power · ${rackName}`,
         title: `Vertical PDU · ${code}`,
         model: "Zero-U rear vertical PDU",
-        rating: "32A · IEC C13",
+        rating: code === "PDU1"
+          ? (rackName === "Rack1" ? "32A feed · IEC C13" : "16A feed · IEC C13")
+          : "IEC C13 · not on Dist feed",
         blocks: [
           {
             label: "Mount",
@@ -4717,7 +4749,9 @@
           },
           {
             label: "Feed",
-            text: "Fed from ceiling trunk industrial socket above this PDU",
+            text: code === "PDU1"
+              ? "Powered from the UPS via the Distribution Panel → ceiling industrial socket → whip"
+              : "Not fed from the UPS / Distribution Panel PDU1 circuits (spare / future)",
           },
         ],
       };
@@ -5682,19 +5716,19 @@
       eyebrow: "Power · Distribution",
       title: "Distribution Panel",
       model: "Wall-mount MCB distribution board",
-      rating: "Feeds 16A / 32A industrial plugs",
+      rating: "UPS output → PDU1 circuits",
       blocks: [
         {
           label: "Role",
-          text: "Room distribution — takes protected 32A TPN from UPS Bypass and breaks out to industrial plugs",
+          text: "Breaks out UPS-protected power from Bypass to each rack’s PDU1 (via ceiling industrial sockets)",
         },
         {
-          label: "Outlets",
-          text: "16A and 32A industrial plugs (outlets not modeled yet)",
+          label: "Circuits",
+          text: "L1: Rack1 PDU1 · L2: Rack2 PDU1 · L3: Rack3 PDU1 · L4: Rack4 PDU1 · L5: Rack5 PDU1 · L6: Rack6 PDU1",
         },
         {
-          label: "Feed",
-          text: "From UPS Bypass after the UPS 32A TPN output return",
+          label: "Ratings",
+          text: "Rack1 PDU1 = 32A industrial socket · Rack2–6 PDU1 = 16A industrial sockets",
         },
       ],
     });
@@ -6154,6 +6188,75 @@
       }
     });
 
+    // Blue x-ray: Dist → ceiling → each PDU1 industrial socket → PDU1 (UPS-protected feed)
+    const matBlueXray = new THREE.MeshBasicMaterial({
+      color: 0x4da3ff,
+      transparent: true,
+      opacity: 0.55,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const bluePowerCableGroup = new THREE.Group();
+    bluePowerCableGroup.name = "PowerCableDistToPdu1";
+    const bluePowerPathPoints = [];
+    const distFeedOrigin = new THREE.Vector3(distX, bypassY, powerCableZ);
+    const blueCeilJunction = new THREE.Vector3(trunkX, CPT_Y, trunkZ);
+    bluePowerPathPoints.push(
+      distFeedOrigin.clone(),
+      new THREE.Vector3(distX, CPT_Y, powerCableZ),
+      new THREE.Vector3(distX, CPT_Y, trunkZ),
+      blueCeilJunction.clone()
+    );
+    // Visit PDU1 sockets in ceiling-U order: Rack1→3 along +Z rear, then Rack4→6 along −Z rear
+    const pdu1VisitOrder = ["Rack1", "Rack2", "Rack3", "Rack4", "Rack5", "Rack6"];
+    pdu1VisitOrder.forEach((rackName) => {
+      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
+      const rack = racks.find((r) => r.group.name === rackName)?.group;
+      if (!sockInfo || !rack) return;
+      const pduTop = new THREE.Vector3(
+        rack.position.x + PDU_LOCAL_X * Math.cos(rack.rotation.y),
+        pduTopY + 0.4,
+        rack.position.z + PDU_LOCAL_X * Math.sin(rack.rotation.y) + pduLocalZ * Math.cos(rack.rotation.y)
+      );
+      const sockCeil = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
+      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
+      bluePowerPathPoints.push(sockCeil, sockFace, pduTop.clone(), sockFace.clone(), sockCeil.clone());
+    });
+    bluePowerPathPoints.push(blueCeilJunction.clone());
+
+    const bluePowerPath = buildPolyline(bluePowerPathPoints);
+    bluePowerPath.segs.forEach(({ a, b }) => {
+      const seg = cylinderBetween(a, b, 1.265, matBlueXray);
+      if (seg) bluePowerCableGroup.add(seg);
+    });
+    bluePowerCableGroup.visible = false;
+    bluePowerCableGroup.renderOrder = 20;
+    bluePowerCableGroup.frustumCulled = false;
+    roomPower.add(bluePowerCableGroup);
+
+    const matBluePulse = new THREE.MeshBasicMaterial({
+      color: 0xb8d9ff,
+      transparent: true,
+      opacity: 1,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const bluePowerPulse = new THREE.Group();
+    bluePowerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matBluePulse));
+    bluePowerPulse.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12),
+      matBluePulse
+    ));
+    bluePowerPulse.name = "PowerPulseDistToPdu1";
+    bluePowerPulse.visible = false;
+    bluePowerPulse.renderOrder = 21;
+    bluePowerPulse.frustumCulled = false;
+    bluePowerPulse.position.copy(bluePowerPathPoints[0]);
+    roomPower.add(bluePowerPulse);
+
+    const BLUE_PULSE_SPEED = 0.14;
+    powerHighlights.push(bluePowerCableGroup, bluePowerPulse);
+
     // Door / power controls (+ drop-up menu)
     const doorState = {
       frontOpen: true,
@@ -6408,7 +6511,7 @@
       syncRackButtons();
     }
 
-    /** Fit the full power run (MCB → underfloor → Rack6 UPS) in view */
+    /** Fit the full power run (green 32A TPN + blue Dist→PDU1) in view */
     function framePowerPath() {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -6421,12 +6524,12 @@
 
       const box = new THREE.Box3();
       const tmp = new THREE.Vector3();
-      powerPathPoints.forEach((p) => {
+      [...powerPathPoints, ...bluePowerPathPoints].forEach((p) => {
         tmp.copy(p);
         roomPower.localToWorld(tmp);
         box.expandByPoint(tmp);
       });
-      box.expandByScalar(mobile ? 28 : 20);
+      box.expandByScalar(mobile ? 55 : 42);
 
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
@@ -6801,12 +6904,11 @@
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
 
-      // Sci-fi pulse travels MCB → Bypass → trunk → underfloor → Rack6 UPS
+      // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 UPS feed
       if (showPower) {
         const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
         const p = powerPath.getPointAt(t);
         powerPulse.position.copy(p);
-        // Orient the pulse capsule along the local path tangent
         const p2 = powerPath.getPointAt(Math.min(1, t + 0.02));
         const dir = new THREE.Vector3().subVectors(p2, p);
         if (dir.lengthSq() > 1e-6) {
@@ -6817,6 +6919,20 @@
         }
         matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
+
+        const bt = (clock.elapsedTime * BLUE_PULSE_SPEED) % 1;
+        const bp = bluePowerPath.getPointAt(bt);
+        bluePowerPulse.position.copy(bp);
+        const bp2 = bluePowerPath.getPointAt(Math.min(1, bt + 0.02));
+        const bdir = new THREE.Vector3().subVectors(bp2, bp);
+        if (bdir.lengthSq() > 1e-6) {
+          bluePowerPulse.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            bdir.normalize()
+          );
+        }
+        matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
+        matBluePulse.opacity = 0.85 + 0.15 * Math.sin(bt * Math.PI);
       }
 
       controls.update();
