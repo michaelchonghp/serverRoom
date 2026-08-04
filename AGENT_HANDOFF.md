@@ -41,12 +41,13 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 ### Blue x-ray + pulses
 
-- Static blue line: **outbound tree only** — Dist → **horizontal to wall trunk** → **up trunk** → feeder → U trunk (Row A 1–3 → cross → Row B 4–6) + **one-way spur** down to each PDU1. **No return path** (power does not flow back).
+- Static blue line: **outbound tree only** — Dist → **horizontal to wall trunk** → **up trunk** → feeder → **U corner** → arm A (Rack1–3) + arm B (cross → Rack4–6) + **one-way spur** down to each PDU1. **No return path** (power does not flow back).
 - Must **follow wall trunk then ceiling trunk** (no vertical rise at Dist; no aisle shortcuts for far racks).
 - Pulses (not one continuous loop):
-  1. One pulse leaves **Dist**
-  2. At each PDU1 socket junction it **splits**: spur → that PDU and **disappears on arrival**; another pulse **continues** along the trunk
-  3. After **all 6** PDU arrivals + short pause → **restart** from Dist
+  1. One pulse leaves **Dist** → arrives at **U corner** (`cptXMax`, row A)
+  2. At the U corner it **splits into two arms** (row A and row B) — **no backtrack** after Rack1–3
+  3. On each arm, at each PDU1 socket junction it **splits**: spur → that PDU and **disappears on arrival**; another pulse **continues** along that arm
+  4. After **all 6** PDU arrivals + short pause → **restart** from Dist
 - Legend (one line): green **32A TPN** · blue **UPS feed** (`Dist → trunk → splits → PDU1`)
 
 ### Physical wiring already in scene
@@ -74,7 +75,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this branch) `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
+| (this) | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
+| `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
 | `10c0948` | Blue pulses split at junctions; end at PDU; restart after 6; no return x-ray |
 | `ac5166f` / legend | Blue path follows U trunk; (pulse return later replaced by split model) |
 | PDU1 whips + sockets | All racks whipped; Rack1 32A size; non-interactive sockets |
