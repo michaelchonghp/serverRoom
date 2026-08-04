@@ -6188,8 +6188,8 @@
       }
     });
 
-    // Blue x-ray: Dist → ceiling U trunk → one-way spur to each PDU1 (tree, no return)
-    // Pulses split at each socket junction: one leg to that PDU (ends), one continues along trunk.
+    // Blue x-ray: Dist → wall trunk → up → ceiling feeder → U trunk → spur to each PDU1
+    // (no aisle shortcut; no return path). Pulses split at each socket junction.
     const matBlueXray = new THREE.MeshBasicMaterial({
       color: 0x4da3ff,
       transparent: true,
@@ -6244,9 +6244,9 @@
       blueLeg = [g.junction.clone()];
     }
 
+    // Dist → left along Dist–trunk conduit → up outbound trunk → ceiling feeder into U
     pushBlueLegPoint(distFeedOrigin);
-    pushBlueLegPoint(new THREE.Vector3(distX, CPT_Y, powerCableZ));
-    pushBlueLegPoint(new THREE.Vector3(distX, CPT_Y, trunkZ));
+    pushBlueLegPoint(new THREE.Vector3(trunkX, bypassY, trunkZ));
     pushBlueTrunk(trunkX, trunkZ);
     pushBlueTrunk(cptXMax, trunkZ);
     pushBlueTrunk(cptXMax, cptZA);
