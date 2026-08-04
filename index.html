@@ -4550,15 +4550,67 @@
     }
 
     /** Zero-U vertical PDU — mounts in rear side channel; outlets face rack bay */
+    const PDU_LOCAL_X = (RAIL_WIDTH / 2 + OUTER_W / 2 - FRAME_T) / 2 + 1.5;
     const pduFaceTexCache = new Map();
     function makeVerticalPduFaceTexture(code = "PDU1") {
       if (pduFaceTexCache.has(code)) return pduFaceTexCache.get(code);
-      const pw = 128;
+      const pw = 160;
       const ph = 2048;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      /** IEC 60320 C13 female receptacle (accepts C14) */
+      function drawC13(cx, cy, scale) {
+        const bw = 52 * scale;
+        const bh = 36 * scale;
+        // Bezel
+        roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 3 * scale);
+        ctx.fillStyle = "#1a1e24";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 1.2 * scale;
+        ctx.stroke();
+        // Inner IEC C13 aperture — keyed rectangle
+        const iw = bw * 0.72;
+        const ih = bh * 0.62;
+        const ix = cx - iw / 2;
+        const iy = cy - ih / 2 + 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(ix + 3 * scale, iy);
+        ctx.lineTo(ix + iw - 3 * scale, iy);
+        ctx.lineTo(ix + iw, iy + 4 * scale);
+        ctx.lineTo(ix + iw, iy + ih);
+        ctx.lineTo(ix, iy + ih);
+        ctx.lineTo(ix, iy + 4 * scale);
+        ctx.closePath();
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1 * scale;
+        ctx.stroke();
+        // Contact slots — L / N top row, earth bottom center (C13 layout)
+        ctx.fillStyle = "#c5ccd6";
+        const slotW = 5.5 * scale;
+        const slotH = 9 * scale;
+        // Line
+        ctx.fillRect(cx - iw * 0.28 - slotW / 2, cy - ih * 0.12 - slotH / 2, slotW, slotH);
+        // Neutral
+        ctx.fillRect(cx + iw * 0.28 - slotW / 2, cy - ih * 0.12 - slotH / 2, slotW, slotH);
+        // Earth (horizontal bar style)
+        ctx.fillRect(cx - slotH / 2, cy + ih * 0.22 - slotW / 2, slotH, slotW);
+      }
 
       // Light aluminum face — reads against dark rack interior
       ctx.fillStyle = "#c5ced8";
@@ -4566,7 +4618,6 @@
       ctx.fillStyle = "#aeb8c4";
       ctx.fillRect(0, 0, 8, ph);
       ctx.fillRect(pw - 8, 0, 8, ph);
-      // Soft vertical sheen
       const sheen = ctx.createLinearGradient(0, 0, pw, 0);
       sheen.addColorStop(0, "rgba(255,255,255,0.22)");
       sheen.addColorStop(0.45, "rgba(255,255,255,0)");
@@ -4587,46 +4638,14 @@
       ctx.fillText(code, pw / 2, 48);
       ctx.font = "600 14px 'IBM Plex Mono', monospace";
       ctx.fillStyle = "#c5ccd6";
-      ctx.fillText("32A · C13/C19", pw / 2, 78);
+      ctx.fillText("32A · IEC C13", pw / 2, 78);
 
-      // Outlet banks
-      const startY = 130;
-      const endY = ph - 40;
-      const slotH = 28;
-      const gap = 6;
-      let y = startY;
-      let n = 0;
-      while (y + slotH < endY) {
-        const isC19 = n % 7 === 6;
-        const oh = isC19 ? 34 : slotH;
-        const ox = 18;
-        const ow = pw - 36;
-        ctx.fillStyle = "#2a313a";
-        ctx.fillRect(ox, y, ow, oh);
-        ctx.strokeStyle = "#5a6570";
-        ctx.lineWidth = 1.4;
-        ctx.strokeRect(ox + 0.5, y + 0.5, ow - 1, oh - 1);
-        ctx.fillStyle = "#0a0c10";
-        if (isC19) {
-          [[0.28, 0.35], [0.72, 0.35], [0.5, 0.7]].forEach(([fx, fy]) => {
-            ctx.beginPath();
-            ctx.arc(ox + ow * fx, y + oh * fy, 4.5, 0, Math.PI * 2);
-            ctx.fill();
-          });
-        } else {
-          [[0.3, 0.5], [0.7, 0.5]].forEach(([fx, fy]) => {
-            ctx.fillRect(ox + ow * fx - 5, y + oh * fy - 7, 10, 14);
-          });
-          ctx.beginPath();
-          ctx.arc(ox + ow * 0.5, y + oh * 0.55, 3.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.beginPath();
-        ctx.arc(ox + ow - 8, y + oh / 2, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = n % 3 === 0 ? "#3dd68c" : "#3a4540";
-        ctx.fill();
-        y += oh + gap;
-        n += 1;
+      // Stack of C13 outlets down the face
+      const startY = 150;
+      const endY = ph - 50;
+      const pitch = 44;
+      for (let y = startY; y < endY; y += pitch) {
+        drawC13(pw / 2, y, 1.15);
       }
 
       const tex = new THREE.CanvasTexture(c);
@@ -4684,7 +4703,7 @@
         eyebrow: `Power · ${rackName}`,
         title: `Vertical PDU · ${code}`,
         model: "Zero-U rear vertical PDU",
-        rating: "32A · C13 / C19",
+        rating: "32A · IEC C13",
         blocks: [
           {
             label: "Mount",
@@ -4693,8 +4712,84 @@
               : "Rear-right when facing the rack rear · Outlets face into the bay",
           },
           {
+            label: "Outlets",
+            text: "IEC 60320 C13 sockets (C14 inlet cord) stacked vertically",
+          },
+          {
             label: "Feed",
-            text: "To be fed from ceiling power trunk / industrial plug (pending)",
+            text: "Fed from ceiling trunk industrial socket above this PDU",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** IEC 60309 32A TPN industrial socket — faces down from ceiling trunk */
+    function makeIndustrialSocket({ rackName = "Rack1", pdu = "PDU1" } = {}) {
+      const g = new THREE.Group();
+      g.name = `${rackName}-${pdu}-IndSock`;
+
+      const matFlange = new THREE.MeshStandardMaterial({
+        color: 0xb0b8c0, metalness: 0.55, roughness: 0.35,
+      });
+      const matRed = new THREE.MeshStandardMaterial({
+        color: 0xc42828, metalness: 0.25, roughness: 0.45,
+      });
+      const matLid = new THREE.MeshStandardMaterial({
+        color: 0xa02020, metalness: 0.3, roughness: 0.4,
+      });
+      const matDark = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.2, roughness: 0.55,
+      });
+      const matPin = new THREE.MeshStandardMaterial({
+        color: 0xd8dee6, metalness: 0.85, roughness: 0.25,
+      });
+
+      // Mount flange against trunk underside
+      g.add(box(7.5, 0.6, 7.5, matFlange, 0, 0, 0));
+      // Red IEC 60309 body hanging down
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.1, 5.5, 24), matRed);
+      body.position.y = -3.0;
+      g.add(body);
+      // Face ring
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.45, 24), matRed);
+      ring.position.y = -5.7;
+      g.add(ring);
+      // Dark receptacle face (looking up into socket from below)
+      const face = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), matDark);
+      face.rotation.x = Math.PI / 2; // face down (−Y)
+      face.position.y = -5.95;
+      g.add(face);
+      // 3P+N+E pin recesses (clock positions for 32A 3φ)
+      const pinR = 1.35;
+      [0, 72, 144, 216, 288].forEach((deg, i) => {
+        const a = (deg * Math.PI) / 180;
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 10), matPin);
+        pin.position.set(Math.cos(a) * pinR, -5.7, Math.sin(a) * pinR);
+        g.add(pin);
+      });
+      // Hinged lid — slightly open
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(3.15, 3.15, 0.35, 24, 1, false, 0, Math.PI), matLid);
+      lid.rotation.x = 0.55;
+      lid.position.set(0, -4.2, 1.6);
+      g.add(lid);
+
+      g.userData.interactive = true;
+      g.userData.kind = "industrial-socket";
+      g.userData.label = `${rackName} ${pdu} socket`;
+      g.userData.info = {
+        eyebrow: `Power · ${rackName}`,
+        title: `Industrial Socket · ${pdu}`,
+        model: "IEC 60309 32A 3P+N+E",
+        rating: "32A TPN · Red",
+        blocks: [
+          {
+            label: "Mount",
+            text: "Ceiling power trunk underside — faces down above the matching rear PDU",
+          },
+          {
+            label: "Serves",
+            text: `Whip / cord to ${rackName} ${pdu}`,
           },
         ],
       };
@@ -5001,11 +5096,10 @@
 
       // Zero-U vertical PDUs — rear side channels
       // Facing the rear: left = PDU1 (+X), right = PDU2 (−X)
-      const pduX = (railInsetX + OUTER_W / 2 - FRAME_T) / 2 + 1.5;
       const pduZ = railZRear + 1.5; // at rear rails, inside the cabinet
       [
-        { code: "PDU1", x: pduX },
-        { code: "PDU2", x: -pduX },
+        { code: "PDU1", x: PDU_LOCAL_X },
+        { code: "PDU2", x: -PDU_LOCAL_X },
       ].forEach(({ code, x }) => {
         const pdu = makeVerticalPdu({ rackName: name, code });
         pdu.position.set(x, sideY, pduZ);
@@ -5892,6 +5986,26 @@
         if (seg) ceilingPowerTrunk.add(seg);
       }
     }
+    // Industrial sockets on trunk underside — one above each rack PDU, facing down
+    const sockY = CPT_Y - CPT / 2 - 0.35;
+    racks.forEach(({ group }) => {
+      const rackName = group.name;
+      const rackX = group.position.x;
+      const rotY = group.rotation.y;
+      const onRowA = Math.abs(rotY) < 0.1;
+      const sockZ = onRowA ? cptZA : cptZB;
+      const cos = Math.cos(rotY);
+      [
+        { pdu: "PDU1", lx: PDU_LOCAL_X },
+        { pdu: "PDU2", lx: -PDU_LOCAL_X },
+      ].forEach(({ pdu, lx }) => {
+        const sockX = rackX + lx * cos;
+        const sock = makeIndustrialSocket({ rackName, pdu });
+        sock.position.set(sockX, sockY, sockZ);
+        ceilingPowerTrunk.add(sock);
+        interactiveItems.push(sock);
+      });
+    });
     roomPower.add(ceilingPowerTrunk);
 
     // Door / power controls (+ drop-up menu)
