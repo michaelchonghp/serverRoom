@@ -6126,18 +6126,11 @@
       depthTest: false,
       depthWrite: false,
     });
-    // Access LAN links — match Dist/Access face role blue (0x3b82f6)
-    const matAccessLanCore = new THREE.MeshBasicMaterial({
-      color: 0x3b82f6,
-      transparent: true,
-      opacity: 0.95,
-      depthTest: false,
-      depthWrite: false,
-    });
+    // Access LAN role aura — blue glow around SM yellow cores (industry SM = yellow)
     const matAccessLanAura = new THREE.MeshBasicMaterial({
       color: 0x3b82f6,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.28,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -6145,7 +6138,7 @@
     const matAccessLanAuraSoft = new THREE.MeshBasicMaterial({
       color: 0x60a5fa,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.14,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -6326,24 +6319,24 @@
     addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50", roomCoreDistLinks);
     addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
-    // Dist → Access (LAN) — Controls → Access; blue core + aura to match LAN face role
+    // Dist → Access — SM yellow core + LAN blue aura (Controls → Access)
     const ACCESS_LAN_AURA = [
       { material: matAccessLanAura, radiusScale: 2.8 },
       { material: matAccessLanAuraSoft, radiusScale: 4.6 },
     ];
-    addSlackPortLink("D1", 1, "A1", 49, matAccessLanCore, "DIST-LAN-D1P1-A1P49", roomDistAccessLinks, {
+    addSlackPortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
     });
-    addSlackPortLink("D1", 2, "A2", 49, matAccessLanCore, "DIST-LAN-D1P2-A2P49", roomDistAccessLinks, {
+    addSlackPortLink("D1", 2, "A2", 49, matCoreSmXray, "DIST-SM-D1P2-A2P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
     });
-    addSlackPortLink("D1", 3, "A3", 49, matAccessLanCore, "DIST-LAN-D1P3-A3P49", roomDistAccessLinks, {
+    addSlackPortLink("D1", 3, "A3", 49, matCoreSmXray, "DIST-SM-D1P3-A3P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
     });
-    addSlackPortLink("D1", 4, "A4", 49, matAccessLanCore, "DIST-LAN-D1P4-A4P49", roomDistAccessLinks, {
+    addSlackPortLink("D1", 4, "A4", 49, matCoreSmXray, "DIST-SM-D1P4-A4P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
     });
