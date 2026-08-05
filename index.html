@@ -473,6 +473,18 @@
 
     .core-sticky[hidden] { display: none; }
 
+    /* Hidden while the linked aqua lines are outside the camera frustum */
+    .core-sticky.off-frustum {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transition: none;
+    }
+    .info-leader.off-frustum {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transition: none;
+    }
+
     .core-sticky .core-title {
       font-size: 0.546rem;
       font-weight: 500;
@@ -5757,18 +5769,27 @@
       C1C2: null, // world midpoint of C1↔C2 P47
       C3C4: null, // world midpoint of C3↔C4 P47
     };
+    // World endpoints of all aqua core links in each pair (for frustum tests)
+    const coreCalloutFrustumPts = {
+      C1C2: [],
+      C3C4: [],
+    };
 
     function addCorePeerLinks(codeA, codeB) {
       const aEq = findEquipmentByCode(codeA);
       const bEq = findEquipmentByCode(codeB);
       if (!aEq || !bEq) return;
       const key = `${codeA}${codeB}`;
+      if (coreCalloutFrustumPts[key]) coreCalloutFrustumPts[key].length = 0;
       for (const { port, yOff } of CORE_LINK_PORTS) {
         const a = portWorldPos(aEq.unit, port);
         const b = portWorldPos(bEq.unit, port);
         if (!a || !b) continue;
         a.y += yOff;
         b.y += yOff;
+        if (coreCalloutFrustumPts[key]) {
+          coreCalloutFrustumPts[key].push(a.clone(), b.clone());
+        }
         // Callout points at the midpoint of each pair's port 47 link
         if (port === 47) {
           coreCalloutAnchors[key] = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
@@ -7568,9 +7589,40 @@
       },
     ];
 
+    function isWorldPointInView(v, margin = 0.02) {
+      infoProj.copy(v).project(camera);
+      return (
+        Math.abs(infoProj.x) <= 1 + margin &&
+        Math.abs(infoProj.y) <= 1 + margin &&
+        Math.abs(infoProj.z) <= 1
+      );
+    }
+
+    function coreLinkClusterInView(key) {
+      const pts = coreCalloutFrustumPts[key];
+      if (pts && pts.length) {
+        for (let i = 0; i < pts.length; i++) {
+          if (isWorldPointInView(pts[i])) return true;
+        }
+        return false;
+      }
+      const mid = coreCalloutAnchors[key];
+      return !!(mid && isWorldPointInView(mid));
+    }
+
     function layoutOneCoreCallout(callout) {
       const anchor = coreCalloutAnchors[callout.key];
       if (!showCore || !anchor || callout.panel.hidden) return;
+
+      const inView = coreLinkClusterInView(callout.key);
+      callout.panel.classList.toggle("off-frustum", !inView);
+      callout.leader.classList.toggle("off-frustum", !inView);
+      if (!inView) {
+        callout.anchorEl.setAttribute("cx", "-20");
+        callout.anchorEl.setAttribute("cy", "-20");
+        return;
+      }
+
       projectWorldToScreen(anchor, coreScreen);
       const ax = coreScreen.x;
       const ay = coreScreen.y;
@@ -7607,12 +7659,12 @@
         if (on) {
           if (!coreCalloutAnchors[callout.key]) continue;
           callout.panel.hidden = false;
-          callout.panel.classList.remove("show");
-          callout.leader.classList.remove("show");
+          callout.panel.classList.remove("show", "off-frustum");
+          callout.leader.classList.remove("show", "off-frustum");
           callout.line.style.strokeDashoffset = "1";
         } else {
-          callout.panel.classList.remove("show");
-          callout.leader.classList.remove("show");
+          callout.panel.classList.remove("show", "off-frustum");
+          callout.leader.classList.remove("show", "off-frustum");
           callout.panel.hidden = true;
           callout.line.style.strokeDashoffset = "1";
           callout.anchorEl.setAttribute("cx", "-20");
