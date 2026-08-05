@@ -5422,6 +5422,7 @@
     }
 
     const interactiveItems = [];
+    const pickBlockers = []; // opaque rack side panels that occlude picking
 
     function createRack(name, extraLabels = [], equipment = []) {
       const rack = new THREE.Group();
@@ -5452,10 +5453,17 @@
       const sideD = (OUTER_D - FRAME_T * 2 - 3) / 2;
       [-1, 1].forEach((side) => {
         const x = side * (OUTER_W / 2 - 0.55);
-        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, -sideD / 2 - 0.2));
-        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, -sideD / 2 - 0.2));
-        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY + sideH * 0.255, sideD / 2 + 0.2));
-        rack.add(box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, sideY - sideH * 0.255, sideD / 2 + 0.2));
+        [
+          [sideY + sideH * 0.255, -sideD / 2 - 0.2],
+          [sideY - sideH * 0.255, -sideD / 2 - 0.2],
+          [sideY + sideH * 0.255, sideD / 2 + 0.2],
+          [sideY - sideH * 0.255, sideD / 2 + 0.2],
+        ].forEach(([y, z]) => {
+          const panel = box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, y, z);
+          panel.userData.blocksPick = true;
+          pickBlockers.push(panel);
+          rack.add(panel);
+        });
       });
 
       const topY = BASE_H + INNER_H + TOP_H / 2;
@@ -8242,9 +8250,17 @@
       pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
       pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointerNdc, camera);
-      const hits = raycaster.intersectObjects(interactiveItems, true);
-      if (!hits.length) return null;
-      return findInteractiveRoot(hits[0].object);
+      // Include side panels so they occlude gear when they block the view
+      const hits = raycaster.intersectObjects(
+        pickBlockers.length ? pickBlockers.concat(interactiveItems) : interactiveItems,
+        true
+      );
+      for (const hit of hits) {
+        if (hit.object.userData && hit.object.userData.blocksPick) return null;
+        const root = findInteractiveRoot(hit.object);
+        if (root) return root;
+      }
+      return null;
     }
 
     canvas.addEventListener("pointerdown", (e) => {
