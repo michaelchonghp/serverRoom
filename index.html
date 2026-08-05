@@ -770,6 +770,16 @@
     <div class="core-row">Firewall1/0/25 to Core3/0/2</div>
   </aside>
 
+  <svg class="info-leader" id="core-leader-sm-c2" aria-hidden="true">
+    <circle class="anchor-dot" id="core-anchor-sm-c2" r="4" cx="0" cy="0" />
+    <line id="core-line-sm-c2" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  </svg>
+  <aside class="core-sticky" id="core-panel-sm-c2" hidden aria-live="polite">
+    <div class="core-row">Core2/0/3 to Core4/0/1</div>
+    <div class="core-row">Core2/0/4 to Firewall2/0/24</div>
+    <div class="core-row">Firewall2/0/25 to Core4/0/2</div>
+  </aside>
+
   <script type="importmap">
     {
       "imports": {
@@ -5720,7 +5730,8 @@
 
     // Optic maps — linked=true → green port LED.
     // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
-    // SM yellow: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2
+    // SM yellow Rack1: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2
+    // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5734,8 +5745,11 @@
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C2 = [
-      ...[1, 2, 3, 4].map((port) => ({
+      ...[1, 2].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
       })),
       ...CORE_MM_47_50,
     ];
@@ -5749,7 +5763,10 @@
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C4 = [
-      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...[11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
@@ -5757,6 +5774,7 @@
     const FW_XCVRS_F1 = [24, 25].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
+    const FW_XCVRS_F2 = FW_XCVRS_F1;
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -5788,7 +5806,7 @@
           { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
           { type: "sw-ruijie-s6510", startU: 25, code: "D2" },
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C4 },
-          { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
+          { type: "fw-hillstone-a3800", startU: 30, code: "F2", transceivers: FW_XCVRS_F2 }, // RU 31 between C4 and C2
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C2 },
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — fiber (same as Rack1)
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
@@ -5833,7 +5851,7 @@
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
     // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // SM yellow: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2. Controls → Core.
+    // SM yellow: Rack1 via F1 · Rack2 via F2. Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5887,12 +5905,14 @@
       C1C2: null, // world midpoint of C1↔C2 P47
       C3C4: null, // world midpoint of C3↔C4 P47
       SM_C1: null, // just above C1 port 3
+      SM_C2: null, // just above C2 port 3
     };
     // World endpoints of linked clusters (for frustum tests)
     const coreCalloutFrustumPts = {
       C1C2: [],
       C3C4: [],
       SM_C1: [],
+      SM_C2: [],
     };
 
     function addCorePeerLinks(codeA, codeB) {
@@ -5948,32 +5968,43 @@
 
     addCorePeerLinks("C1", "C2");
     addCorePeerLinks("C3", "C4");
-    // SM via F1 (and direct C1↔C3)
+    // SM via firewalls (and direct top↔bottom core)
     addCorePortLink("C1", 3, "C3", 1, matCoreSmXray, "CORE-SM-C1P3-C3P1");
     addCorePortLink("C1", 4, "F1", 24, matCoreSmXray, "CORE-SM-C1P4-F1P24");
     addCorePortLink("F1", 25, "C3", 2, matCoreSmXray, "CORE-SM-F1P25-C3P2");
+    addCorePortLink("C2", 3, "C4", 1, matCoreSmXray, "CORE-SM-C2P3-C4P1");
+    addCorePortLink("C2", 4, "F2", 24, matCoreSmXray, "CORE-SM-C2P4-F2P24");
+    addCorePortLink("F2", 25, "C4", 2, matCoreSmXray, "CORE-SM-F2P25-C4P2");
 
-    // SM callout: anchor just above C1 port 3; frustum covers the three SM hops
-    {
-      const c1Eq = findEquipmentByCode("C1");
-      const p3 = c1Eq && portWorldPos(c1Eq.unit, 3);
-      if (p3) {
-        coreCalloutAnchors.SM_C1 = p3.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
+    // SM callouts: above C1/C2 port 3; frustum covers each rack's three SM hops
+    function registerSmCallout(key, anchorCode, anchorPort, links) {
+      const eq = findEquipmentByCode(anchorCode);
+      const p = eq && portWorldPos(eq.unit, anchorPort);
+      if (p) {
+        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
       }
-      coreCalloutFrustumPts.SM_C1.length = 0;
-      for (const [codeA, portA, codeB, portB] of [
-        ["C1", 3, "C3", 1],
-        ["C1", 4, "F1", 24],
-        ["F1", 25, "C3", 2],
-      ]) {
+      const pts = coreCalloutFrustumPts[key];
+      if (!pts) return;
+      pts.length = 0;
+      for (const [codeA, portA, codeB, portB] of links) {
         const aEq = findEquipmentByCode(codeA);
         const bEq = findEquipmentByCode(codeB);
         const a = aEq && portWorldPos(aEq.unit, portA);
         const b = bEq && portWorldPos(bEq.unit, portB);
-        if (a) coreCalloutFrustumPts.SM_C1.push(a);
-        if (b) coreCalloutFrustumPts.SM_C1.push(b);
+        if (a) pts.push(a);
+        if (b) pts.push(b);
       }
     }
+    registerSmCallout("SM_C1", "C1", 3, [
+      ["C1", 3, "C3", 1],
+      ["C1", 4, "F1", 24],
+      ["F1", 25, "C3", 2],
+    ]);
+    registerSmCallout("SM_C2", "C2", 3, [
+      ["C2", 3, "C4", 1],
+      ["C2", 4, "F2", 24],
+      ["F2", 25, "C4", 2],
+    ]);
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -7759,6 +7790,13 @@
         line: document.getElementById("core-line-sm-c1"),
         anchorEl: document.getElementById("core-anchor-sm-c1"),
         panel: document.getElementById("core-panel-sm-c1"),
+      },
+      {
+        key: "SM_C2",
+        leader: document.getElementById("core-leader-sm-c2"),
+        line: document.getElementById("core-line-sm-c2"),
+        anchorEl: document.getElementById("core-anchor-sm-c2"),
+        panel: document.getElementById("core-panel-sm-c2"),
       },
     ];
 
