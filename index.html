@@ -5945,7 +5945,7 @@
     // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
     // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
     // SM yellow Dist→Access:
-    //   D1:1–4 → A1–A4:49 · D2:1–4 → A1–A4:50
+    //   D1:1–4 → A1–A4:49 · D2:1–4 → A1–A4:50 · D3:1 → A5:49
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5987,7 +5987,7 @@
     const DIST_XCVRS_UPLINK = [49, 50].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
-    // D1/D2:1–4 → A1–A4 (Access downlinks) in addition to core uplinks
+    // D1/D2:1–4 → A1–A4 · D3:1 → A5 (Access downlinks) in addition to core uplinks
     const DIST_XCVRS_DOWNLINK_1_4 = [1, 2, 3, 4].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
@@ -5999,13 +5999,21 @@
       ...DIST_XCVRS_UPLINK,
       ...DIST_XCVRS_DOWNLINK_1_4,
     ];
+    const DIST_XCVRS_D3 = [
+      ...DIST_XCVRS_UPLINK,
+      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+    ];
     const ACCESS_XCVRS_UPLINK_49_50 = [49, 50].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
+    const ACCESS_XCVRS_UPLINK_49 = [
+      { port: 49, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+    ];
     const ACCESS_XCVRS_A1 = ACCESS_XCVRS_UPLINK_49_50;
     const ACCESS_XCVRS_A2 = ACCESS_XCVRS_UPLINK_49_50;
     const ACCESS_XCVRS_A3 = ACCESS_XCVRS_UPLINK_49_50;
     const ACCESS_XCVRS_A4 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A5 = ACCESS_XCVRS_UPLINK_49;
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -6022,7 +6030,7 @@
           { type: "rt-cisco-c8300", startU: 19 }, // RU 20 — Voice
           // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
           { type: "sw-ruijie-s6510", startU: 21, code: "D5", transceivers: DIST_XCVRS_UPLINK },
-          { type: "sw-ruijie-s6510", startU: 23, code: "D3", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D3", transceivers: DIST_XCVRS_D3 },
           { type: "sw-ruijie-s6510", startU: 25, code: "D1", transceivers: DIST_XCVRS_D1 },
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1", transceivers: FW_XCVRS_F1 }, // RU 31 between C3 and C1
@@ -6045,7 +6053,7 @@
         Rack3: [
           // Access top→down: A7/A5/A3/A1 at RU 18, 20, 22, 24 (equally spaced)
           { type: "sw-ruijie-s5760", startU: 17, code: "A7" }, // RU 18
-          { type: "sw-ruijie-s5760", startU: 19, code: "A5" }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 19, code: "A5", transceivers: ACCESS_XCVRS_A5 }, // RU 20
           { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 }, // RU 22
           { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 }, // RU 24
         ],
@@ -6155,6 +6163,30 @@
     });
     const matAccessLanAuraSoft = new THREE.MeshBasicMaterial({
       color: 0x60a5fa,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_SOFT_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    // Access Wi‑Fi role aura — teal (0x14b8a6) around SM yellow; same pulse behavior as LAN
+    const matAccessWifiCover = new THREE.MeshBasicMaterial({
+      color: 0x14b8a6,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matAccessWifiAura = new THREE.MeshBasicMaterial({
+      color: 0x14b8a6,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const matAccessWifiAuraSoft = new THREE.MeshBasicMaterial({
+      color: 0x2dd4bf,
       transparent: true,
       opacity: ACCESS_LAN_AURA_SOFT_PEAK,
       depthTest: false,
@@ -6375,6 +6407,16 @@
     addSlackPortLink("D2", 4, "A4", 50, matCoreSmXray, "DIST-SM-D2P4-A4P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+    });
+    // Wi‑Fi role (teal aura)
+    const ACCESS_WIFI_AURA = [
+      { material: matAccessWifiCover, radiusScale: 1.12 },
+      { material: matAccessWifiAura, radiusScale: 2.8 },
+      { material: matAccessWifiAuraSoft, radiusScale: 4.6 },
+    ];
+    addSlackPortLink("D3", 1, "A5", 49, matCoreSmXray, "DIST-SM-D3P1-A5P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
     });
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
@@ -8613,7 +8655,7 @@
       if (infoTarget) layoutInfoCallout();
       if (showCore || showCoreDist) layoutCoreCallout();
 
-      // LAN blue aura on Access links — 3s pulse; peak cover fully overcomes SM yellow
+      // Role auras on Access links — 3s pulse; peak cover fully overcomes SM yellow
       if (showAccess) {
         const pulse = 0.5 - 0.5 * Math.cos(
           (clock.elapsedTime * Math.PI * 2) / ACCESS_LAN_AURA_PULSE_SEC
@@ -8621,6 +8663,9 @@
         matAccessLanBlueCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
         matAccessLanAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
         matAccessLanAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
+        matAccessWifiCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
+        matAccessWifiAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
+        matAccessWifiAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
       }
       // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
       if (showPower) {
