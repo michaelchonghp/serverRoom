@@ -6239,9 +6239,9 @@
       roughness: 0.55,
     });
 
-    const FIBER_CORD_R = 0.2;
+    const FIBER_CORD_R = 0.14; // ~2.8mm jacket — thin enough that lanes stay readable
     // Center-to-center must exceed 2×radius or tubes fuse into one mass
-    const FIBER_BUNDLE_PITCH = 0.55;
+    const FIBER_BUNDLE_PITCH = 0.42;
 
     /** 2×2 bundle slot for lane 0..3 → { col, row } */
     function fiberBundleSlot(lane) {
@@ -6250,8 +6250,11 @@
 
     /**
      * Rack-local dress: port → nearest side → rear → top opening → Wyr-Grid.
-     * Lane offsets always sit in the plane ⊥ to travel so same-height ports
-     * (47/49, 48/50) stay distinct on the face run — never stagger along ±X there.
+     *
+     * Face run (travel ±X): vertical ribbon of 4 unique Y lanes so a front /
+     * front-angle view shows four distinct cords (2×2 depth packing hides the
+     * rear column). Side/rise: morph into a tight 2×2 as if one velcro wrap —
+     * no strap mesh is drawn.
      */
     function dressPortToWyrGrid(rack, portWorld, lane = 0) {
       const open = rack.userData.cableOpen;
@@ -6260,38 +6263,46 @@
       const side = p.x >= 0 ? 1 : -1; // nearest side of the rack
       const { col, row } = fiberBundleSlot(lane);
       const pitch = FIBER_BUNDLE_PITCH;
-      const dy = (row - 0.5) * pitch;       // vertical pair in bundle
-      const dLayer = (col - 0.5) * pitch;   // second axis of the 2×2
+      // Face ribbon: every lane gets its own height (lane 0..3 → four lines)
+      const ribbonY = (lane - 1.5) * pitch;
+      // 2×2 after the side corner
+      const dy = (row - 0.5) * pitch;
+      const dLayer = (col - 0.5) * pitch;
       // Shared side-rail X — whole bundle hugs one line (as if one velcro wrap)
       const sideX = side * (OUTER_W / 2 - 2.8);
       const openY = open.y;
       const openZ = open.z;
-      // Face run travels ±X → pack in Y + Z (depth from face)
-      const faceZ = p.z + dLayer;
-      const bundleY = p.y + dy;
+      // Tiny Z ripple on the face so the ribbon reads slightly round, not flat
+      const faceZ = p.z + ((lane % 2) - 0.5) * pitch * 0.35;
+      const faceY = p.y + ribbonY;
       // Side rear-run travels ±Z → pack in Y + X (layers inward from rail)
       const sideRunX = sideX - side * dLayer;
+      const bundleY = p.y + dy;
       // Rise / opening travels +Y → pack in X–Z
       const openLaneX = side * (5.0 + dLayer);
       const openLaneZ = openZ - dy;
       const wgY = WG_Y + 1.0 + dy * 0.3;
       const localPts = [
         p.clone(),
-        // Fan into bundle lanes quickly after leaving the SFP
+        // Fan from native port spacing into the face ribbon
         new THREE.Vector3(
-          THREE.MathUtils.lerp(p.x, sideX, 0.28),
-          p.y + dy * 0.55,
-          p.z + dLayer * 0.45
+          THREE.MathUtils.lerp(p.x, sideX, 0.22),
+          THREE.MathUtils.lerp(p.y, faceY, 0.65),
+          p.z + ((lane % 2) - 0.5) * pitch * 0.2
         ),
-        // Horizontal face run to the side — same X progression, distinct Y/Z
+        // Horizontal face run — four distinct Y lanes, shared X progression
         new THREE.Vector3(
-          THREE.MathUtils.lerp(p.x, sideX, 0.72),
-          bundleY,
+          THREE.MathUtils.lerp(p.x, sideX, 0.68),
+          faceY,
           faceZ
         ),
-        new THREE.Vector3(sideX, bundleY, faceZ),
-        // Corner into rear channel — shift layer offset from Z into X
-        new THREE.Vector3(sideRunX, bundleY, THREE.MathUtils.lerp(faceZ, openZ, 0.35)),
+        new THREE.Vector3(sideX, faceY, faceZ),
+        // Corner: ribbon → tight 2×2 for the rear channel
+        new THREE.Vector3(
+          sideRunX,
+          THREE.MathUtils.lerp(faceY, bundleY, 0.7),
+          THREE.MathUtils.lerp(faceZ, openZ, 0.3)
+        ),
         new THREE.Vector3(sideRunX, bundleY, openZ),
         new THREE.Vector3(sideRunX, openY - 8, openLaneZ),
         new THREE.Vector3(openLaneX, openY - 1.2, openLaneZ),
