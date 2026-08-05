@@ -2161,7 +2161,11 @@
     const h3c9850FrontTexCache = new Map();
     function makeH3c9850FrontTexture(transceivers = []) {
       const byPort = new Map(transceivers.map((t) => [t.port, t]));
-      const key = [...byPort.keys()].sort((a, b) => a - b).map((p) => `${p}:${byPort.get(p).model}`).join("|") || "empty";
+      const key = [...byPort.keys()].sort((a, b) => a - b)
+        .map((p) => {
+          const t = byPort.get(p);
+          return `${p}:${t.model}:${t.linked ? 1 : 0}`;
+        }).join("|") || "empty";
       if (h3c9850FrontTexCache.has(key)) return h3c9850FrontTexCache.get(key);
 
       const pw = 1400;
@@ -2435,6 +2439,57 @@
       g.userData.code = code;
       g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
+
+      // Front-face port anchors (switch-local cm) — matches canvas port map for patch cords
+      {
+        const faceW = w - 0.12;
+        const faceH = h - 0.15;
+        const faceZ = face.position.z - 0.35; // slightly into aisle from the face plane
+        const pw = 1400;
+        const ph = 560;
+        const inset = 18;
+        const gap = 10;
+        const gridX = inset + 8;
+        const gridY = inset + 8;
+        const gridW = pw - inset * 2 - 16;
+        const gridH = ph - inset * 2 - 16;
+        const modW = (gridW - gap) / 2;
+        const modH = (gridH - gap) / 2;
+        const modules = [
+          { mx: gridX, my: gridY, portOffset: 0 },
+          { mx: gridX + modW + gap, my: gridY, portOffset: 18 },
+          { mx: gridX, my: gridY + modH + gap, portOffset: 36 },
+          { mx: gridX + modW + gap, my: gridY + modH + gap, portOffset: 54 },
+        ];
+        const portAnchors = {};
+        modules.forEach(({ mx, my, portOffset }) => {
+          const portAreaX = mx + modW * 0.06;
+          const portAreaY = my + modH * 0.26;
+          const portAreaW = modW * 0.88;
+          const portAreaH = modH * 0.66;
+          const rows = 2;
+          const cols = 9;
+          const pGapX = 4;
+          const pGapY = 6;
+          const pW = (portAreaW - pGapX * (cols + 1)) / cols;
+          const pH = (portAreaH - pGapY * (rows + 1)) / rows;
+          for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+              const portNum = portOffset + col * rows + r + 1;
+              const px = portAreaX + pGapX + col * (pW + pGapX) + pW * 0.5;
+              const py = portAreaY + pGapY + r * (pH + pGapY) + pH * 0.5;
+              const u = px / pw;
+              const v = py / ph;
+              // Canvas left → aisle-view left (+X) because front face is rotY=π
+              const localX = (0.5 - u) * faceW;
+              const localY = (0.5 - v) * faceH;
+              portAnchors[portNum] = new THREE.Vector3(localX, localY, faceZ);
+            }
+          }
+        });
+        g.userData.portAnchors = portAnchors;
+      }
+
       g.userData.info = {
         eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
         title: "H3C S9850 Data Center Switch",
@@ -5487,13 +5542,14 @@
       });
     }
 
-    // Optic maps — no patch cords yet → linked false
+    // Optic maps — linked=true when a patch cord is drawn to that port
+    // C1↔C2 MM ports 47–50 are redundancy links (OM4 LC–LC aqua) — see FIBER_LINKS
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5576,6 +5632,119 @@
         ],
       }
     );
+
+    // -------------------------------------------------------------------------
+    // Fiber link inventory (remarks for later summary tables — not interactive)
+    // Media: Panduit OM4 multimode, LC duplex ↔ LC duplex, aqua jacket
+    // C1 ↔ C2 redundancy: each core has XG-SFP-SR-MM850 in ports 47–50;
+    // those four ports peer 1:1 (same port number on each switch).
+    // -------------------------------------------------------------------------
+    const FIBER_LINKS = [
+      {
+        id: "FO-C1C2-P47",
+        a: { device: "C1", rack: "Rack1", port: 47, xcvr: "XG-SFP-SR-MM850" },
+        b: { device: "C2", rack: "Rack2", port: 47, xcvr: "XG-SFP-SR-MM850" },
+        media: "OM4",
+        connector: "LC duplex – LC duplex",
+        color: "aqua",
+        brand: "Panduit",
+        role: "C1–C2 core redundancy",
+      },
+      {
+        id: "FO-C1C2-P48",
+        a: { device: "C1", rack: "Rack1", port: 48, xcvr: "XG-SFP-SR-MM850" },
+        b: { device: "C2", rack: "Rack2", port: 48, xcvr: "XG-SFP-SR-MM850" },
+        media: "OM4",
+        connector: "LC duplex – LC duplex",
+        color: "aqua",
+        brand: "Panduit",
+        role: "C1–C2 core redundancy",
+      },
+      {
+        id: "FO-C1C2-P49",
+        a: { device: "C1", rack: "Rack1", port: 49, xcvr: "XG-SFP-SR-MM850" },
+        b: { device: "C2", rack: "Rack2", port: 49, xcvr: "XG-SFP-SR-MM850" },
+        media: "OM4",
+        connector: "LC duplex – LC duplex",
+        color: "aqua",
+        brand: "Panduit",
+        role: "C1–C2 core redundancy",
+      },
+      {
+        id: "FO-C1C2-P50",
+        a: { device: "C1", rack: "Rack1", port: 50, xcvr: "XG-SFP-SR-MM850" },
+        b: { device: "C2", rack: "Rack2", port: 50, xcvr: "XG-SFP-SR-MM850" },
+        media: "OM4",
+        connector: "LC duplex – LC duplex",
+        color: "aqua",
+        brand: "Panduit",
+        role: "C1–C2 core redundancy",
+      },
+    ];
+
+    function findEquipmentByCode(code) {
+      for (const { group: rack } of racks) {
+        for (const child of rack.children) {
+          if (child.userData && child.userData.code === code) {
+            return { rack, unit: child };
+          }
+        }
+      }
+      return null;
+    }
+
+    function portWorldPos(unit, port) {
+      const local = unit.userData.portAnchors?.[port];
+      if (!local) return null;
+      return unit.localToWorld(local.clone());
+    }
+
+    // Visual patch cords (no popup / not interactive)
+    const roomFiber = new THREE.Group();
+    roomFiber.name = "RoomFiberPatches";
+    scene.add(roomFiber);
+
+    const matOm4Aqua = new THREE.MeshStandardMaterial({
+      color: 0x3dcec7, // Panduit OM4 aqua
+      metalness: 0.05,
+      roughness: 0.55,
+    });
+
+    function makeOm4PatchPath(aWorld, bWorld, lane = 0) {
+      // Dress out into cold aisle, slight service loop, cross to peer, dress in
+      const aisleDir = new THREE.Vector3(0, 0, -1); // row A fronts face −Z
+      const out = 10 + lane * 1.1;
+      const loopDrop = 3.5 + lane * 0.85;
+      const aOut = aWorld.clone().addScaledVector(aisleDir, out);
+      const bOut = bWorld.clone().addScaledVector(aisleDir, out);
+      const mid = new THREE.Vector3().addVectors(aOut, bOut).multiplyScalar(0.5);
+      mid.y -= loopDrop;
+      mid.z -= 2.5 + lane * 0.4;
+      return [
+        aWorld.clone(),
+        aOut.clone().add(new THREE.Vector3(0, -0.4 * lane, 0)),
+        mid,
+        bOut.clone().add(new THREE.Vector3(0, -0.4 * lane, 0)),
+        bWorld.clone(),
+      ];
+    }
+
+    FIBER_LINKS.forEach((link, i) => {
+      const aEq = findEquipmentByCode(link.a.device);
+      const bEq = findEquipmentByCode(link.b.device);
+      if (!aEq || !bEq) return;
+      const aPos = portWorldPos(aEq.unit, link.a.port);
+      const bPos = portWorldPos(bEq.unit, link.b.port);
+      if (!aPos || !bPos) return;
+      const pts = makeOm4PatchPath(aPos, bPos, i);
+      const cord = makeCableTube(pts, 0.22, matOm4Aqua);
+      if (!cord) return;
+      cord.name = link.id;
+      cord.userData.fiberLink = link; // inventory payload for later tables
+      // Explicitly non-interactive — no detail popup
+      cord.userData.interactive = false;
+      roomFiber.add(cord);
+    });
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {

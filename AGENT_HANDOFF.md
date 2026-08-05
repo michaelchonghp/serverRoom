@@ -65,6 +65,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
+- **Fiber (started):** C1↔C2 redundancy — 4× Panduit OM4 LC–LC aqua patch cords on MM ports **47–50** (inventory in `FIBER_LINKS`; cords not interactive). Port LEDs green when `linked: true`.
 
 ## Design / product constraints
 
@@ -86,7 +87,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | PDU2 whips + industrial plugs on all racks (same as PDU1) |
+| (this) | First fiber: C1↔C2 OM4 aqua LC–LC ×4 (ports 47–50); `FIBER_LINKS` inventory remarks |
+| `da14edf` | PDU2 whips + industrial plugs on all racks (same as PDU1) |
 | `b4da94b` | Blue/red x-ray lanes offset inside the same trunk (not coincident) |
 | `0fc89d0` | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |
 | `70e6c61` | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
