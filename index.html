@@ -774,7 +774,7 @@
     <line id="core-line-sm-c2" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
   </svg>
   <aside class="core-sticky" id="core-panel-sm-c2" hidden aria-live="polite">
-    <div class="core-row">Core2/0/2 to Core3/0/2</div>
+    <div class="core-row">Core2/0/3 to Core3/0/2</div>
     <div class="core-row">Core2/0/4 to Core4/0/2</div>
   </aside>
 
@@ -5659,7 +5659,7 @@
     // Optic maps — linked=true → green port LED.
     // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
     // SM yellow cross-core mesh (C1:1–2 reserved upstream — not drawn yet):
-    //   C1:3→C3:1 · C1:4→C4:1 · C2:2→C3:2 · C2:4→C4:2
+    //   C1:3→C3:1 · C1:4→C4:1 · C2:3→C3:2 · C2:4→C4:2
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5673,10 +5673,12 @@
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C2 = [
-      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false },
-      { port: 2, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
-      { port: 3, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false },
-      { port: 4, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C3 = [
@@ -5827,7 +5829,7 @@
       C1C2: null, // world midpoint of C1↔C2 P47
       C3C4: null, // world midpoint of C3↔C4 P47
       SM_C1: null, // just above C1 port 3
-      SM_C2: null, // just above C2 port 2
+      SM_C2: null, // just above C2 port 3
     };
     // World endpoints of linked clusters (for frustum tests)
     const coreCalloutFrustumPts = {
@@ -5893,10 +5895,10 @@
     // SM cross-core mesh (C1:1–2 upstream — not drawn yet)
     addCorePortLink("C1", 3, "C3", 1, matCoreSmXray, "CORE-SM-C1P3-C3P1");
     addCorePortLink("C1", 4, "C4", 1, matCoreSmXray, "CORE-SM-C1P4-C4P1");
-    addCorePortLink("C2", 2, "C3", 2, matCoreSmXray, "CORE-SM-C2P2-C3P2");
+    addCorePortLink("C2", 3, "C3", 2, matCoreSmXray, "CORE-SM-C2P3-C3P2");
     addCorePortLink("C2", 4, "C4", 2, matCoreSmXray, "CORE-SM-C2P4-C4P2");
 
-    // SM callouts: C1 above port 3 · C2 above port 2; frustum covers each pair's SM links
+    // SM callouts: C1 above port 3 · C2 above port 3; frustum covers each pair's SM links
     function registerSmCallout(key, anchorCode, anchorPort, links) {
       const eq = findEquipmentByCode(anchorCode);
       const p = eq && portWorldPos(eq.unit, anchorPort);
@@ -5919,8 +5921,8 @@
       ["C1", 3, "C3", 1],
       ["C1", 4, "C4", 1],
     ]);
-    registerSmCallout("SM_C2", "C2", 2, [
-      ["C2", 2, "C3", 2],
+    registerSmCallout("SM_C2", "C2", 3, [
+      ["C2", 3, "C3", 2],
       ["C2", 4, "C4", 2],
     ]);
 
