@@ -7468,16 +7468,15 @@
     }
 
     function buildDistRoleLabels() {
-      // Outside the left RU strip when facing the front (−X for Row A, +X for Row B)
-      const outside = RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6;
+      // Outside the left RU strip (−X rail), adjacent to the height labels
+      const x = -(RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6);
       for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
         const eq = findEquipmentByCode(code);
         if (!eq?.unit) continue;
-        const { rack, unit } = eq;
+        const { unit } = eq;
         const label = makeDistRoleLabel(DIST_ROLE_LABEL_TEXT[role], DIST_ROLE_COLORS[role]);
-        const side = Math.cos(rack.rotation.y) > 0 ? -1 : 1;
         const faceZ = unit.userData.mountZ ?? -20;
-        label.position.set(side * outside, 0, faceZ - 0.2);
+        label.position.set(x, 0, faceZ - 0.2);
         unit.add(label);
         distRoleLabels.push(label);
       }
