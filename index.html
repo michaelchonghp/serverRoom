@@ -2585,16 +2585,21 @@
     }
 
     /** Hillstone SG-6000-A3800 front — white faceplate, expansion bay, copper + SFP blocks */
-    let hillstoneA3800FrontTex = null;
-    function makeHillstoneA3800FrontTexture() {
-      if (hillstoneA3800FrontTex) return hillstoneA3800FrontTex;
+    const hillstoneA3800TexCache = new Map();
+    function makeHillstoneA3800FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (hillstoneA3800TexCache.has(cacheKey)) return hillstoneA3800TexCache.get(cacheKey);
 
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
       const pw = 2100;
       const ph = 220;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
+      const portCenters = {}; // ge0/N → { u, v } face UV (0–1)
 
       // Silver chassis edge
       ctx.fillStyle = "#b4b8c0";
@@ -2772,6 +2777,33 @@
       }
       ctx.restore();
 
+      function drawSfpOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       function drawPortBlock(x, y, w, h, cols, rows, kind, startIdx) {
         ctx.fillStyle = "rgba(245,247,250,0.92)";
         roundRect(x, y, w, h, 3);
@@ -2786,22 +2818,32 @@
         const pH = (h - pad * 2 - gapY * (rows - 1) - 14) / rows;
         for (let r = 0; r < rows; r++) {
           for (let col = 0; col < cols; col++) {
-            // Column-major-ish GE labeling on face: top row left→right then bottom
+            // Row-major ge0/N: top L→R, then bottom L→R
+            const portNum = startIdx + r * cols + col;
             const px = x + pad + col * (pW + gapX);
             const py = y + pad + r * (pH + gapY);
+            portCenters[portNum] = {
+              u: (px + pW * 0.5) / pw,
+              v: (py + pH * 0.5) / ph,
+            };
             if (kind === "copper") {
               // Bottom row inverted so latches face the center (common 2×N GE block)
               drawRj45Jack(px, py, pW, pH, { invert: r === 1 });
             } else {
-              // SFP cage
-              ctx.fillStyle = "#1a1e24";
-              roundRect(px, py, pW, pH, 2);
-              ctx.fill();
-              ctx.strokeStyle = "#6a7380";
-              ctx.lineWidth = 1.2;
-              ctx.stroke();
-              ctx.fillStyle = "#0a0c10";
-              ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
+              const xcvr = byPort.get(portNum);
+              if (xcvr) {
+                drawSfpOptic(px, py, pW, pH, xcvr);
+              } else {
+                // Empty SFP cage
+                ctx.fillStyle = "#1a1e24";
+                roundRect(px, py, pW, pH, 2);
+                ctx.fill();
+                ctx.strokeStyle = "#6a7380";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+                ctx.fillStyle = "#0a0c10";
+                ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
+              }
             }
           }
         }
@@ -2839,12 +2881,13 @@
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       tex.needsUpdate = true;
-      hillstoneA3800FrontTex = tex;
+      tex.userData.portCenters = portCenters;
+      hillstoneA3800TexCache.set(cacheKey, tex);
       return tex;
     }
 
     /** Hillstone SG-6000-A3800 — 1U NGFW, 436×437×44 mm */
-    function makeHillstoneA3800({ rackName = "Rack1", code = "" } = {}) {
+    function makeHillstoneA3800({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.15;
       const w = 43.6;
@@ -2857,15 +2900,18 @@
       g.add(box(w, h, d, matChassis, 0, 0, 0));
       g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
 
+      const frontTex = makeHillstoneA3800FrontTexture(transceivers);
       const frontMat = new THREE.MeshStandardMaterial({
-        map: makeHillstoneA3800FrontTexture(),
+        map: frontTex,
         metalness: 0.18,
         roughness: 0.55,
         side: THREE.DoubleSide,
         emissive: 0x1a1e24,
         emissiveIntensity: 0.08,
       });
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
       // Same front-plane offsets as switches so ears/face share the rail mount plane
       face.position.set(0, 0, -d / 2 - 0.85);
       face.rotation.y = Math.PI;
@@ -2883,6 +2929,43 @@
       g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
       g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
 
+      // Port anchors from faceplate UV centers (for virtual SM/MM link lines)
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "16× GE RJ45 (2 bypass pairs) · 8× GE SFP · 2× 10GE SFP+ · Console · 2× USB 3.0 · MGT · HA · 1× expansion slot",
+        },
+        {
+          label: "Performance",
+          text: "Firewall 20/30 Gbps · NGFW 12 Gbps · Threat protection 6 Gbps · IPS 16 Gbps · up to 8M concurrent sessions",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · 436 × 437 × 44 mm · 6.8 kg · Dual redundant PSU option · StoneOS",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        blocks.push({
+          label: "Transceivers",
+          text: `Ports ${ports.join(", ")}: XG-SFP-LR-SM1310 (single-mode)`,
+        });
+      }
+
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.interactive = true;
@@ -2895,20 +2978,7 @@
         title: "Hillstone Networks NGFW",
         model: "SG-6000-A3800",
         rating: "1U · 20/30 Gbps FW",
-        blocks: [
-          {
-            label: "Interfaces",
-            text: "16× GE RJ45 (2 bypass pairs) · 8× GE SFP · 2× 10GE SFP+ · Console · 2× USB 3.0 · MGT · HA · 1× expansion slot",
-          },
-          {
-            label: "Performance",
-            text: "Firewall 20/30 Gbps · NGFW 12 Gbps · Threat protection 6 Gbps · IPS 16 Gbps · up to 8M concurrent sessions",
-          },
-          {
-            label: "Physical",
-            text: "1U rackmount · 436 × 437 × 44 mm · 6.8 kg · Dual redundant PSU option · StoneOS",
-          },
-        ],
+        blocks,
       };
       return g;
     }
@@ -5330,7 +5400,7 @@
           unit = makeH3c9850({ rackName: name, code, transceivers: transceivers || [] });
         }
         if (type === "fw-hillstone-a3800") {
-          unit = makeHillstoneA3800({ rackName: name, code });
+          unit = makeHillstoneA3800({ rackName: name, code, transceivers: transceivers || [] });
         }
         if (type === "rt-huawei-ar1600c") {
           unit = makeHuaweiAr1600c({ rackName: name });
@@ -5630,22 +5700,43 @@
 
     // Optic maps — linked=true → green port LED.
     // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
-    // SM optics seated but unlinked for now (pathing goes via firewall — TBD).
+    // SM yellow: C1:3→C3:1 · C1:4→F1:24 · F1:25→C2:2
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
-    const CORE_XCVRS_C1C2 = [
-      ...[1, 2, 3, 4].map((port) => ({
+    const CORE_XCVRS_C1 = [
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const CORE_XCVRS_C2 = [
+      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false },
+      { port: 2, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+      ...[3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
     ];
-    const CORE_XCVRS_C3C4 = [
+    const CORE_XCVRS_C3 = [
+      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+      ...[2, 11, 12, 13, 21, 22, 23].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const CORE_XCVRS_C4 = [
       ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
     ];
+    const FW_XCVRS_F1 = [24, 25].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -5664,9 +5755,9 @@
           { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
           { type: "sw-ruijie-s6510", startU: 25, code: "D1" },
-          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
-          { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
-          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
+          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
+          { type: "fw-hillstone-a3800", startU: 30, code: "F1", transceivers: FW_XCVRS_F1 }, // RU 31 between C3 and C1
+          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1 },
           { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 + CFAPPBL1
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 fixed shelf — Telecom reserve RU 39–42
@@ -5676,9 +5767,9 @@
           { type: "sw-ruijie-s6510", startU: 21, code: "D6" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
           { type: "sw-ruijie-s6510", startU: 25, code: "D2" },
-          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
+          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
-          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
+          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C2 },
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — fiber (same as Rack1)
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
         ],
@@ -5720,9 +5811,9 @@
     );
 
     // -------------------------------------------------------------------------
-    // Core links — virtual aqua LC–LC indicators (straight; no physical routing)
-    // C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // Controls → Core. (SM via firewall — not drawn yet.)
+    // Core links — virtual LC–LC indicators (straight; no physical routing)
+    // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
+    // SM yellow: C1:3→C3:1 · C1:4→F1:24 · F1:25→C2:2. Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5750,6 +5841,13 @@
 
     const matCoreMmXray = new THREE.MeshBasicMaterial({
       color: 0x3dcec7, // aqua = multimode
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matCoreSmXray = new THREE.MeshBasicMaterial({
+      color: 0xf0d000, // yellow = single-mode (matches SFP pull-tab)
       transparent: true,
       opacity: 0.9,
       depthTest: false,
@@ -5806,8 +5904,32 @@
       }
     }
 
+    /** One straight virtual LC–LC between two named equipment ports. */
+    function addCorePortLink(codeA, portA, codeB, portB, material, name) {
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return null;
+      const a = portWorldPos(aEq.unit, portA);
+      const b = portWorldPos(bEq.unit, portB);
+      if (!a || !b) return null;
+      const link = makeCableTube([a, b], CORE_LINK_R, material, {
+        tension: 0,
+        tubular: 6,
+      });
+      if (!link) return null;
+      link.name = name || `CORE-${codeA}P${portA}-${codeB}P${portB}`;
+      link.userData.interactive = false;
+      link.renderOrder = 4;
+      roomCoreLinks.add(link);
+      return link;
+    }
+
     addCorePeerLinks("C1", "C2");
     addCorePeerLinks("C3", "C4");
+    // SM via F1 (and direct C1↔C3)
+    addCorePortLink("C1", 3, "C3", 1, matCoreSmXray, "CORE-SM-C1P3-C3P1");
+    addCorePortLink("C1", 4, "F1", 24, matCoreSmXray, "CORE-SM-C1P4-F1P24");
+    addCorePortLink("F1", 25, "C2", 2, matCoreSmXray, "CORE-SM-F1P25-C2P2");
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
