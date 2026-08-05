@@ -45,8 +45,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Logic: PDU1 = UPS-protected · PDU2 = raw building feed.
 - Path mirrors blue tree: **MCB → trunk conduit → up trunk → feeder → U corner → arm A (1–3) + arm B (cross → 4–6) → spur to each PDU2**.
 - Same U-corner split / no-backtrack / per-PDU spur pulse model as blue.
+- Physical PDU2 whips/plugs: same as PDU1 — black cable ~3% slack through top opening → industrial plug into PDU2 ceiling socket
 - Legend: red **Building feed** (`MCB → trunk → splits → PDU2`)
-- Physical PDU2 whips/plugs: **not** modeled yet (sockets exist; red is x-ray only for now)
 
 ### Blue / red x-ray + pulses (shared tree rules)
 
@@ -63,7 +63,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 ### Physical wiring already in scene
 
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
-- PDU1 whips on all racks: black cable, **~3%** in-rack slack, through top opening → blue plug into ceiling socket
+- PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
 
 ## Design / product constraints
@@ -79,14 +79,15 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
    - `main` ≈610-line dark generic single 42U rack (PR #3)  
    - this branch ≈7k-line UltraRack facility  
    - **Conflicting intents** — needs explicit choose-ours / keep-main / dual-path decision. Merge was **aborted**; not resolved.
-2. **PDU2 physical whips/plugs** not drawn yet (red path is Show Power x-ray only).
+2. **(resolved)** PDU2 physical whips/plugs — same pattern as PDU1.
 3. Dist→ceiling / MCB→ceiling feeds are conceptual via colored x-rays (physical Dist/MCB→ceiling cables not fully modeled beyond wall conduits into trunk).
 
 ## Major checkpoints (newest first)
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Blue/red x-ray lanes offset inside the same trunk (not coincident) |
+| (this) | PDU2 whips + industrial plugs on all racks (same as PDU1) |
+| `b4da94b` | Blue/red x-ray lanes offset inside the same trunk (not coincident) |
 | `0fc89d0` | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |
 | `70e6c61` | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
 | `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |

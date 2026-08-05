@@ -4763,7 +4763,7 @@
             label: "Feed",
             text: code === "PDU1"
               ? "Powered from the UPS via the Distribution Panel → ceiling industrial socket → whip"
-              : "Powered from the MCB (building power, not UPS) via ceiling trunk → industrial socket",
+              : "Powered from the MCB (building power, not UPS) via ceiling trunk → industrial socket → whip",
           },
         ],
       };
@@ -6156,7 +6156,7 @@
     });
     roomPower.add(ceilingPowerTrunk);
 
-    // --- PDU1 whips: each rack PDU1 → top cable opening → blue plug into ceiling socket ---
+    // --- PDU whips: each rack PDU1/PDU2 → top cable opening → plug into ceiling socket ---
     const matWhip = new THREE.MeshStandardMaterial({
       color: 0x12151a, metalness: 0.05, roughness: 0.72,
     });
@@ -6165,9 +6165,6 @@
     const pduLocalZ = OUTER_D / 2 - 12 + 1.5; // railZRear + 1.5
     racks.forEach(({ group: rack }) => {
       const rackName = rack.name;
-      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
-      if (!sockInfo) return;
-
       const rotY = rack.rotation.y;
       const cos = Math.cos(rotY);
       const sin = Math.sin(rotY);
@@ -6181,40 +6178,49 @@
       const openY = open?.y ?? BASE_H + INNER_H + TOP_H;
       const openLocalZ = open?.z ?? OUTER_D / 2 - 8;
 
-      const plugScale = sockInfo.scale; // Rack1 32A larger; others 16A
-      const sockFaceY = sockInfo.y - 5.95 * plugScale;
-      const plug = makeIndustrialPlug({ scale: plugScale });
-      plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
-      plug.name = `${rackName}-PDU1-Plug`;
-      roomPower.add(plug);
+      [
+        { pdu: "PDU1", localX: PDU_LOCAL_X },
+        { pdu: "PDU2", localX: -PDU_LOCAL_X },
+      ].forEach(({ pdu, localX }) => {
+        const sockInfo = industrialSocketByKey.get(`${rackName}|${pdu}`);
+        if (!sockInfo) return;
 
-      const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
-      // In-rack run: ~3% slack (gentle bow toward bay)
-      const whipStartY = pduTopY + 0.4;
-      const whipExitY = openY - 2.5;
-      const inSpan = Math.max(8, whipExitY - whipStartY);
-      const slack = inSpan * 0.03;
-      const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55;
-      // PDU1 at +local X; bow toward bay = −local X, slight +local Z toward rear opening
-      const whipPts = [
-        toWorld(PDU_LOCAL_X, whipStartY, pduLocalZ),
-        toWorld(PDU_LOCAL_X - bow * 0.55, whipStartY + inSpan * 0.3, pduLocalZ + bow * 0.25),
-        toWorld(PDU_LOCAL_X - bow, whipStartY + inSpan * 0.58, pduLocalZ + bow * 0.4),
-        toWorld(PDU_LOCAL_X - bow * 0.3, whipExitY, pduLocalZ + bow * 0.15),
-        toWorld(PDU_LOCAL_X, openY + 1.2, openLocalZ),
-        new THREE.Vector3(
-          rack.position.x + PDU_LOCAL_X * cos,
-          openY + 14,
-          (toWorld(PDU_LOCAL_X, 0, openLocalZ).z + sockInfo.z) * 0.5
-        ),
-        new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
-        new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
-      ];
-      const whip = makeCableTube(whipPts, 0.85, matWhip);
-      if (whip) {
-        whip.name = `${rackName}-PDU1-Whip`;
-        roomPower.add(whip);
-      }
+        const plugScale = sockInfo.scale; // Rack1 32A larger; others 16A
+        const sockFaceY = sockInfo.y - 5.95 * plugScale;
+        const plug = makeIndustrialPlug({ scale: plugScale });
+        plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
+        plug.name = `${rackName}-${pdu}-Plug`;
+        roomPower.add(plug);
+
+        const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
+        // In-rack run: ~3% slack (gentle bow toward bay)
+        const whipStartY = pduTopY + 0.4;
+        const whipExitY = openY - 2.5;
+        const inSpan = Math.max(8, whipExitY - whipStartY);
+        const slack = inSpan * 0.03;
+        const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55;
+        // Bow toward bay center: PDU1 (+X) bows −local X; PDU2 (−X) bows +local X
+        const bay = localX > 0 ? -1 : 1;
+        const whipPts = [
+          toWorld(localX, whipStartY, pduLocalZ),
+          toWorld(localX + bay * bow * 0.55, whipStartY + inSpan * 0.3, pduLocalZ + bow * 0.25),
+          toWorld(localX + bay * bow, whipStartY + inSpan * 0.58, pduLocalZ + bow * 0.4),
+          toWorld(localX + bay * bow * 0.3, whipExitY, pduLocalZ + bow * 0.15),
+          toWorld(localX, openY + 1.2, openLocalZ),
+          new THREE.Vector3(
+            rack.position.x + localX * cos,
+            openY + 14,
+            (toWorld(localX, 0, openLocalZ).z + sockInfo.z) * 0.5
+          ),
+          new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
+          new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
+        ];
+        const whip = makeCableTube(whipPts, 0.85, matWhip);
+        if (whip) {
+          whip.name = `${rackName}-${pdu}-Whip`;
+          roomPower.add(whip);
+        }
+      });
     });
 
     // Blue x-ray: Dist → wall trunk → up → feeder → U-corner, then tree (no backtrack):
