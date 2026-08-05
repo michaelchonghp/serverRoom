@@ -65,8 +65,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
-- **Fiber (started):** C1↔C2 redundancy — 4× Panduit OM4 LC–LC aqua; route each end **port → nearest side → rear → top opening → side waterfall → Wyr-Grid**, across basket, reverse into peer. Inventory in `FIBER_LINKS`; cords not interactive. Port LEDs green when `linked: true`. Face run = **vertical ribbon of 4** (unique Y per lane); side/rise morphs to tight **2×2**. Pitch `> 2×cordR`. **No velcro mesh**.
-- **Wyr-Grid waterfalls:** Panduit **WGSWF4BL**-style side waterfall (black, 3″ bend) on the **rear-side** rail of the basket above **each rack** (6 total). Fibers drape through the waterfall into the pathway.
+- **Fiber patch cords:** removed (rethink pending). Core MM optics on C1/C2 ports 47–50 remain seated (`linked: false`).
+- **Wyr-Grid waterfalls:** Panduit **WGSWF4BL**-style side waterfall (black, 3″ bend) on the **rear-side** rail of the basket above **each rack** (6 total).
 
 ## Design / product constraints
 
@@ -88,9 +88,9 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Wyr-Grid side waterfalls (×6, rear rail); C1–C2 fiber dresses through them |
-| prior | Fiber bundle: remove velcro meshes; face-run ribbon of 4 (fix overlap) |
-| prior | First fiber: C1↔C2 OM4 aqua LC–LC ×4 (ports 47–50); `FIBER_LINKS` inventory remarks |
+| (this) | Removed all OM4 patch-cord geometry / `FIBER_LINKS` / port-anchor routing |
+| prior | Wyr-Grid side waterfalls (×6, rear rail) |
+| prior | (reverted) C1↔C2 OM4 aqua patch-cord experiment |
 | `da14edf` | PDU2 whips + industrial plugs on all racks (same as PDU1) |
 | `b4da94b` | Blue/red x-ray lanes offset inside the same trunk (not coincident) |
 | `0fc89d0` | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |

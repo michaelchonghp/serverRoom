@@ -2444,56 +2444,6 @@
       g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
 
-      // Front-face port anchors (switch-local cm) — matches canvas port map for patch cords
-      {
-        const faceW = w - 0.12;
-        const faceH = h - 0.15;
-        const faceZ = face.position.z - 0.35; // slightly into aisle from the face plane
-        const pw = 1400;
-        const ph = 560;
-        const inset = 18;
-        const gap = 10;
-        const gridX = inset + 8;
-        const gridY = inset + 8;
-        const gridW = pw - inset * 2 - 16;
-        const gridH = ph - inset * 2 - 16;
-        const modW = (gridW - gap) / 2;
-        const modH = (gridH - gap) / 2;
-        const modules = [
-          { mx: gridX, my: gridY, portOffset: 0 },
-          { mx: gridX + modW + gap, my: gridY, portOffset: 18 },
-          { mx: gridX, my: gridY + modH + gap, portOffset: 36 },
-          { mx: gridX + modW + gap, my: gridY + modH + gap, portOffset: 54 },
-        ];
-        const portAnchors = {};
-        modules.forEach(({ mx, my, portOffset }) => {
-          const portAreaX = mx + modW * 0.06;
-          const portAreaY = my + modH * 0.26;
-          const portAreaW = modW * 0.88;
-          const portAreaH = modH * 0.66;
-          const rows = 2;
-          const cols = 9;
-          const pGapX = 4;
-          const pGapY = 6;
-          const pW = (portAreaW - pGapX * (cols + 1)) / cols;
-          const pH = (portAreaH - pGapY * (rows + 1)) / rows;
-          for (let r = 0; r < rows; r++) {
-            for (let col = 0; col < cols; col++) {
-              const portNum = portOffset + col * rows + r + 1;
-              const px = portAreaX + pGapX + col * (pW + pGapX) + pW * 0.5;
-              const py = portAreaY + pGapY + r * (pH + pGapY) + pH * 0.5;
-              const u = px / pw;
-              const v = py / ph;
-              // Canvas left → aisle-view left (+X) because front face is rotY=π
-              const localX = (0.5 - u) * faceW;
-              const localY = (0.5 - v) * faceH;
-              portAnchors[portNum] = new THREE.Vector3(localX, localY, faceZ);
-            }
-          }
-        });
-        g.userData.portAnchors = portAnchors;
-      }
-
       g.userData.info = {
         eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
         title: "H3C S9850 Data Center Switch",
@@ -5548,14 +5498,13 @@
       });
     }
 
-    // Optic maps — linked=true when a patch cord is drawn to that port
-    // C1↔C2 MM ports 47–50 are redundancy links (OM4 LC–LC aqua) — see FIBER_LINKS
+    // Optic maps — linked=true turns the port link LED green (no patch cords drawn yet)
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5638,74 +5587,6 @@
         ],
       }
     );
-
-    // -------------------------------------------------------------------------
-    // Fiber link inventory (remarks for later summary tables — not interactive)
-    // Media: Panduit OM4 multimode, LC duplex ↔ LC duplex, aqua jacket
-    // C1 ↔ C2 redundancy: each core has XG-SFP-SR-MM850 in ports 47–50;
-    // those four ports peer 1:1 (same port number on each switch).
-    // -------------------------------------------------------------------------
-    const FIBER_LINKS = [
-      {
-        id: "FO-C1C2-P47",
-        a: { device: "C1", rack: "Rack1", port: 47, xcvr: "XG-SFP-SR-MM850" },
-        b: { device: "C2", rack: "Rack2", port: 47, xcvr: "XG-SFP-SR-MM850" },
-        media: "OM4",
-        connector: "LC duplex – LC duplex",
-        color: "aqua",
-        brand: "Panduit",
-        role: "C1–C2 core redundancy",
-      },
-      {
-        id: "FO-C1C2-P48",
-        a: { device: "C1", rack: "Rack1", port: 48, xcvr: "XG-SFP-SR-MM850" },
-        b: { device: "C2", rack: "Rack2", port: 48, xcvr: "XG-SFP-SR-MM850" },
-        media: "OM4",
-        connector: "LC duplex – LC duplex",
-        color: "aqua",
-        brand: "Panduit",
-        role: "C1–C2 core redundancy",
-      },
-      {
-        id: "FO-C1C2-P49",
-        a: { device: "C1", rack: "Rack1", port: 49, xcvr: "XG-SFP-SR-MM850" },
-        b: { device: "C2", rack: "Rack2", port: 49, xcvr: "XG-SFP-SR-MM850" },
-        media: "OM4",
-        connector: "LC duplex – LC duplex",
-        color: "aqua",
-        brand: "Panduit",
-        role: "C1–C2 core redundancy",
-      },
-      {
-        id: "FO-C1C2-P50",
-        a: { device: "C1", rack: "Rack1", port: 50, xcvr: "XG-SFP-SR-MM850" },
-        b: { device: "C2", rack: "Rack2", port: 50, xcvr: "XG-SFP-SR-MM850" },
-        media: "OM4",
-        connector: "LC duplex – LC duplex",
-        color: "aqua",
-        brand: "Panduit",
-        role: "C1–C2 core redundancy",
-      },
-    ];
-
-    function findEquipmentByCode(code) {
-      for (const { group: rack } of racks) {
-        for (const child of rack.children) {
-          if (child.userData && child.userData.code === code) {
-            return { rack, unit: child };
-          }
-        }
-      }
-      return null;
-    }
-
-    function portWorldPos(unit, port) {
-      const local = unit.userData.portAnchors?.[port];
-      if (!local) return null;
-      return unit.localToWorld(local.clone());
-    }
-
-    // Patch cords are drawn after Wyr-Grid exists (see RoomFiberPatches below)
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -6244,16 +6125,7 @@
 
       // Cable-bearing quarter-pipe: planks along θ=0 (lip) → θ=90° (hang)
       // Local: origin at pathway floor outer lip; +Z outboard; +Y up
-      const curvePts = [];
       const segs = 10;
-      for (let i = 0; i <= segs; i++) {
-        const th = (i / segs) * (Math.PI / 2);
-        curvePts.push(new THREE.Vector3(
-          0,
-          -bendR * (1 - Math.cos(th)),
-          bendR * Math.sin(th)
-        ));
-      }
       for (let i = 0; i < segs; i++) {
         const th0 = (i / segs) * (Math.PI / 2);
         const th1 = ((i + 1) / segs) * (Math.PI / 2);
@@ -6293,15 +6165,10 @@
         }
       });
 
-      // Path samples on the cable surface (local) — used by fiber dress
-      g.userData.curveLocals = curvePts;
-      g.userData.bendR = bendR;
       return g;
     }
 
-    /** World-space waterfall registry: rackName → { group, basketEntry } */
-    const waterfallByRack = new Map();
-
+    // One side waterfall per rack on the rear (hot-aisle) rail of the basket
     racks.forEach(({ group: rack }) => {
       const isRowA = rack.position.z > 0;
       const rearSign = isRowA ? 1 : -1; // world +Z = Row A rear; −Z = Row B rear
@@ -6309,184 +6176,10 @@
       const sideZ = basketZ + rearSign * (WG_W / 2);
 
       const wf = makeWyrGridSideWaterfall();
-      // Lip sits on pathway floor at the rear-side rail (hot-aisle side of basket)
       wf.position.set(rack.position.x, WG_Y, sideZ);
       wf.rotation.y = isRowA ? 0 : Math.PI; // local +Z = outboard drop toward rack rear
       wf.name = `Waterfall-${rack.name}`;
       roomPower.add(wf);
-
-      // Basket entry: just inside the sidewall on the pathway floor
-      const basketEntry = new THREE.Vector3(
-        rack.position.x,
-        WG_Y + 0.6,
-        basketZ + rearSign * (WG_W / 2 - 4)
-      );
-      waterfallByRack.set(rack.name, { group: wf, basketEntry, rearSign, basketZ });
-      rack.userData.waterfall = wf;
-    });
-
-    // --- Fiber patch cords (after Wyr-Grid + waterfalls so routes climb through them) ---
-    // Route per end: port → nearest side → rear → top opening → up → waterfall curve
-    // → into Wyr-Grid basket → across → reverse into peer.
-    // Four cords stay in a tight 2×2 parallel bundle (looks strapped — no velcro mesh).
-    const roomFiber = new THREE.Group();
-    roomFiber.name = "RoomFiberPatches";
-    scene.add(roomFiber);
-
-    const matOm4Aqua = new THREE.MeshStandardMaterial({
-      color: 0x3dcec7, // Panduit OM4 aqua
-      metalness: 0.05,
-      roughness: 0.55,
-    });
-
-    const FIBER_CORD_R = 0.14; // ~2.8mm jacket — thin enough that lanes stay readable
-    // Center-to-center must exceed 2×radius or tubes fuse into one mass
-    const FIBER_BUNDLE_PITCH = 0.42;
-
-    /** 2×2 bundle slot for lane 0..3 → { col, row } */
-    function fiberBundleSlot(lane) {
-      return { col: (lane / 2) | 0, row: lane % 2 };
-    }
-
-    /**
-     * Dress a front port up into the Wyr-Grid via the rack's side waterfall.
-     * In-rack segment is rack-local; waterfall / basket segment is world-space
-     * (basket lives on `roomPower`, not under the raised-floor bay).
-     */
-    function dressPortToWyrGrid(rack, portWorld, lane = 0) {
-      const open = rack.userData.cableOpen;
-      if (!open) return { pts: [] };
-      const p = rack.worldToLocal(portWorld.clone());
-      const side = p.x >= 0 ? 1 : -1; // nearest side of the rack
-      const { col, row } = fiberBundleSlot(lane);
-      const pitch = FIBER_BUNDLE_PITCH;
-      // Face ribbon: every lane gets its own height (lane 0..3 → four lines)
-      const ribbonY = (lane - 1.5) * pitch;
-      // 2×2 after the side corner
-      const dy = (row - 0.5) * pitch;
-      const dLayer = (col - 0.5) * pitch;
-      // Shared side-rail X — whole bundle hugs one line (as if one velcro wrap)
-      const sideX = side * (OUTER_W / 2 - 2.8);
-      const openY = open.y;
-      const openZ = open.z;
-      // Tiny Z ripple on the face so the ribbon reads slightly round, not flat
-      const faceZ = p.z + ((lane % 2) - 0.5) * pitch * 0.35;
-      const faceY = p.y + ribbonY;
-      // Side rear-run travels ±Z → pack in Y + X (layers inward from rail)
-      const sideRunX = sideX - side * dLayer;
-      const bundleY = p.y + dy;
-      // Rise / opening travels +Y → pack in X–Z
-      const openLaneX = side * (5.0 + dLayer);
-      const openLaneZ = openZ - dy;
-      const localPts = [
-        p.clone(),
-        // Fan from native port spacing into the face ribbon
-        new THREE.Vector3(
-          THREE.MathUtils.lerp(p.x, sideX, 0.22),
-          THREE.MathUtils.lerp(p.y, faceY, 0.65),
-          p.z + ((lane % 2) - 0.5) * pitch * 0.2
-        ),
-        // Horizontal face run — four distinct Y lanes, shared X progression
-        new THREE.Vector3(
-          THREE.MathUtils.lerp(p.x, sideX, 0.68),
-          faceY,
-          faceZ
-        ),
-        new THREE.Vector3(sideX, faceY, faceZ),
-        // Corner: ribbon → tight 2×2 for the rear channel
-        new THREE.Vector3(
-          sideRunX,
-          THREE.MathUtils.lerp(faceY, bundleY, 0.7),
-          THREE.MathUtils.lerp(faceZ, openZ, 0.3)
-        ),
-        new THREE.Vector3(sideRunX, bundleY, openZ),
-        new THREE.Vector3(sideRunX, openY - 8, openLaneZ),
-        new THREE.Vector3(openLaneX, openY - 1.2, openLaneZ),
-        new THREE.Vector3(openLaneX, openY + 2.8, openLaneZ), // through top cable opening
-      ];
-      const pts = localPts.map((pt) => rack.localToWorld(pt.clone()));
-
-      // Climb to the waterfall and drape into the basket (world space)
-      const wfInfo = waterfallByRack.get(rack.name);
-      if (wfInfo) {
-        const wf = wfInfo.group;
-        wf.updateMatrixWorld(true);
-        const dAlong = (lane - 1.5) * pitch; // spread across waterfall width
-        // Approach from below the outboard curve (under the hang)
-        const approachLocal = new THREE.Vector3(
-          dAlong,
-          -WG_WF_BEND_R - 6,
-          WG_WF_BEND_R + 2
-        );
-        pts.push(wf.localToWorld(approachLocal));
-        // Follow the waterfall curve from hang-up into the lip (reverse of drop)
-        const curve = wf.userData.curveLocals || [];
-        for (let i = curve.length - 1; i >= 0; i--) {
-          const lp = curve[i].clone();
-          lp.x = dAlong;
-          lp.y += 0.45; // ride on top of the deck
-          pts.push(wf.localToWorld(lp));
-        }
-        // Settle onto the basket floor inside the sidewall
-        const entry = wfInfo.basketEntry.clone();
-        entry.x += dAlong;
-        entry.y += dy * 0.15;
-        pts.push(entry);
-        // Nudge toward basket centerline for the cross-run handoff
-        pts.push(new THREE.Vector3(
-          entry.x,
-          WG_Y + 1.0 + dy * 0.2,
-          wfInfo.basketZ + wfInfo.rearSign * pitch * 0.3
-        ));
-      }
-      return { pts, rack };
-    }
-
-    function makeOm4PatchPathViaWyrGrid(aRack, aPortWorld, bRack, bPortWorld, lane = 0) {
-      const aDress = dressPortToWyrGrid(aRack, aPortWorld, lane);
-      const bDress = dressPortToWyrGrid(bRack, bPortWorld, lane);
-      const aUp = aDress.pts;
-      const bUp = bDress.pts;
-      if (aUp.length < 2 || bUp.length < 2) return null;
-      const aGrid = aUp[aUp.length - 1];
-      const bGrid = bUp[bUp.length - 1];
-      const { row, col } = fiberBundleSlot(lane);
-      const aGridLane = aGrid.clone();
-      aGridLane.x += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.5;
-      aGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      aGridLane.y += 0.35;
-      const bGridLane = bGrid.clone();
-      bGridLane.x += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.5;
-      bGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      bGridLane.y += 0.35;
-      const mid = new THREE.Vector3().addVectors(aGridLane, bGridLane).multiplyScalar(0.5);
-      mid.y += 0.55;
-      const bDown = bUp.slice().reverse();
-      return {
-        pts: [...aUp.slice(0, -1), aGridLane, mid, bGridLane, ...bDown.slice(1)],
-        aDress,
-        bDress,
-      };
-    }
-
-    FIBER_LINKS.forEach((link, i) => {
-      const aEq = findEquipmentByCode(link.a.device);
-      const bEq = findEquipmentByCode(link.b.device);
-      if (!aEq || !bEq) return;
-      const aPos = portWorldPos(aEq.unit, link.a.port);
-      const bPos = portWorldPos(bEq.unit, link.b.port);
-      if (!aPos || !bPos) return;
-      const routed = makeOm4PatchPathViaWyrGrid(aEq.rack, aPos, bEq.rack, bPos, i);
-      if (!routed) return;
-      const cord = makeCableTube(routed.pts, FIBER_CORD_R, matOm4Aqua, {
-        tension: 0.12,
-        tubular: Math.max(64, routed.pts.length * 14),
-      });
-      if (!cord) return;
-      cord.name = link.id;
-      cord.userData.fiberLink = link;
-      cord.userData.interactive = false; // no detail popup
-      roomFiber.add(cord);
     });
 
     // --- Ceiling power trunk (U around both hot-aisle rears) ---
