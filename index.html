@@ -5664,8 +5664,9 @@
     function portWorldPos(unit, port) {
       const local = unit.userData.portAnchors?.[port];
       if (!local) return null;
-      // Sit on the faceplate optic (anchor is already just proud of the face texture)
-      return unit.localToWorld(local.clone());
+      // Anchor is slightly proud of the face; nudge onto/into the faceplate texture
+      // so a side view shows the line touching the SFP, not floating in the aisle.
+      return unit.localToWorld(local.clone().add(new THREE.Vector3(0, 0, 0.45)));
     }
 
     const roomCoreLinks = new THREE.Group();
