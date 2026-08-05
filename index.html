@@ -440,13 +440,50 @@
 
     .info-panel[hidden] { display: none; }
 
-    /* Sticky Core overlay — same green callout, no dismiss control */
-    .info-panel.core-sticky {
+    /* Sticky Core overlay — compact green label (not full equipment panel) */
+    .core-sticky {
+      position: fixed;
+      z-index: 5;
+      padding: 0.45rem 0.7rem 0.5rem;
+      border: 1px solid var(--scan);
+      background: var(--scan-bg);
+      box-shadow:
+        0 0 0 1px var(--scan-dim) inset,
+        0 0 16px var(--scan-dim),
+        0 8px 24px rgba(0, 0, 0, 0.3);
+      color: var(--scan);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
       pointer-events: none;
-      width: min(16.5rem, calc(100vw - 1.5rem));
+      opacity: 0;
+      transform: scale(0.92);
+      transform-origin: center bottom;
+      transition:
+        opacity 0.18s ease 0.2s,
+        transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.2s;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      white-space: nowrap;
+      line-height: 1.35;
     }
 
-    .info-panel.core-sticky .info-close { display: none; }
+    .core-sticky.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .core-sticky[hidden] { display: none; }
+
+    .core-sticky .core-title {
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .core-sticky .core-ports {
+      font-size: 0.62rem;
+      opacity: 0.85;
+      margin-top: 0.12rem;
+    }
 
     .info-panel .info-close {
       position: absolute;
@@ -688,21 +725,9 @@
     <line id="core-line" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
   </svg>
 
-  <aside class="info-panel core-sticky" id="core-panel" hidden aria-live="polite">
-    <div class="eyebrow">Core redundancy</div>
-    <h2>C1 ↔ C2</h2>
-    <div class="model">LC–LC · Port 47</div>
-    <div class="rating">Aqua indicator</div>
-    <dl>
-      <div class="block">
-        <dt>Link</dt>
-        <dd>Virtual LC duplex patch · C1 port 47 ↔ C2 port 47</dd>
-      </div>
-      <div class="block">
-        <dt>Peers</dt>
-        <dd>Same pattern on ports 48–50 · also C3 ↔ C4</dd>
-      </div>
-    </dl>
+  <aside class="core-sticky" id="core-panel" hidden aria-live="polite">
+    <div class="core-title">Core1 - Core2</div>
+    <div class="core-ports">Ports 47, 48, 49, 50</div>
   </aside>
 
   <script type="importmap">
