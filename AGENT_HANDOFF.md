@@ -65,7 +65,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
-- **Core links (virtual):** C1↔C2 **ports 47–50** — straight aqua LC–LC x-rays; 47/48 raised · 49/50 lowered by one line thickness. Controls → **Core** show/hide. LEDs green on 47–50.
+- **Core links (virtual):** C1↔C2 and C3↔C4 **ports 47–50** — straight aqua LC–LC x-rays; 47/48 raised · 49/50 lowered by one line thickness. Controls → **Core** show/hide. LEDs green on those ports.
 - **Wyr-Grid waterfalls:** Panduit **WGSWF4BL**-style side waterfall (black, 3″ bend) on the **rear-side** rail of the basket above **each rack** (6 total).
 
 ## Design / product constraints
@@ -88,7 +88,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Virtual C1↔C2 ports 47–50 aqua lines (47/48 up · 49/50 down by thickness) |
+| (this) | Virtual C3↔C4 ports 47–50 aqua links (same pattern as C1↔C2) |
+| prior | Virtual C1↔C2 ports 47–50 aqua lines (47/48 up · 49/50 down by thickness) |
 | prior | Virtual C1↔C2 ports 47+49 aqua lines, vertically spaced by line thickness |
 | prior | Virtual C1↔C2 port-47 aqua line + Controls → Core toggle |
 | prior | Scrapped prior multi-port aqua core-link experiment |

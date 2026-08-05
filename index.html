@@ -5553,16 +5553,14 @@
       });
     }
 
-    // Optic maps — linked=true → green port LED. C1↔C2 port 47 linked (virtual aqua LC–LC).
+    // Optic maps — linked=true → green port LED.
+    // C1↔C2 and C3↔C4 MM ports 47–50 = virtual aqua LC–LC redundancy.
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port,
-        model: "XG-SFP-SR-MM850",
-        kind: "multimode",
-        linked: port === 47 || port === 48 || port === 49 || port === 50,
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5570,7 +5568,7 @@
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
       })),
     ];
 
@@ -5648,9 +5646,8 @@
 
     // -------------------------------------------------------------------------
     // Core links — virtual aqua LC–LC indicators (straight; no physical routing)
-    // C1↔C2 ports 47–50. Same-row pairs share height, so offset ±thickness
-    // in world Y (47/48 up · 49/50 down) so adjacent tubes are spaced by one
-    // line thickness. Toggled via Controls → Core.
+    // C1↔C2 and C3↔C4 ports 47–50. Same-row pairs share height, so offset
+    // ±thickness in world Y (47/48 up · 49/50 down). Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5686,36 +5683,37 @@
 
     const CORE_LINK_R = 0.14;
     const CORE_LINK_THICK = CORE_LINK_R * 2; // diameter = “thickness of the line”
+    const CORE_LINK_PORTS = [
+      { port: 47, yOff: +CORE_LINK_THICK },
+      { port: 48, yOff: +CORE_LINK_THICK },
+      { port: 49, yOff: -CORE_LINK_THICK },
+      { port: 50, yOff: -CORE_LINK_THICK },
+    ];
 
-    {
-      const c1 = findEquipmentByCode("C1");
-      const c2 = findEquipmentByCode("C2");
-      // Column pair: 47/48 up · 49/50 down — each by one thickness
-      const corePairs = [
-        { port: 47, yOff: +CORE_LINK_THICK },
-        { port: 48, yOff: +CORE_LINK_THICK },
-        { port: 49, yOff: -CORE_LINK_THICK },
-        { port: 50, yOff: -CORE_LINK_THICK },
-      ];
-      if (c1 && c2) {
-        for (const { port, yOff } of corePairs) {
-          const a = portWorldPos(c1.unit, port);
-          const b = portWorldPos(c2.unit, port);
-          if (!a || !b) continue;
-          a.y += yOff;
-          b.y += yOff;
-          const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
-            tension: 0,
-            tubular: 6,
-          });
-          if (!link) continue;
-          link.name = `CORE-C1C2-P${port}`;
-          link.userData.interactive = false;
-          link.renderOrder = 4;
-          roomCoreLinks.add(link);
-        }
+    function addCorePeerLinks(codeA, codeB) {
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return;
+      for (const { port, yOff } of CORE_LINK_PORTS) {
+        const a = portWorldPos(aEq.unit, port);
+        const b = portWorldPos(bEq.unit, port);
+        if (!a || !b) continue;
+        a.y += yOff;
+        b.y += yOff;
+        const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
+          tension: 0,
+          tubular: 6,
+        });
+        if (!link) continue;
+        link.name = `CORE-${codeA}${codeB}-P${port}`;
+        link.userData.interactive = false;
+        link.renderOrder = 4;
+        roomCoreLinks.add(link);
       }
     }
+
+    addCorePeerLinks("C1", "C2");
+    addCorePeerLinks("C3", "C4");
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
