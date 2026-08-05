@@ -5675,22 +5675,44 @@
     const matCoreXray = new THREE.MeshBasicMaterial({
       color: 0x3dcec7, // Panduit OM4 aqua
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.92,
       depthTest: false,
       depthWrite: false,
     });
+
+    /**
+     * Virtual indicator endpoint: step into the aisle, then scale XY offsets
+     * from the 4-port centroid so the 2×2 stays four distinct parallels
+     * (native SFP pitch is tight enough that fat tubes read as two ribbons).
+     */
+    function portWorldPosCoreLink(unit, port, aisleCm = 3.5, spread = 1.65) {
+      const anchors = unit.userData.portAnchors;
+      const local = anchors?.[port];
+      if (!local) return null;
+      const bundle = CORE_OM4_PORTS.map((p) => anchors[p]).filter(Boolean);
+      if (!bundle.length) return null;
+      const center = bundle.reduce(
+        (acc, p) => acc.add(p),
+        new THREE.Vector3()
+      ).multiplyScalar(1 / bundle.length);
+      const p = center.clone().add(local.clone().sub(center).multiplyScalar(spread));
+      p.z -= aisleCm; // clear of faceplate, into aisle
+      return unit.localToWorld(p);
+    }
 
     {
       const c1 = findEquipmentByCode("C1");
       const c2 = findEquipmentByCode("C2");
       if (c1 && c2) {
+        const CORE_LINK_R = 0.1; // thin — must be << half column/row pitch
         CORE_OM4_PORTS.forEach((port) => {
-          const a = portWorldPos(c1.unit, port);
-          const b = portWorldPos(c2.unit, port);
+          const a = portWorldPosCoreLink(c1.unit, port);
+          const b = portWorldPosCoreLink(c2.unit, port);
           if (!a || !b) return;
-          const link = makeCableTube([a, b], 0.35, matCoreXray, {
+          // Straight parallels preserving the face 2×2 (as in the sketch)
+          const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
             tension: 0,
-            tubular: 8,
+            tubular: 6,
           });
           if (!link) return;
           link.name = `CORE-C1C2-P${port}`;
