@@ -9,7 +9,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 | App | Single file: `index.html` (~7k lines, Three.js module, no build) |
 | Author | Michael C. — keep credit / LICENSE / maker mark |
 | Branch | `cursor/42u-rack-3d-2483` (GitHub Pages serves this branch) |
-| Live | https://michaelchonghp.github.io/telegramTestOne/ |
+| Live | https://michaelchonghp.github.io/serverRoom/ |
 | Base | `main` |
 | Units | cm |
 
