@@ -88,7 +88,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Virtual C3↔C4 ports 47–50 aqua links (same pattern as C1↔C2) |
+| (this) | Sticky green Core callout pointing at C1↔C2 port-47 link midpoint |
+| prior | Virtual C3↔C4 ports 47–50 aqua links (same pattern as C1↔C2) |
 | prior | Virtual C1↔C2 ports 47–50 aqua lines (47/48 up · 49/50 down by thickness) |
 | prior | Virtual C1↔C2 ports 47+49 aqua lines, vertically spaced by line thickness |
 | prior | Virtual C1↔C2 port-47 aqua line + Controls → Core toggle |
