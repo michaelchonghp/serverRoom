@@ -720,13 +720,21 @@
     <dl id="info-body"></dl>
   </aside>
 
-  <svg class="info-leader" id="core-leader" aria-hidden="true">
-    <circle class="anchor-dot" id="core-anchor" r="4" cx="0" cy="0" />
-    <line id="core-line" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  <svg class="info-leader" id="core-leader-c12" aria-hidden="true">
+    <circle class="anchor-dot" id="core-anchor-c12" r="4" cx="0" cy="0" />
+    <line id="core-line-c12" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
   </svg>
-
-  <aside class="core-sticky" id="core-panel" hidden aria-live="polite">
+  <aside class="core-sticky" id="core-panel-c12" hidden aria-live="polite">
     <div class="core-title">Core1 - Core2</div>
+    <div class="core-ports">Ports 47, 48, 49, 50</div>
+  </aside>
+
+  <svg class="info-leader" id="core-leader-c34" aria-hidden="true">
+    <circle class="anchor-dot" id="core-anchor-c34" r="4" cx="0" cy="0" />
+    <line id="core-line-c34" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  </svg>
+  <aside class="core-sticky" id="core-panel-c34" hidden aria-live="polite">
+    <div class="core-title">Core3 - Core4</div>
     <div class="core-ports">Ports 47, 48, 49, 50</div>
   </aside>
 
@@ -5745,21 +5753,25 @@
       { port: 50, yOff: -CORE_LINK_THICK },
     ];
 
-    let coreCalloutAnchor = null; // world midpoint of C1↔C2 P47
+    const coreCalloutAnchors = {
+      C1C2: null, // world midpoint of C1↔C2 P47
+      C3C4: null, // world midpoint of C3↔C4 P47
+    };
 
     function addCorePeerLinks(codeA, codeB) {
       const aEq = findEquipmentByCode(codeA);
       const bEq = findEquipmentByCode(codeB);
       if (!aEq || !bEq) return;
+      const key = `${codeA}${codeB}`;
       for (const { port, yOff } of CORE_LINK_PORTS) {
         const a = portWorldPos(aEq.unit, port);
         const b = portWorldPos(bEq.unit, port);
         if (!a || !b) continue;
         a.y += yOff;
         b.y += yOff;
-        // Callout points at the midpoint of C1↔C2 port 47
-        if (codeA === "C1" && codeB === "C2" && port === 47) {
-          coreCalloutAnchor = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+        // Callout points at the midpoint of each pair's port 47 link
+        if (port === 47) {
+          coreCalloutAnchors[key] = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
         }
         const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
           tension: 0,
@@ -7537,68 +7549,92 @@
     });
     infoPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
 
-    // --- Core sticky callout (permanent while Controls → Core is shown) ---
-    const coreLeader = document.getElementById("core-leader");
-    const coreLine = document.getElementById("core-line");
-    const coreAnchorEl = document.getElementById("core-anchor");
-    const corePanel = document.getElementById("core-panel");
+    // --- Core sticky callouts (permanent while Controls → Core is shown) ---
     const coreScreen = { x: 0, y: 0 };
+    const coreCallouts = [
+      {
+        key: "C1C2",
+        leader: document.getElementById("core-leader-c12"),
+        line: document.getElementById("core-line-c12"),
+        anchorEl: document.getElementById("core-anchor-c12"),
+        panel: document.getElementById("core-panel-c12"),
+      },
+      {
+        key: "C3C4",
+        leader: document.getElementById("core-leader-c34"),
+        line: document.getElementById("core-line-c34"),
+        anchorEl: document.getElementById("core-anchor-c34"),
+        panel: document.getElementById("core-panel-c34"),
+      },
+    ];
 
-    function layoutCoreCallout() {
-      if (!showCore || !coreCalloutAnchor || corePanel.hidden) return;
-      projectWorldToScreen(coreCalloutAnchor, coreScreen);
+    function layoutOneCoreCallout(callout) {
+      const anchor = coreCalloutAnchors[callout.key];
+      if (!showCore || !anchor || callout.panel.hidden) return;
+      projectWorldToScreen(anchor, coreScreen);
       const ax = coreScreen.x;
       const ay = coreScreen.y;
-      const panelW = corePanel.offsetWidth || 160;
-      const panelH = corePanel.offsetHeight || 48;
+      const panelW = callout.panel.offsetWidth || 160;
+      const panelH = callout.panel.offsetHeight || 48;
       const margin = 12;
       const gap = 14;
       const vw = window.innerWidth;
       const topChrome = isMobile() ? 12 : 56;
 
-      // Sit just above the C1↔C2 port-47 link midpoint
       const px = Math.min(Math.max(margin, ax - panelW * 0.5), vw - panelW - margin);
       const py = Math.max(topChrome, ay - gap - panelH);
 
-      corePanel.style.left = `${px}px`;
-      corePanel.style.top = `${py}px`;
+      callout.panel.style.left = `${px}px`;
+      callout.panel.style.top = `${py}px`;
 
       const joinX = px + panelW * 0.5;
       const joinY = py + panelH;
 
-      coreAnchorEl.setAttribute("cx", ax.toFixed(1));
-      coreAnchorEl.setAttribute("cy", ay.toFixed(1));
-      coreLine.setAttribute("x1", ax.toFixed(1));
-      coreLine.setAttribute("y1", ay.toFixed(1));
-      coreLine.setAttribute("x2", joinX.toFixed(1));
-      coreLine.setAttribute("y2", joinY.toFixed(1));
+      callout.anchorEl.setAttribute("cx", ax.toFixed(1));
+      callout.anchorEl.setAttribute("cy", ay.toFixed(1));
+      callout.line.setAttribute("x1", ax.toFixed(1));
+      callout.line.setAttribute("y1", ay.toFixed(1));
+      callout.line.setAttribute("x2", joinX.toFixed(1));
+      callout.line.setAttribute("y2", joinY.toFixed(1));
+    }
+
+    function layoutCoreCallout() {
+      for (const callout of coreCallouts) layoutOneCoreCallout(callout);
     }
 
     function setCoreCalloutVisible(on) {
-      if (on) {
-        if (!coreCalloutAnchor) return;
-        corePanel.hidden = false;
-        corePanel.classList.remove("show");
-        coreLeader.classList.remove("show");
-        coreLine.style.strokeDashoffset = "1";
-        layoutCoreCallout();
-        requestAnimationFrame(() => {
-          layoutCoreCallout();
-          coreLine.style.strokeDashoffset = "1";
-          requestAnimationFrame(() => {
-            coreLeader.classList.add("show");
-            corePanel.classList.add("show");
-            coreLine.style.removeProperty("stroke-dashoffset");
-          });
-        });
-      } else {
-        corePanel.classList.remove("show");
-        coreLeader.classList.remove("show");
-        corePanel.hidden = true;
-        coreLine.style.strokeDashoffset = "1";
-        coreAnchorEl.setAttribute("cx", "-20");
-        coreAnchorEl.setAttribute("cy", "-20");
+      for (const callout of coreCallouts) {
+        if (on) {
+          if (!coreCalloutAnchors[callout.key]) continue;
+          callout.panel.hidden = false;
+          callout.panel.classList.remove("show");
+          callout.leader.classList.remove("show");
+          callout.line.style.strokeDashoffset = "1";
+        } else {
+          callout.panel.classList.remove("show");
+          callout.leader.classList.remove("show");
+          callout.panel.hidden = true;
+          callout.line.style.strokeDashoffset = "1";
+          callout.anchorEl.setAttribute("cx", "-20");
+          callout.anchorEl.setAttribute("cy", "-20");
+        }
       }
+      if (!on) return;
+      layoutCoreCallout();
+      requestAnimationFrame(() => {
+        layoutCoreCallout();
+        for (const callout of coreCallouts) {
+          callout.line.style.strokeDashoffset = "1";
+        }
+        requestAnimationFrame(() => {
+          for (const callout of coreCallouts) {
+            if (callout.panel.hidden) continue;
+            callout.leader.classList.add("show");
+            callout.panel.classList.add("show");
+            callout.line.style.removeProperty("stroke-dashoffset");
+          }
+        });
+      });
     }
 
     function pickInteractive(clientX, clientY) {
