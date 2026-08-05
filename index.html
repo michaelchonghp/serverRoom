@@ -170,9 +170,27 @@
       box-shadow: 0 0 10px color-mix(in srgb, #ff5c5c 70%, transparent);
     }
 
+    .power-legend .swatch.lan {
+      background: #3b82f6;
+      box-shadow: 0 0 10px color-mix(in srgb, #3b82f6 70%, transparent);
+    }
+
+    .power-legend .swatch.wifi {
+      background: #14b8a6;
+      box-shadow: 0 0 10px color-mix(in srgb, #14b8a6 70%, transparent);
+    }
+
+    .power-legend .swatch.security {
+      background: #f04343;
+      box-shadow: 0 0 10px color-mix(in srgb, #f04343 70%, transparent);
+    }
+
     .power-legend .title.green { font-weight: 500; color: #3dff9a; }
     .power-legend .title.blue { font-weight: 500; color: #4da3ff; }
     .power-legend .title.red { font-weight: 500; color: #ff5c5c; }
+    .power-legend .title.lan { font-weight: 500; color: #3b82f6; }
+    .power-legend .title.wifi { font-weight: 500; color: #14b8a6; }
+    .power-legend .title.security { font-weight: 500; color: #f04343; }
 
     .power-legend .sub {
       color: color-mix(in srgb, #e8f5ee 72%, transparent);
@@ -697,6 +715,25 @@
       <span class="sub">MCB → trunk → splits → PDU2</span>
     </span>
   </div>
+  <div class="power-legend" id="dist-legend" hidden aria-live="polite">
+    <span class="item">
+      <span class="swatch lan" aria-hidden="true"></span>
+      <span class="title lan">LAN</span>
+      <span class="sub">D1–D2 · A1–A4</span>
+    </span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span class="item">
+      <span class="swatch wifi" aria-hidden="true"></span>
+      <span class="title wifi">Wi‑Fi</span>
+      <span class="sub">D3–D4 · A5–A6</span>
+    </span>
+    <span class="sep" aria-hidden="true">·</span>
+    <span class="item">
+      <span class="swatch security" aria-hidden="true"></span>
+      <span class="title security">Security</span>
+      <span class="sub">D5–D6 · A7–A8</span>
+    </span>
+  </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
     <div class="ctrl-menu" id="ctrl-menu">
       <div class="ctrl-menu-panel" id="controls-panel" hidden role="menu" aria-label="View controls">
@@ -717,7 +754,7 @@
           <span class="action">Show</span>
         </button>
         <button type="button" id="btn-show-core-dist" role="menuitem" aria-pressed="false">
-          <span class="label">Core to Dist</span>
+          <span class="label">Dist</span>
           <span class="action">Show</span>
         </button>
       </div>
@@ -5946,7 +5983,7 @@
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
     // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Core to Dist.
+    // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Dist.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -7333,7 +7370,42 @@
     const btnShowCore = document.getElementById("btn-show-core");
     const btnShowCoreDist = document.getElementById("btn-show-core-dist");
     const powerLegend = document.getElementById("power-legend");
+    const distLegend = document.getElementById("dist-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
+
+    // Face-role colors for Dist / Access (LAN · Wi-Fi · Security)
+    const DIST_ROLE_COLORS = {
+      LAN: 0x3b82f6,
+      WIFI: 0x14b8a6,
+      SECURITY: 0xf04343,
+    };
+    const DIST_ROLE_BY_CODE = {
+      D1: "LAN", D2: "LAN",
+      D3: "WIFI", D4: "WIFI",
+      D5: "SECURITY", D6: "SECURITY",
+      A1: "LAN", A2: "LAN", A3: "LAN", A4: "LAN",
+      A5: "WIFI", A6: "WIFI",
+      A7: "SECURITY", A8: "SECURITY",
+    };
+
+    function setDistRoleHighlights(on) {
+      for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
+        const eq = findEquipmentByCode(code);
+        const mat = eq?.unit?.userData?.frontMat;
+        if (!mat) continue;
+        if (mat.userData.baseEmissive == null) {
+          mat.userData.baseEmissive = mat.emissive.getHex();
+          mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
+        }
+        if (on) {
+          mat.emissive.setHex(DIST_ROLE_COLORS[role]);
+          mat.emissiveIntensity = 0.72;
+        } else {
+          mat.emissive.setHex(mat.userData.baseEmissive);
+          mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
+        }
+      }
+    }
 
     let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
 
@@ -7378,8 +7450,10 @@
       btnShowCoreDist.querySelector(".action").textContent = showCoreDist ? "Hide" : "Show";
       btnShowCoreDist.setAttribute(
         "aria-label",
-        showCoreDist ? "Hide core-to-distribution links" : "Show core-to-distribution links"
+        showCoreDist ? "Hide distribution role highlight" : "Show distribution role highlight"
       );
+      distLegend.hidden = !showCoreDist;
+      distLegend.classList.toggle("visible", showCoreDist);
     }
 
     function setShowPower(on) {
@@ -7413,6 +7487,7 @@
     function setShowCoreDist(on) {
       showCoreDist = on;
       roomCoreDistLinks.visible = on;
+      setDistRoleHighlights(on);
       syncCoreDistButton();
       setCoreDistCalloutVisible(on);
       nudgeIdle();
