@@ -6127,10 +6127,14 @@
       depthWrite: false,
     });
     // Access LAN role aura — blue glow around SM yellow cores (industry SM = yellow)
+    // Peak opacities match the earlier stronger LAN glow; animate pulses them slowly.
+    const ACCESS_LAN_AURA_PEAK = 0.32;
+    const ACCESS_LAN_AURA_SOFT_PEAK = 0.16;
+    const ACCESS_LAN_AURA_PULSE_SEC = 3;
     const matAccessLanAura = new THREE.MeshBasicMaterial({
       color: 0x3b82f6,
       transparent: true,
-      opacity: 0.28,
+      opacity: ACCESS_LAN_AURA_PEAK,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -6138,7 +6142,7 @@
     const matAccessLanAuraSoft = new THREE.MeshBasicMaterial({
       color: 0x60a5fa,
       transparent: true,
-      opacity: 0.14,
+      opacity: ACCESS_LAN_AURA_SOFT_PEAK,
       depthTest: false,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -8577,6 +8581,14 @@
       if (infoTarget) layoutInfoCallout();
       if (showCore || showCoreDist) layoutCoreCallout();
 
+      // LAN blue aura on Access links — slow breathe (3s/cycle); SM yellow core stays put
+      if (showAccess) {
+        const pulse = 0.5 - 0.5 * Math.cos(
+          (clock.elapsedTime * Math.PI * 2) / ACCESS_LAN_AURA_PULSE_SEC
+        );
+        matAccessLanAura.opacity = ACCESS_LAN_AURA_PEAK * (0.45 + 0.55 * pulse);
+        matAccessLanAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * (0.45 + 0.55 * pulse);
+      }
       // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
       if (showPower) {
         const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
