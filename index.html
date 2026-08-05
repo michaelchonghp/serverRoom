@@ -444,7 +444,7 @@
     .core-sticky {
       position: fixed;
       z-index: 5;
-      padding: 0.45rem 0.7rem 0.5rem;
+      padding: 0.315rem 0.49rem 0.35rem;
       border: 1px solid var(--scan);
       background: var(--scan-bg);
       box-shadow:
@@ -474,15 +474,15 @@
     .core-sticky[hidden] { display: none; }
 
     .core-sticky .core-title {
-      font-size: 0.78rem;
+      font-size: 0.546rem;
       font-weight: 500;
       letter-spacing: 0.04em;
     }
 
     .core-sticky .core-ports {
-      font-size: 0.62rem;
+      font-size: 0.434rem;
       opacity: 0.85;
-      margin-top: 0.12rem;
+      margin-top: 0.084rem;
     }
 
     .info-panel .info-close {
@@ -7574,8 +7574,8 @@
       projectWorldToScreen(anchor, coreScreen);
       const ax = coreScreen.x;
       const ay = coreScreen.y;
-      const panelW = callout.panel.offsetWidth || 160;
-      const panelH = callout.panel.offsetHeight || 48;
+      const panelW = callout.panel.offsetWidth || 112;
+      const panelH = callout.panel.offsetHeight || 34;
       const margin = 12;
       const gap = 14;
       const vw = window.innerWidth;
