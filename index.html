@@ -769,6 +769,15 @@
     <div class="core-row">Core1/0/4 to Core4/0/1</div>
   </aside>
 
+  <svg class="info-leader" id="core-leader-sm-c2" aria-hidden="true">
+    <circle class="anchor-dot" id="core-anchor-sm-c2" r="4" cx="0" cy="0" />
+    <line id="core-line-sm-c2" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  </svg>
+  <aside class="core-sticky" id="core-panel-sm-c2" hidden aria-live="polite">
+    <div class="core-row">Core2/0/2 to Core3/0/2</div>
+    <div class="core-row">Core2/0/4 to Core4/0/2</div>
+  </aside>
+
   <script type="importmap">
     {
       "imports": {
@@ -5818,12 +5827,14 @@
       C1C2: null, // world midpoint of C1↔C2 P47
       C3C4: null, // world midpoint of C3↔C4 P47
       SM_C1: null, // just above C1 port 3
+      SM_C2: null, // just above C2 port 2
     };
     // World endpoints of linked clusters (for frustum tests)
     const coreCalloutFrustumPts = {
       C1C2: [],
       C3C4: [],
       SM_C1: [],
+      SM_C2: [],
     };
 
     function addCorePeerLinks(codeA, codeB) {
@@ -5885,26 +5896,33 @@
     addCorePortLink("C2", 2, "C3", 2, matCoreSmXray, "CORE-SM-C2P2-C3P2");
     addCorePortLink("C2", 4, "C4", 2, matCoreSmXray, "CORE-SM-C2P4-C4P2");
 
-    // SM callout: anchor just above C1 port 3; frustum covers the two C1-origin SM links
-    {
-      const c1Eq = findEquipmentByCode("C1");
-      const p3 = c1Eq && portWorldPos(c1Eq.unit, 3);
-      if (p3) {
-        coreCalloutAnchors.SM_C1 = p3.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
+    // SM callouts: C1 above port 3 · C2 above port 2; frustum covers each pair's SM links
+    function registerSmCallout(key, anchorCode, anchorPort, links) {
+      const eq = findEquipmentByCode(anchorCode);
+      const p = eq && portWorldPos(eq.unit, anchorPort);
+      if (p) {
+        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
       }
-      coreCalloutFrustumPts.SM_C1.length = 0;
-      for (const [codeA, portA, codeB, portB] of [
-        ["C1", 3, "C3", 1],
-        ["C1", 4, "C4", 1],
-      ]) {
+      const pts = coreCalloutFrustumPts[key];
+      if (!pts) return;
+      pts.length = 0;
+      for (const [codeA, portA, codeB, portB] of links) {
         const aEq = findEquipmentByCode(codeA);
         const bEq = findEquipmentByCode(codeB);
         const a = aEq && portWorldPos(aEq.unit, portA);
         const b = bEq && portWorldPos(bEq.unit, portB);
-        if (a) coreCalloutFrustumPts.SM_C1.push(a);
-        if (b) coreCalloutFrustumPts.SM_C1.push(b);
+        if (a) pts.push(a);
+        if (b) pts.push(b);
       }
     }
+    registerSmCallout("SM_C1", "C1", 3, [
+      ["C1", 3, "C3", 1],
+      ["C1", 4, "C4", 1],
+    ]);
+    registerSmCallout("SM_C2", "C2", 2, [
+      ["C2", 2, "C3", 2],
+      ["C2", 4, "C4", 2],
+    ]);
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -7690,6 +7708,13 @@
         line: document.getElementById("core-line-sm-c1"),
         anchorEl: document.getElementById("core-anchor-sm-c1"),
         panel: document.getElementById("core-panel-sm-c1"),
+      },
+      {
+        key: "SM_C2",
+        leader: document.getElementById("core-leader-sm-c2"),
+        line: document.getElementById("core-line-sm-c2"),
+        anchorEl: document.getElementById("core-anchor-sm-c2"),
+        panel: document.getElementById("core-panel-sm-c2"),
       },
     ];
 
