@@ -307,6 +307,72 @@
       border-color: var(--ink);
     }
 
+    /* Access role filters — appear to the right of Controls when Access is shown */
+    .access-role-filters {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.25rem;
+      flex: 0 0 auto;
+    }
+
+    .access-role-filters[hidden] {
+      display: none;
+    }
+
+    .access-role-filters button {
+      min-width: 2.6rem;
+      padding: 0.45rem 0.4rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-width: 1.5px;
+      color: #fff;
+    }
+
+    .access-role-filters button .action {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.58rem;
+      font-weight: 800;
+    }
+
+    .access-role-filters button.role-lan {
+      background: color-mix(in srgb, #3b82f6 78%, #fff);
+      border-color: #2563eb;
+    }
+    .access-role-filters button.role-wifi {
+      background: color-mix(in srgb, #14b8a6 78%, #fff);
+      border-color: #0d9488;
+    }
+    .access-role-filters button.role-security {
+      background: color-mix(in srgb, #f04343 78%, #fff);
+      border-color: #dc2626;
+    }
+
+    .access-role-filters button.open.role-lan {
+      background: #3b82f6;
+      border-color: #1d4ed8;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #3b82f6 55%, transparent),
+        0 0 14px color-mix(in srgb, #3b82f6 45%, transparent);
+    }
+    .access-role-filters button.open.role-wifi {
+      background: #14b8a6;
+      border-color: #0f766e;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #14b8a6 55%, transparent),
+        0 0 14px color-mix(in srgb, #14b8a6 45%, transparent);
+    }
+    .access-role-filters button.open.role-security {
+      background: #f04343;
+      border-color: #b91c1c;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #f04343 55%, transparent),
+        0 0 14px color-mix(in srgb, #f04343 45%, transparent);
+    }
+
+    .access-role-filters button:not(.open) {
+      opacity: 0.42;
+      filter: grayscale(0.25);
+      box-shadow: none;
+    }
+
     /* Drop-up control menu (Front / Rear / Show Power …) */
     .ctrl-menu {
       position: relative;
@@ -661,6 +727,13 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
+      .access-role-filters button {
+        min-width: 2.15rem;
+        padding: 0.35rem 0.28rem;
+      }
+      .access-role-filters button .action {
+        font-size: 0.5rem;
+      }
       .ctrl-menu-panel {
         min-width: 6.8rem;
         padding: 0.28rem;
@@ -765,6 +838,17 @@
       <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
         <span class="label">Controls</span>
         <span class="action">Menu</span>
+      </button>
+    </div>
+    <div class="access-role-filters" id="access-role-filters" hidden role="group" aria-label="Access role filters">
+      <button type="button" class="role-lan open" id="btn-access-lan" data-role="LAN" aria-pressed="true" title="LAN">
+        <span class="action">LAN</span>
+      </button>
+      <button type="button" class="role-wifi open" id="btn-access-wifi" data-role="WIFI" aria-pressed="true" title="Wi-Fi">
+        <span class="action">WIFI</span>
+      </button>
+      <button type="button" class="role-security open" id="btn-access-sq" data-role="SECURITY" aria-pressed="true" title="Security">
+        <span class="action">SQ</span>
       </button>
     </div>
     <div class="rack-group" role="group" aria-label="Zoom to rack">
@@ -6285,6 +6369,7 @@
     function addSlackPortLink(codeA, portA, codeB, portB, material, name, group, {
       sag = 10,
       aura = null, // [{ material, radiusScale }]
+      role = null,
     } = {}) {
       const aEq = findEquipmentByCode(codeA);
       const bEq = findEquipmentByCode(codeB);
@@ -6329,10 +6414,16 @@
 
       const link = makeCableTube(points, CORE_LINK_R, material, tubeOpts);
       if (!link) return null;
-      link.name = name || `SLACK-${codeA}P${portA}-${codeB}P${portB}`;
+      const bundleName = name || `SLACK-${codeA}P${portA}-${codeB}P${portB}`;
+      link.name = bundleName;
       link.userData.interactive = false;
       link.renderOrder = 4;
-      group.add(link);
+
+      const bundle = new THREE.Group();
+      bundle.name = bundleName;
+      bundle.userData.interactive = false;
+      if (role) bundle.userData.role = role;
+      bundle.add(link);
 
       if (aura && aura.length) {
         aura.forEach((layer, i) => {
@@ -6343,14 +6434,15 @@
             tubeOpts
           );
           if (!halo) return;
-          halo.name = `${link.name}-aura${i}`;
+          halo.name = `${bundleName}-aura${i}`;
           halo.userData.interactive = false;
           // Near-core cover sits above yellow; soft halos stay behind
           halo.renderOrder = layer.renderOrder ?? ((layer.radiusScale ?? 3) <= 1.25 ? 5 : 3);
-          group.add(halo);
+          bundle.add(halo);
         });
       }
-      return link;
+      group.add(bundle);
+      return bundle;
     }
 
     addCorePeerLinks("C1", "C2");
@@ -6384,36 +6476,44 @@
     addSlackPortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D1", 2, "A2", 49, matCoreSmXray, "DIST-SM-D1P2-A2P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D1", 3, "A3", 49, matCoreSmXray, "DIST-SM-D1P3-A3P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D1", 4, "A4", 49, matCoreSmXray, "DIST-SM-D1P4-A4P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D2", 1, "A1", 50, matCoreSmXray, "DIST-SM-D2P1-A1P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D2", 2, "A2", 50, matCoreSmXray, "DIST-SM-D2P2-A2P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D2", 3, "A3", 50, matCoreSmXray, "DIST-SM-D2P3-A3P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
     addSlackPortLink("D2", 4, "A4", 50, matCoreSmXray, "DIST-SM-D2P4-A4P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_LAN_AURA,
+      role: "LAN",
     });
-    // Wi‑Fi role (teal aura)
+    // Wi‑Fi role (green aura)
     const ACCESS_WIFI_AURA = [
       { material: matAccessWifiCover, radiusScale: 1.12 },
       { material: matAccessWifiAura, radiusScale: 2.8 },
@@ -6422,18 +6522,22 @@
     addSlackPortLink("D3", 1, "A5", 49, matCoreSmXray, "DIST-SM-D3P1-A5P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
     });
     addSlackPortLink("D3", 2, "A6", 49, matCoreSmXray, "DIST-SM-D3P2-A6P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
     });
     addSlackPortLink("D4", 1, "A5", 50, matCoreSmXray, "DIST-SM-D4P1-A5P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
     });
     addSlackPortLink("D4", 2, "A6", 50, matCoreSmXray, "DIST-SM-D4P2-A6P50", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
     });
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
@@ -7667,6 +7771,7 @@
     let showCore = false;
     let showCoreDist = false;
     let showAccess = false;
+    const accessRoleOn = { LAN: true, WIFI: true, SECURITY: true };
 
     const ctrlMenu = document.getElementById("ctrl-menu");
     const controlsPanel = document.getElementById("controls-panel");
@@ -7677,12 +7782,27 @@
     const btnShowCore = document.getElementById("btn-show-core");
     const btnShowCoreDist = document.getElementById("btn-show-core-dist");
     const btnShowAccess = document.getElementById("btn-show-access");
+    const accessRoleFiltersEl = document.getElementById("access-role-filters");
+    const btnAccessLan = document.getElementById("btn-access-lan");
+    const btnAccessWifi = document.getElementById("btn-access-wifi");
+    const btnAccessSq = document.getElementById("btn-access-sq");
+    const accessRoleButtons = {
+      LAN: btnAccessLan,
+      WIFI: btnAccessWifi,
+      SECURITY: btnAccessSq,
+    };
     const powerLegend = document.getElementById("power-legend");
     const distLegend = document.getElementById("dist-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
     function roleHighlightsActive() {
       return showCoreDist || showAccess;
+    }
+
+    function isRoleVisualOn(role) {
+      if (showCoreDist) return true;
+      if (showAccess) return !!accessRoleOn[role];
+      return false;
     }
 
     // Face-role colors for Dist / Access (LAN · Wi-Fi · Security)
@@ -7700,7 +7820,7 @@
       A7: "SECURITY", A8: "SECURITY",
     };
 
-    function setDistRoleHighlights(on) {
+    function setDistRoleHighlights(_ignored) {
       for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
         const eq = findEquipmentByCode(code);
         const mat = eq?.unit?.userData?.frontMat;
@@ -7709,6 +7829,7 @@
           mat.userData.baseEmissive = mat.emissive.getHex();
           mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
         }
+        const on = isRoleVisualOn(role);
         if (on) {
           mat.emissive.setHex(DIST_ROLE_COLORS[role]);
           mat.emissiveIntensity = 0.72;
@@ -7717,7 +7838,17 @@
           mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
         }
       }
-      for (const label of distRoleLabels) label.visible = on;
+      for (const label of distRoleLabels) {
+        const role = label.userData.role;
+        label.visible = role ? isRoleVisualOn(role) : roleHighlightsActive();
+      }
+    }
+
+    function syncAccessRoleLinkVisibility() {
+      for (const child of roomDistAccessLinks.children) {
+        const role = child.userData?.role;
+        child.visible = !role || !!accessRoleOn[role];
+      }
     }
 
     /** Hovering role text (LAN / WIFI / SECURITY) just outside the left RU strip. */
@@ -7788,6 +7919,7 @@
         if (!eq?.unit) continue;
         const { unit } = eq;
         const label = makeDistRoleLabel(DIST_ROLE_LABEL_TEXT[role], DIST_ROLE_COLORS[role]);
+        label.userData.role = role;
         const faceZ = unit.userData.mountZ ?? -20;
         label.position.set(x, 0, faceZ - 0.2);
         unit.add(label);
@@ -7862,7 +7994,26 @@
           ? "Hide access links and role highlight"
           : "Show access links and role highlight"
       );
+      accessRoleFiltersEl.hidden = !showAccess;
+      syncAccessRoleFilterButtons();
       syncRoleLegend();
+    }
+
+    function syncAccessRoleFilterButtons() {
+      for (const [role, btn] of Object.entries(accessRoleButtons)) {
+        if (!btn) continue;
+        const on = !!accessRoleOn[role];
+        btn.classList.toggle("open", on);
+        btn.setAttribute("aria-pressed", String(on));
+      }
+    }
+
+    function setAccessRoleFilter(role, on) {
+      accessRoleOn[role] = on;
+      syncAccessRoleFilterButtons();
+      syncAccessRoleLinkVisibility();
+      setDistRoleHighlights();
+      nudgeIdle();
     }
 
     function setShowPower(on) {
@@ -7896,7 +8047,7 @@
     function setShowCoreDist(on) {
       showCoreDist = on;
       roomCoreDistLinks.visible = on;
-      setDistRoleHighlights(roleHighlightsActive());
+      setDistRoleHighlights();
       syncCoreDistButton();
       setCoreDistCalloutVisible(on);
       nudgeIdle();
@@ -7905,7 +8056,8 @@
     function setShowAccess(on) {
       showAccess = on;
       roomDistAccessLinks.visible = on;
-      setDistRoleHighlights(roleHighlightsActive());
+      if (on) syncAccessRoleLinkVisibility();
+      setDistRoleHighlights();
       syncAccessButton();
       nudgeIdle();
     }
@@ -7991,6 +8143,10 @@
     btnShowCore.addEventListener("click", () => setShowCore(!showCore));
     btnShowCoreDist.addEventListener("click", () => setShowCoreDist(!showCoreDist));
     btnShowAccess.addEventListener("click", () => setShowAccess(!showAccess));
+    Object.entries(accessRoleButtons).forEach(([role, btn]) => {
+      if (!btn) return;
+      btn.addEventListener("click", () => setAccessRoleFilter(role, !accessRoleOn[role]));
+    });
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
