@@ -3767,16 +3767,21 @@
     }
 
     /** Ruijie RG-S5760C-48GT4XS-HP-X front — silver face, 48× GE RJ45 + 4× SFP+ */
-    let ruijieS5760FrontTex = null;
-    function makeRuijieS5760FrontTexture() {
-      if (ruijieS5760FrontTex) return ruijieS5760FrontTex;
+    const ruijieS5760TexCache = new Map();
+    function makeRuijieS5760FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (ruijieS5760TexCache.has(cacheKey)) return ruijieS5760TexCache.get(cacheKey);
 
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
       const pw = 2400;
       const ph = 260;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
+      const portCenters = {}; // uplink port N → { u, v }
 
       function roundRect(x, y, w, h, r) {
         ctx.beginPath();
@@ -3853,6 +3858,33 @@
         ctx.stroke();
         ctx.fillStyle = "#0a0c10";
         ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawSfpOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
       }
 
       const contentTop = 8 + ventH + 6;
@@ -3967,11 +3999,17 @@
           for (let col = 0; col < cols; col++) {
             const px = x + pad + col * (pW + gapX);
             const py = areaY + r * (pH + gapY);
-            drawSfpCage(px, py, pW, pH);
+            const n = 49 + r * 2 + col;
+            portCenters[n] = {
+              u: (px + pW * 0.5) / pw,
+              v: (py + pH * 0.5) / ph,
+            };
+            const xcvr = byPort.get(n);
+            if (xcvr) drawSfpOptic(px, py, pW, pH, xcvr);
+            else drawSfpCage(px, py, pW, pH);
             ctx.fillStyle = "#6a7380";
             ctx.font = `600 ${Math.floor(ph * 0.03)}px "IBM Plex Mono", monospace`;
             ctx.textAlign = "center";
-            const n = 49 + r * 2 + col;
             ctx.fillText(`${n}F`, px + pW / 2, py - 2);
           }
         }
@@ -3993,12 +4031,13 @@
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       tex.needsUpdate = true;
-      ruijieS5760FrontTex = tex;
+      tex.userData.portCenters = portCenters;
+      ruijieS5760TexCache.set(cacheKey, tex);
       return tex;
     }
 
     /** Ruijie RG-S5760C-48GT4XS-HP-X — 1U access / PoE aggregation switch */
-    function makeRuijieS5760({ rackName = "Rack3", code = "" } = {}) {
+    function makeRuijieS5760({ rackName = "Rack3", code = "", transceivers = [] } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.15;
       const w = 44.0;
@@ -4011,15 +4050,18 @@
       g.add(box(w, h, d, matChassis, 0, 0, 0));
       g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
 
+      const frontTex = makeRuijieS5760FrontTexture(transceivers);
       const frontMat = new THREE.MeshStandardMaterial({
-        map: makeRuijieS5760FrontTexture(),
+        map: frontTex,
         metalness: 0.22,
         roughness: 0.5,
         side: THREE.DoubleSide,
         emissive: 0x1a1e24,
         emissiveIntensity: 0.06,
       });
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
       face.position.set(0, 0, -d / 2 - 0.85);
       face.rotation.y = Math.PI;
       face.castShadow = true;
@@ -4036,6 +4078,43 @@
       g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
       g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
 
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "48× 10/100/1000BASE-T PoE/PoE+ · 4× 1G/10G SFP+ uplinks · Console · MGMT · USB",
+        },
+        {
+          label: "Role",
+          text: "Layer 3 campus access / aggregation · VSU · Hardware redundant boot & hot-swap PSU",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · Silver front panel · Red accent · Dual PSU option",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        const kind = /multi/i.test(transceivers[0].kind) ? "multimode" : "single-mode";
+        blocks.push({
+          label: "Transceivers",
+          text: `Port ${ports.join(", ")}: ${transceivers[0].model} (${kind})`,
+        });
+      }
+
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z;
       g.userData.interactive = true;
@@ -4050,20 +4129,7 @@
         title: "Ruijie Campus Access Switch",
         model: "RG-S5760C-48GT4XS-HP-X",
         rating: "1U · 48× GE PoE+ · 4× 10G",
-        blocks: [
-          {
-            label: "Interfaces",
-            text: "48× 10/100/1000BASE-T PoE/PoE+ · 4× 1G/10G SFP+ uplinks · Console · MGMT · USB",
-          },
-          {
-            label: "Role",
-            text: "Layer 3 campus access / aggregation · VSU · Hardware redundant boot & hot-swap PSU",
-          },
-          {
-            label: "Physical",
-            text: "1U rackmount · Silver front panel · Red accent · Dual PSU option",
-          },
-        ],
+        blocks,
       };
       return g;
     }
@@ -5583,7 +5649,7 @@
           unit = makeRuijieS6510({ rackName: name, code, transceivers: transceivers || [] });
         }
         if (type === "sw-ruijie-s5760") {
-          unit = makeRuijieS5760({ rackName: name, code });
+          unit = makeRuijieS5760({ rackName: name, code, transceivers: transceivers || [] });
         }
         if (type === "rt-cisco-c8300") {
           unit = makeCiscoC8300({ rackName: name });
@@ -5878,6 +5944,7 @@
     // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
     // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
     // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
+    // SM yellow Dist→Access: D1:1→A1:49
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5919,6 +5986,14 @@
     const DIST_XCVRS_UPLINK = [49, 50].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
+    // D1:1 → A1:49 (Access downlink) in addition to core uplinks
+    const DIST_XCVRS_D1 = [
+      ...DIST_XCVRS_UPLINK,
+      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+    ];
+    const ACCESS_XCVRS_A1 = [
+      { port: 49, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+    ];
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -5936,7 +6011,7 @@
           // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
           { type: "sw-ruijie-s6510", startU: 21, code: "D5", transceivers: DIST_XCVRS_UPLINK },
           { type: "sw-ruijie-s6510", startU: 23, code: "D3", transceivers: DIST_XCVRS_UPLINK },
-          { type: "sw-ruijie-s6510", startU: 25, code: "D1", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D1", transceivers: DIST_XCVRS_D1 },
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1", transceivers: FW_XCVRS_F1 }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1 },
@@ -5960,7 +6035,7 @@
           { type: "sw-ruijie-s5760", startU: 17, code: "A7" }, // RU 18
           { type: "sw-ruijie-s5760", startU: 19, code: "A5" }, // RU 20
           { type: "sw-ruijie-s5760", startU: 21, code: "A3" }, // RU 22
-          { type: "sw-ruijie-s5760", startU: 23, code: "A1" }, // RU 24
+          { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 }, // RU 24
         ],
       }
     );
@@ -5995,7 +6070,7 @@
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
     // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Dist.
+    // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Dist · D1→A1 under Access.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -6025,6 +6100,11 @@
     roomCoreDistLinks.name = "CoreToDistLinks";
     roomCoreDistLinks.visible = false;
     scene.add(roomCoreDistLinks);
+
+    const roomDistAccessLinks = new THREE.Group();
+    roomDistAccessLinks.name = "DistToAccessLinks";
+    roomDistAccessLinks.visible = false;
+    scene.add(roomDistAccessLinks);
 
     const matCoreMmXray = new THREE.MeshBasicMaterial({
       color: 0x3dcec7, // aqua = multimode
@@ -6141,6 +6221,8 @@
     addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50", roomCoreDistLinks);
     addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
+    // SM Dist → Access — Controls → Access
+    addCorePortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks);
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
     function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1 } = {}) {
@@ -7565,8 +7647,8 @@
       btnShowAccess.setAttribute(
         "aria-label",
         showAccess
-          ? "Hide access and distribution role highlight"
-          : "Show access and distribution role highlight"
+          ? "Hide access links and role highlight"
+          : "Show access links and role highlight"
       );
       syncRoleLegend();
     }
@@ -7610,6 +7692,7 @@
 
     function setShowAccess(on) {
       showAccess = on;
+      roomDistAccessLinks.visible = on;
       setDistRoleHighlights(roleHighlightsActive());
       syncAccessButton();
       nudgeIdle();
