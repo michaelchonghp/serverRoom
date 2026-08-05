@@ -5699,52 +5699,7 @@
       return unit.localToWorld(local.clone());
     }
 
-    // Visual patch cords (no popup / not interactive)
-    const roomFiber = new THREE.Group();
-    roomFiber.name = "RoomFiberPatches";
-    scene.add(roomFiber);
-
-    const matOm4Aqua = new THREE.MeshStandardMaterial({
-      color: 0x3dcec7, // Panduit OM4 aqua
-      metalness: 0.05,
-      roughness: 0.55,
-    });
-
-    function makeOm4PatchPath(aWorld, bWorld, lane = 0) {
-      // Dress out into cold aisle, slight service loop, cross to peer, dress in
-      const aisleDir = new THREE.Vector3(0, 0, -1); // row A fronts face −Z
-      const out = 10 + lane * 1.1;
-      const loopDrop = 3.5 + lane * 0.85;
-      const aOut = aWorld.clone().addScaledVector(aisleDir, out);
-      const bOut = bWorld.clone().addScaledVector(aisleDir, out);
-      const mid = new THREE.Vector3().addVectors(aOut, bOut).multiplyScalar(0.5);
-      mid.y -= loopDrop;
-      mid.z -= 2.5 + lane * 0.4;
-      return [
-        aWorld.clone(),
-        aOut.clone().add(new THREE.Vector3(0, -0.4 * lane, 0)),
-        mid,
-        bOut.clone().add(new THREE.Vector3(0, -0.4 * lane, 0)),
-        bWorld.clone(),
-      ];
-    }
-
-    FIBER_LINKS.forEach((link, i) => {
-      const aEq = findEquipmentByCode(link.a.device);
-      const bEq = findEquipmentByCode(link.b.device);
-      if (!aEq || !bEq) return;
-      const aPos = portWorldPos(aEq.unit, link.a.port);
-      const bPos = portWorldPos(bEq.unit, link.b.port);
-      if (!aPos || !bPos) return;
-      const pts = makeOm4PatchPath(aPos, bPos, i);
-      const cord = makeCableTube(pts, 0.22, matOm4Aqua);
-      if (!cord) return;
-      cord.name = link.id;
-      cord.userData.fiberLink = link; // inventory payload for later tables
-      // Explicitly non-interactive — no detail popup
-      cord.userData.interactive = false;
-      roomFiber.add(cord);
-    });
+    // Patch cords are drawn after Wyr-Grid exists (see RoomFiberPatches below)
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -6267,6 +6222,86 @@
       rowBZ,
       Math.PI / 2
     );
+
+    // --- Fiber patch cords (after Wyr-Grid so routes can climb into the basket) ---
+    // Route per end: port → nearest side → rear → up through top cable opening → Wyr-Grid,
+    // then across the basket, then the reverse into the peer rack/port.
+    const roomFiber = new THREE.Group();
+    roomFiber.name = "RoomFiberPatches";
+    scene.add(roomFiber);
+
+    const matOm4Aqua = new THREE.MeshStandardMaterial({
+      color: 0x3dcec7, // Panduit OM4 aqua
+      metalness: 0.05,
+      roughness: 0.55,
+    });
+
+    /** Rack-local dress from a front port up into the Wyr-Grid above this rack */
+    function dressPortToWyrGrid(rack, portWorld, lane = 0) {
+      const open = rack.userData.cableOpen;
+      if (!open) return [];
+      const p = rack.worldToLocal(portWorld.clone());
+      const side = p.x >= 0 ? 1 : -1; // nearest side of the rack
+      const sideX = side * (OUTER_W / 2 - 4.2);
+      const openLaneX = side * (6 + lane * 1.6);
+      const openY = open.y;
+      const openZ = open.z;
+      // Rack sits on bay at FLOOR_H; Wyr-Grid local Y in roomPower is WG_Y → same rack-local Y
+      const wgY = WG_Y + 1.2 + lane * 0.35;
+      const localPts = [
+        p.clone(),
+        new THREE.Vector3(THREE.MathUtils.lerp(p.x, sideX, 0.55), p.y, p.z), // ease toward side
+        new THREE.Vector3(sideX, p.y, p.z), // at side (front)
+        new THREE.Vector3(sideX, p.y, openZ), // back along side to rear
+        new THREE.Vector3(sideX, openY - 6, openZ), // rise in rear channel
+        new THREE.Vector3(openLaneX, openY - 1.5, openZ), // under top opening
+        new THREE.Vector3(openLaneX, openY + 2.5, openZ), // through top opening
+        new THREE.Vector3(openLaneX, (openY + wgY) * 0.55, openZ * 0.65), // climb toward basket
+        new THREE.Vector3(openLaneX * 0.35, wgY, 0), // into Wyr-Grid over rack
+      ];
+      return localPts.map((pt) => rack.localToWorld(pt.clone()));
+    }
+
+    function makeOm4PatchPathViaWyrGrid(aRack, aPortWorld, bRack, bPortWorld, lane = 0) {
+      const aUp = dressPortToWyrGrid(aRack, aPortWorld, lane);
+      const bUp = dressPortToWyrGrid(bRack, bPortWorld, lane);
+      if (aUp.length < 2 || bUp.length < 2) return null;
+      const aGrid = aUp[aUp.length - 1];
+      const bGrid = bUp[bUp.length - 1];
+      const mid = new THREE.Vector3().addVectors(aGrid, bGrid).multiplyScalar(0.5);
+      mid.y += 0.8;
+      // Across Wyr-Grid: stay high, small lane offset in Z so cords don't stack
+      const aGridLane = aGrid.clone();
+      aGridLane.z += (lane - 1.5) * 1.1;
+      const bGridLane = bGrid.clone();
+      bGridLane.z += (lane - 1.5) * 1.1;
+      mid.z = (aGridLane.z + bGridLane.z) * 0.5;
+      const bDown = bUp.slice().reverse();
+      return [
+        ...aUp.slice(0, -1),
+        aGridLane,
+        mid,
+        bGridLane,
+        ...bDown.slice(1),
+      ];
+    }
+
+    FIBER_LINKS.forEach((link, i) => {
+      const aEq = findEquipmentByCode(link.a.device);
+      const bEq = findEquipmentByCode(link.b.device);
+      if (!aEq || !bEq) return;
+      const aPos = portWorldPos(aEq.unit, link.a.port);
+      const bPos = portWorldPos(bEq.unit, link.b.port);
+      if (!aPos || !bPos) return;
+      const pts = makeOm4PatchPathViaWyrGrid(aEq.rack, aPos, bEq.rack, bPos, i);
+      if (!pts) return;
+      const cord = makeCableTube(pts, 0.22, matOm4Aqua);
+      if (!cord) return;
+      cord.name = link.id;
+      cord.userData.fiberLink = link;
+      cord.userData.interactive = false; // no detail popup
+      roomFiber.add(cord);
+    });
 
     // --- Ceiling power trunk (U around both hot-aisle rears) ---
     // Just below Wyr-Grid; feeds from vertical wall trunk. Later: hanging industrial plugs.
