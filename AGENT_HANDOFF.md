@@ -65,7 +65,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
-- **Fiber / core links:** removed again (rethink pending). C1/C2 MM optics 47–50 remain seated (`linked: false`).
+- **Core link (virtual):** C1↔C2 **port 47 only** — straight aqua LC–LC x-ray (no physical routing). Controls → **Core** show/hide. Port 47 LED green.
 - **Wyr-Grid waterfalls:** Panduit **WGSWF4BL**-style side waterfall (black, 3″ bend) on the **rear-side** rail of the basket above **each rack** (6 total).
 
 ## Design / product constraints
@@ -88,7 +88,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Scrapped virtual C1–C2 aqua core links + Controls → Core toggle |
+| (this) | Virtual C1↔C2 port-47 aqua LC–LC line + Controls → Core toggle |
+| prior | Scrapped prior multi-port aqua core-link experiment |
 | prior | Repo rename live URL → `serverRoom` |
 | prior | Removed physical OM4 patch-cord experiment |
 | prior | Wyr-Grid side waterfalls (×6, rear rail) |

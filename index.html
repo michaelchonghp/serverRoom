@@ -641,6 +641,10 @@
           <span class="label">Power</span>
           <span class="action">Show</span>
         </button>
+        <button type="button" id="btn-show-core" role="menuitem" aria-pressed="false">
+          <span class="label">Core</span>
+          <span class="action">Show</span>
+        </button>
       </div>
       <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
         <span class="label">Controls</span>
@@ -2443,6 +2447,57 @@
       g.userData.code = code;
       g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
+
+      // Front-face port anchors (switch-local cm) — for virtual link indicators
+      {
+        const faceW = w - 0.12;
+        const faceH = h - 0.15;
+        const faceZ = face.position.z - 0.35;
+        const pw = 1400;
+        const ph = 560;
+        const inset = 18;
+        const gap = 10;
+        const gridX = inset + 8;
+        const gridY = inset + 8;
+        const gridW = pw - inset * 2 - 16;
+        const gridH = ph - inset * 2 - 16;
+        const modW = (gridW - gap) / 2;
+        const modH = (gridH - gap) / 2;
+        const modules = [
+          { mx: gridX, my: gridY, portOffset: 0 },
+          { mx: gridX + modW + gap, my: gridY, portOffset: 18 },
+          { mx: gridX, my: gridY + modH + gap, portOffset: 36 },
+          { mx: gridX + modW + gap, my: gridY + modH + gap, portOffset: 54 },
+        ];
+        const portAnchors = {};
+        modules.forEach(({ mx, my, portOffset }) => {
+          const portAreaX = mx + modW * 0.06;
+          const portAreaY = my + modH * 0.26;
+          const portAreaW = modW * 0.88;
+          const portAreaH = modH * 0.66;
+          const rows = 2;
+          const cols = 9;
+          const pGapX = 4;
+          const pGapY = 6;
+          const pW = (portAreaW - pGapX * (cols + 1)) / cols;
+          const pH = (portAreaH - pGapY * (rows + 1)) / rows;
+          for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+              const portNum = portOffset + col * rows + r + 1;
+              const px = portAreaX + pGapX + col * (pW + pGapX) + pW * 0.5;
+              const py = portAreaY + pGapY + r * (pH + pGapY) + pH * 0.5;
+              const u = px / pw;
+              const v = py / ph;
+              portAnchors[portNum] = new THREE.Vector3(
+                (0.5 - u) * faceW,
+                (0.5 - v) * faceH,
+                faceZ
+              );
+            }
+          }
+        });
+        g.userData.portAnchors = portAnchors;
+      }
 
       g.userData.info = {
         eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
@@ -5498,13 +5553,16 @@
       });
     }
 
-    // Optic maps — linked=true → green port LED
+    // Optic maps — linked=true → green port LED. C1↔C2 port 47 linked (virtual aqua LC–LC).
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
+        port,
+        model: "XG-SFP-SR-MM850",
+        kind: "multimode",
+        linked: port === 47,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5587,6 +5645,60 @@
         ],
       }
     );
+
+    // -------------------------------------------------------------------------
+    // Core link — virtual aqua LC–LC indicator: C1 port 47 ↔ C2 port 47 only
+    // Straight port-to-port; no physical routing. Toggled via Controls → Core.
+    // -------------------------------------------------------------------------
+    function findEquipmentByCode(code) {
+      for (const { group: rack } of racks) {
+        for (const child of rack.children) {
+          if (child.userData && child.userData.code === code) {
+            return { rack, unit: child };
+          }
+        }
+      }
+      return null;
+    }
+
+    function portWorldPos(unit, port, aisleCm = 2.5) {
+      const local = unit.userData.portAnchors?.[port];
+      if (!local) return null;
+      // Step slightly into the aisle so the x-ray clears the faceplate
+      return unit.localToWorld(local.clone().add(new THREE.Vector3(0, 0, -aisleCm)));
+    }
+
+    const roomCoreLinks = new THREE.Group();
+    roomCoreLinks.name = "CoreRedundancyLinks";
+    roomCoreLinks.visible = false;
+    scene.add(roomCoreLinks);
+
+    const matCoreXray = new THREE.MeshBasicMaterial({
+      color: 0x3dcec7, // aqua indicator
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    });
+
+    {
+      const c1 = findEquipmentByCode("C1");
+      const c2 = findEquipmentByCode("C2");
+      const a = c1 && portWorldPos(c1.unit, 47);
+      const b = c2 && portWorldPos(c2.unit, 47);
+      if (a && b) {
+        const link = makeCableTube([a, b], 0.14, matCoreXray, {
+          tension: 0,
+          tubular: 6,
+        });
+        if (link) {
+          link.name = "CORE-C1C2-P47";
+          link.userData.interactive = false;
+          link.renderOrder = 4;
+          roomCoreLinks.add(link);
+        }
+      }
+    }
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -6770,6 +6882,7 @@
       rearRTarget: REAR_R_OPEN,
     };
     let showPower = false;
+    let showCore = false;
 
     const ctrlMenu = document.getElementById("ctrl-menu");
     const controlsPanel = document.getElementById("controls-panel");
@@ -6777,6 +6890,7 @@
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
     const btnShowPower = document.getElementById("btn-show-power");
+    const btnShowCore = document.getElementById("btn-show-core");
     const powerLegend = document.getElementById("power-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
@@ -6807,6 +6921,16 @@
       powerLegend.classList.toggle("visible", showPower);
     }
 
+    function syncCoreButton() {
+      btnShowCore.classList.toggle("open", showCore);
+      btnShowCore.setAttribute("aria-pressed", String(showCore));
+      btnShowCore.querySelector(".action").textContent = showCore ? "Hide" : "Show";
+      btnShowCore.setAttribute(
+        "aria-label",
+        showCore ? "Hide core link indicator" : "Show core link indicator"
+      );
+    }
+
     function setShowPower(on) {
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
@@ -6825,6 +6949,13 @@
         scene.fog.far = FOG_FAR;
         nudgeIdle();
       }
+    }
+
+    function setShowCore(on) {
+      showCore = on;
+      roomCoreLinks.visible = on;
+      syncCoreButton();
+      nudgeIdle();
     }
 
     function nudgeIdle() {
@@ -6905,6 +7036,7 @@
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
     btnShowPower.addEventListener("click", () => setShowPower(!showPower));
+    btnShowCore.addEventListener("click", () => setShowCore(!showCore));
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
@@ -6919,6 +7051,7 @@
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
     syncPowerButton();
+    syncCoreButton();
     syncRackButtons();
 
     // Deep-link helpers: ?focus=Rack6&info=ups|battery
