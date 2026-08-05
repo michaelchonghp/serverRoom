@@ -785,6 +785,10 @@
     const matMcbCover = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.28, roughness: 0.58 });
     // Panduit Wyr-Grid indicator — zinc wire basket
     const matWyrGrid = new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.82, roughness: 0.32 });
+    // Panduit WGSWF4BL side waterfall — black plastic
+    const matWyrGridWaterfall = new THREE.MeshStandardMaterial({
+      color: 0x1a1c1f, metalness: 0.12, roughness: 0.78,
+    });
     // Brushed silver trunk — lower metalness so it stays bright without an env map
     const matTrunkSilver = new THREE.MeshStandardMaterial({
       color: 0xd8dee6,
@@ -6225,9 +6229,107 @@
       Math.PI / 2
     );
 
-    // --- Fiber patch cords (after Wyr-Grid so routes can climb into the basket) ---
-    // Route per end: port → nearest side → rear → up through top cable opening → Wyr-Grid,
-    // then across the basket, then the reverse into the peer rack/port.
+    // --- Panduit WGSWF4BL side waterfalls (one per rack, rear side of basket) ---
+    // Snaps onto the pathway sidewall; 3″ bend radius for drops into the rack.
+    // Local frame: origin at pathway floor outer lip; +Z = outboard/drop; +X = along run.
+    const WG_WF_BEND_R = 7.6;   // 3″
+    const WG_WF_ALONG = 28.4;   // 11.2″
+    const WG_WF_RADIAL = 10.5;  // ~4.12″ fitting depth
+
+    function makeWyrGridSideWaterfall() {
+      const g = new THREE.Group();
+      g.name = "WyrGridSideWaterfall";
+      const bendR = WG_WF_BEND_R;
+      const along = WG_WF_ALONG;
+
+      // Cable deck: extrude a flat bar along the quarter-pipe centerline
+      const curvePts = [];
+      for (let i = 0; i <= 12; i++) {
+        const th = (i / 12) * (Math.PI / 2);
+        curvePts.push(new THREE.Vector3(
+          0,
+          -bendR * (1 - Math.cos(th)),
+          bendR * Math.sin(th)
+        ));
+      }
+      const curve = new THREE.CatmullRomCurve3(curvePts, false, "catmullrom", 0.1);
+      const deckShape = new THREE.Shape();
+      deckShape.moveTo(-along / 2, -0.28);
+      deckShape.lineTo(along / 2, -0.28);
+      deckShape.lineTo(along / 2, 0.28);
+      deckShape.lineTo(-along / 2, 0.28);
+      deckShape.closePath();
+      const deck = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(deckShape, {
+          steps: 16,
+          bevelEnabled: false,
+          extrudePath: curve,
+        }),
+        matWyrGridWaterfall
+      );
+      g.add(deck);
+
+      // Retaining side lips (cable posts) along both edges of the curve
+      [-along / 2 + 0.4, along / 2 - 0.4].forEach((x) => {
+        const lipPts = curvePts.map((p) => new THREE.Vector3(x, p.y + 1.1, p.z));
+        const lip = makeCableTube(lipPts, 0.35, matWyrGridWaterfall, {
+          tension: 0.05,
+          tubular: 20,
+        });
+        if (lip) {
+          lip.castShadow = false;
+          g.add(lip);
+        }
+      });
+
+      // Clip plate against the basket sidewall (inside lip)
+      g.add(box(along * 0.92, WG_SIDE * 0.9, 0.55, matWyrGridWaterfall, 0, WG_SIDE * 0.42, -0.35));
+      // Small top hook over the sidewall rail
+      g.add(box(along * 0.7, 0.45, 1.4, matWyrGridWaterfall, 0, WG_SIDE + 0.1, -0.55));
+
+      g.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = false;
+          o.receiveShadow = true;
+          o.userData.interactive = false;
+        }
+      });
+
+      // Path samples on the cable surface (local) — used by fiber dress
+      g.userData.curveLocals = curvePts;
+      g.userData.bendR = bendR;
+      return g;
+    }
+
+    /** World-space waterfall registry: rackName → { group, basketEntry } */
+    const waterfallByRack = new Map();
+
+    racks.forEach(({ group: rack }) => {
+      const isRowA = rack.position.z > 0;
+      const rearSign = isRowA ? 1 : -1; // world +Z = Row A rear; −Z = Row B rear
+      const basketZ = isRowA ? rowAZ : rowBZ;
+      const sideZ = basketZ + rearSign * (WG_W / 2);
+
+      const wf = makeWyrGridSideWaterfall();
+      // Lip sits on pathway floor at the rear-side rail (hot-aisle side of basket)
+      wf.position.set(rack.position.x, WG_Y, sideZ);
+      wf.rotation.y = isRowA ? 0 : Math.PI; // local +Z = outboard drop toward rack rear
+      wf.name = `Waterfall-${rack.name}`;
+      roomPower.add(wf);
+
+      // Basket entry: just inside the sidewall on the pathway floor
+      const basketEntry = new THREE.Vector3(
+        rack.position.x,
+        WG_Y + 0.6,
+        basketZ + rearSign * (WG_W / 2 - 4)
+      );
+      waterfallByRack.set(rack.name, { group: wf, basketEntry, rearSign, basketZ });
+      rack.userData.waterfall = wf;
+    });
+
+    // --- Fiber patch cords (after Wyr-Grid + waterfalls so routes climb through them) ---
+    // Route per end: port → nearest side → rear → top opening → up → waterfall curve
+    // → into Wyr-Grid basket → across → reverse into peer.
     // Four cords stay in a tight 2×2 parallel bundle (looks strapped — no velcro mesh).
     const roomFiber = new THREE.Group();
     roomFiber.name = "RoomFiberPatches";
@@ -6249,12 +6351,9 @@
     }
 
     /**
-     * Rack-local dress: port → nearest side → rear → top opening → Wyr-Grid.
-     *
-     * Face run (travel ±X): vertical ribbon of 4 unique Y lanes so a front /
-     * front-angle view shows four distinct cords (2×2 depth packing hides the
-     * rear column). Side/rise: morph into a tight 2×2 as if one velcro wrap —
-     * no strap mesh is drawn.
+     * Dress a front port up into the Wyr-Grid via the rack's side waterfall.
+     * In-rack segment is rack-local; waterfall / basket segment is world-space
+     * (basket lives on `roomPower`, not under the raised-floor bay).
      */
     function dressPortToWyrGrid(rack, portWorld, lane = 0) {
       const open = rack.userData.cableOpen;
@@ -6281,7 +6380,6 @@
       // Rise / opening travels +Y → pack in X–Z
       const openLaneX = side * (5.0 + dLayer);
       const openLaneZ = openZ - dy;
-      const wgY = WG_Y + 1.0 + dy * 0.3;
       const localPts = [
         p.clone(),
         // Fan from native port spacing into the face ribbon
@@ -6306,11 +6404,43 @@
         new THREE.Vector3(sideRunX, bundleY, openZ),
         new THREE.Vector3(sideRunX, openY - 8, openLaneZ),
         new THREE.Vector3(openLaneX, openY - 1.2, openLaneZ),
-        new THREE.Vector3(openLaneX, openY + 2.8, openLaneZ),
-        new THREE.Vector3(openLaneX, (openY + wgY) * 0.52, openLaneZ * 0.5),
-        new THREE.Vector3(openLaneX * 0.4, wgY, dy), // into Wyr-Grid
+        new THREE.Vector3(openLaneX, openY + 2.8, openLaneZ), // through top cable opening
       ];
       const pts = localPts.map((pt) => rack.localToWorld(pt.clone()));
+
+      // Climb to the waterfall and drape into the basket (world space)
+      const wfInfo = waterfallByRack.get(rack.name);
+      if (wfInfo) {
+        const wf = wfInfo.group;
+        wf.updateMatrixWorld(true);
+        const dAlong = (lane - 1.5) * pitch; // spread across waterfall width
+        // Approach from below the outboard curve (under the hang)
+        const approachLocal = new THREE.Vector3(
+          dAlong,
+          -WG_WF_BEND_R - 6,
+          WG_WF_BEND_R + 2
+        );
+        pts.push(wf.localToWorld(approachLocal));
+        // Follow the waterfall curve from hang-up into the lip (reverse of drop)
+        const curve = wf.userData.curveLocals || [];
+        for (let i = curve.length - 1; i >= 0; i--) {
+          const lp = curve[i].clone();
+          lp.x = dAlong;
+          lp.y += 0.45; // ride on top of the deck
+          pts.push(wf.localToWorld(lp));
+        }
+        // Settle onto the basket floor inside the sidewall
+        const entry = wfInfo.basketEntry.clone();
+        entry.x += dAlong;
+        entry.y += dy * 0.15;
+        pts.push(entry);
+        // Nudge toward basket centerline for the cross-run handoff
+        pts.push(new THREE.Vector3(
+          entry.x,
+          WG_Y + 1.0 + dy * 0.2,
+          wfInfo.basketZ + wfInfo.rearSign * pitch * 0.3
+        ));
+      }
       return { pts, rack };
     }
 
@@ -6324,11 +6454,13 @@
       const bGrid = bUp[bUp.length - 1];
       const { row, col } = fiberBundleSlot(lane);
       const aGridLane = aGrid.clone();
+      aGridLane.x += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.5;
       aGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      aGridLane.y += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.35;
+      aGridLane.y += 0.35;
       const bGridLane = bGrid.clone();
+      bGridLane.x += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.5;
       bGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      bGridLane.y += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.35;
+      bGridLane.y += 0.35;
       const mid = new THREE.Vector3().addVectors(aGridLane, bGridLane).multiplyScalar(0.5);
       mid.y += 0.55;
       const bDown = bUp.slice().reverse();
