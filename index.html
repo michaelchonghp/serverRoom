@@ -7549,10 +7549,10 @@
       projectWorldToScreen(coreCalloutAnchor, coreScreen);
       const ax = coreScreen.x;
       const ay = coreScreen.y;
-      const panelW = corePanel.offsetWidth || 260;
-      const panelH = corePanel.offsetHeight || 180;
+      const panelW = corePanel.offsetWidth || 160;
+      const panelH = corePanel.offsetHeight || 48;
       const margin = 12;
-      const gap = 18;
+      const gap = 14;
       const vw = window.innerWidth;
       const topChrome = isMobile() ? 12 : 56;
 
@@ -7562,8 +7562,6 @@
 
       corePanel.style.left = `${px}px`;
       corePanel.style.top = `${py}px`;
-      corePanel.classList.remove("from-right");
-      corePanel.style.transformOrigin = "center bottom";
 
       const joinX = px + panelW * 0.5;
       const joinY = py + panelH;
