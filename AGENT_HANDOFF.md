@@ -65,7 +65,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Ceiling industrial sockets (IEC 60309, **non-interactive**); Rack1 sockets **×1.2** (32A look) — both PDU1 and PDU2 positions
 - PDU1 **and PDU2** whips on all racks: black cable, **~3%** in-rack slack, through top opening → industrial plug into ceiling socket
 - Short silver conduits: MCB↔Bypass (vertical), MCB→trunk, Bypass→trunk, trunk→Dist
-- **Fiber patch cords:** removed (rethink pending). Core MM optics on C1/C2 ports 47–50 remain seated (`linked: false`).
+- **Core redundancy (virtual):** C1↔C2 OM4 LC–LC on ports **47–50** — straight aqua x-ray lines (no physical routing). Controls → **Core** show/hide. Port LEDs green when `linked: true`.
 - **Wyr-Grid waterfalls:** Panduit **WGSWF4BL**-style side waterfall (black, 3″ bend) on the **rear-side** rail of the basket above **each rack** (6 total).
 
 ## Design / product constraints
@@ -88,7 +88,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Removed all OM4 patch-cord geometry / `FIBER_LINKS` / port-anchor routing |
+| (this) | Virtual C1–C2 OM4 aqua lines + Controls → Core toggle |
+| prior | Removed physical OM4 patch-cord experiment |
 | prior | Wyr-Grid side waterfalls (×6, rear rail) |
 | prior | (reverted) C1↔C2 OM4 aqua patch-cord experiment |
 | `da14edf` | PDU2 whips + industrial plugs on all racks (same as PDU1) |
