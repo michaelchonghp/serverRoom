@@ -5802,6 +5802,7 @@
     // SM yellow Rack1: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2
     // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
     // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
+    // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5830,11 +5831,8 @@
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C4 = [
-      ...[1, 2].map((port) => ({
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...[11, 12, 13, 21, 22, 23].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
     ];
@@ -5842,10 +5840,10 @@
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
     const FW_XCVRS_F2 = FW_XCVRS_F1;
-    // Dist QSFP28 port 49 — SM uplink from C3
-    const DIST_XCVRS_UPLINK = [{
-      port: 49, model: "QSFP28-LR4", kind: "single-mode", linked: true,
-    }];
+    // Dist QSFP28 49←C3 · 50←C4
+    const DIST_XCVRS_UPLINK = [49, 50].map((port) => ({
+      port, model: "QSFP28-LR4", kind: "single-mode", linked: true,
+    }));
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -5922,7 +5920,7 @@
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
     // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // SM yellow: Rack1/2 via F1/F2 · C3→Dist port 49. Controls → Core.
+    // SM yellow: Rack1/2 via F1/F2 · C3/C4→Dist ports 49/50. Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -6053,6 +6051,13 @@
     addCorePortLink("C3", 21, "D2", 49, matCoreSmXray, "CORE-SM-C3P21-D2P49");
     addCorePortLink("C3", 22, "D4", 49, matCoreSmXray, "CORE-SM-C3P22-D4P49");
     addCorePortLink("C3", 23, "D6", 49, matCoreSmXray, "CORE-SM-C3P23-D6P49");
+    // SM C4 → distribution (QSFP28 port 50)
+    addCorePortLink("C4", 11, "D1", 50, matCoreSmXray, "CORE-SM-C4P11-D1P50");
+    addCorePortLink("C4", 12, "D3", 50, matCoreSmXray, "CORE-SM-C4P12-D3P50");
+    addCorePortLink("C4", 13, "D5", 50, matCoreSmXray, "CORE-SM-C4P13-D5P50");
+    addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50");
+    addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50");
+    addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50");
 
     // SM callouts: above C1/C2 port 3; frustum covers each rack's three SM hops
     function registerSmCallout(key, anchorCode, anchorPort, links) {
