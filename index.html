@@ -7405,7 +7405,84 @@
           mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
         }
       }
+      for (const label of distRoleLabels) label.visible = on;
     }
+
+    /** Hovering role text (LAN / WIFI / SECURITY) just outside the left RU strip. */
+    const DIST_ROLE_LABEL_TEXT = { LAN: "LAN", WIFI: "WIFI", SECURITY: "SECURITY" };
+    const distRoleLabels = [];
+
+    function makeDistRoleLabel(text, colorHex) {
+      const pw = 512;
+      const ph = 128;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      const css = `#${colorHex.toString(16).padStart(6, "0")}`;
+      ctx.font = `800 ${Math.floor(ph * 0.55)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = css;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = css;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      // Soft dark plate behind glyphs for contrast on bright rooms
+      ctx.globalCompositeOperation = "destination-over";
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(8, 12, 18, 0.55)";
+      const tw = ctx.measureText(text).width;
+      const padX = 28;
+      const padY = 16;
+      const bx = (pw - tw) / 2 - padX;
+      const by = ph * 0.18;
+      const bw = tw + padX * 2;
+      const bh = ph * 0.64;
+      ctx.beginPath();
+      const r = 10;
+      ctx.moveTo(bx + r, by);
+      ctx.arcTo(bx + bw, by, bx + bw, by + bh, r);
+      ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
+      ctx.arcTo(bx, by + bh, bx, by, r);
+      ctx.arcTo(bx, by, bx + bw, by, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(9.5, 2.35, 1);
+      sprite.visible = false;
+      sprite.renderOrder = 8;
+      sprite.userData.interactive = false;
+      return sprite;
+    }
+
+    function buildDistRoleLabels() {
+      // Outside the left RU strip when facing the front (−X for Row A, +X for Row B)
+      const outside = RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6;
+      for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
+        const eq = findEquipmentByCode(code);
+        if (!eq?.unit) continue;
+        const { rack, unit } = eq;
+        const label = makeDistRoleLabel(DIST_ROLE_LABEL_TEXT[role], DIST_ROLE_COLORS[role]);
+        const side = Math.cos(rack.rotation.y) > 0 ? -1 : 1;
+        const faceZ = unit.userData.mountZ ?? -20;
+        label.position.set(side * outside, 0, faceZ - 0.2);
+        unit.add(label);
+        distRoleLabels.push(label);
+      }
+    }
+    buildDistRoleLabels();
 
     let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
 
