@@ -5562,7 +5562,7 @@
         port,
         model: "XG-SFP-SR-MM850",
         kind: "multimode",
-        linked: port === 47 || port === 49,
+        linked: port === 47 || port === 48 || port === 49 || port === 50,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5648,9 +5648,9 @@
 
     // -------------------------------------------------------------------------
     // Core links — virtual aqua LC–LC indicators (straight; no physical routing)
-    // C1↔C2 ports 47 and 49. Same-row ports share height, so offset ±thickness
-    // in world Y so the two tubes are spaced by exactly one line thickness.
-    // Toggled via Controls → Core.
+    // C1↔C2 ports 47–50. Same-row pairs share height, so offset ±thickness
+    // in world Y (47/48 up · 49/50 down) so adjacent tubes are spaced by one
+    // line thickness. Toggled via Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5690,11 +5690,12 @@
     {
       const c1 = findEquipmentByCode("C1");
       const c2 = findEquipmentByCode("C2");
-      // 47 up toward ceiling · 49 down toward floor · each by one thickness
-      // → clear gap between tube surfaces = one thickness
+      // Column pair: 47/48 up · 49/50 down — each by one thickness
       const corePairs = [
         { port: 47, yOff: +CORE_LINK_THICK },
+        { port: 48, yOff: +CORE_LINK_THICK },
         { port: 49, yOff: -CORE_LINK_THICK },
+        { port: 50, yOff: -CORE_LINK_THICK },
       ];
       if (c1 && c2) {
         for (const { port, yOff } of corePairs) {
