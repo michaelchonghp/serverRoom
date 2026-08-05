@@ -51,6 +51,7 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 ### Blue / red x-ray + pulses (shared tree rules)
 
 - Static line: **outbound tree only** — no return path.
+- Blue and red share the same physical trunk but run as **parallel lanes** (`BLUE_TRUNK_OFF` ≈ (−2.2, 0, +1.6) · `RED_TRUNK_OFF` ≈ (+2.2, 0, −1.6)); spurs leave the offset lane and end on the real socket/PDU.
 - Must **follow wall trunk then ceiling trunk** (no aisle shortcuts).
 - Pulses:
   1. One pulse leaves origin (Dist blue / MCB red) → **U corner**
@@ -85,7 +86,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 | Commit / state | What landed |
 |----------------|-------------|
-| (this) | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |
+| (this) | Blue/red x-ray lanes offset inside the same trunk (not coincident) |
+| `0fc89d0` | Dist L7 security (details only); MCB→trunk conduit; red MCB→PDU2 x-ray + U-corner split pulses |
 | `70e6c61` | Blue pulses split at U corner into row A + row B arms — no backtrack after Rack3 |
 | `9db28b3` | Blue start: Dist → trunk conduit → up trunk → ceiling feeder (not vertical at Dist) |
 | `10c0948` | Blue pulses split at junctions; end at PDU; restart after 6; no return x-ray |

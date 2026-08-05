@@ -6219,6 +6219,9 @@
 
     // Blue x-ray: Dist → wall trunk → up → feeder → U-corner, then tree (no backtrack):
     //   arm A: Rack1→2→3 · arm B: cross → Rack4→5→6. Pulses split at corner and each PDU.
+    // Parallel lane offsets keep blue/red readable inside the same physical trunk.
+    const BLUE_TRUNK_OFF = new THREE.Vector3(-2.2, 0, 1.6); // toward Dist / into room
+    const RED_TRUNK_OFF = new THREE.Vector3(2.2, 0, -1.6); // toward MCB / opposite lane
     const matBlueXray = new THREE.MeshBasicMaterial({
       color: 0x4da3ff,
       transparent: true,
@@ -6254,8 +6257,8 @@
 
     function pushUniquePoint(arr, p) {
       const last = arr[arr.length - 1];
-      if (!last || last.distanceTo(p) > 0.5) {
-        const c = p.clone();
+      const c = p.clone().add(BLUE_TRUNK_OFF);
+      if (!last || last.distanceTo(c) > 0.5) {
         arr.push(c);
         bluePowerPathPoints.push(c.clone());
       }
@@ -6277,11 +6280,13 @@
         if (!g) return;
         pushUniquePoint(leg, g.junction);
         arm.legs.push(leg);
-        const spur = [g.junction.clone(), g.sockFace.clone(), g.pduTop.clone()];
+        // Spur leaves the offset trunk lane and ends on the real socket / PDU
+        const jOff = leg[leg.length - 1];
+        const spur = [jOff.clone(), g.sockFace.clone(), g.pduTop.clone()];
         arm.spurs.push(spur);
         blueSpurPaths.push(spur);
         spur.forEach((p) => bluePowerPathPoints.push(p.clone()));
-        leg = [g.junction.clone()];
+        leg = [jOff.clone()];
       });
       blueArms.push(arm);
       return arm;
@@ -6480,8 +6485,8 @@
 
     function pushRedPoint(arr, p) {
       const last = arr[arr.length - 1];
-      if (!last || last.distanceTo(p) > 0.5) {
-        const c = p.clone();
+      const c = p.clone().add(RED_TRUNK_OFF);
+      if (!last || last.distanceTo(c) > 0.5) {
         arr.push(c);
         redPowerPathPoints.push(c.clone());
       }
@@ -6503,11 +6508,13 @@
         if (!g) return;
         pushRedPoint(leg, g.junction);
         arm.legs.push(leg);
-        const spur = [g.junction.clone(), g.sockFace.clone(), g.pduTop.clone()];
+        // Spur leaves the offset trunk lane and ends on the real socket / PDU
+        const jOff = leg[leg.length - 1];
+        const spur = [jOff.clone(), g.sockFace.clone(), g.pduTop.clone()];
         arm.spurs.push(spur);
         redSpurPaths.push(spur);
         spur.forEach((p) => redPowerPathPoints.push(p.clone()));
-        leg = [g.junction.clone()];
+        leg = [jOff.clone()];
       });
       redArms.push(arm);
       return arm;
