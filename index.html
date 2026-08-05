@@ -507,6 +507,10 @@
       margin-top: 0.084rem;
     }
 
+    .core-sticky.below {
+      transform-origin: center top;
+    }
+
     .info-panel .info-close {
       position: absolute;
       top: 0.35rem;
@@ -782,6 +786,15 @@
     <div class="core-row">Core2/0/3 to Core4/0/1</div>
     <div class="core-row">Core2/0/4 to Firewall2/0/24</div>
     <div class="core-row">Firewall2/0/25 to Core4/0/2</div>
+  </aside>
+
+  <svg class="info-leader" id="core-leader-cd" aria-hidden="true">
+    <circle class="anchor-dot" id="core-anchor-cd" r="4" cx="0" cy="0" />
+    <line id="core-line-cd" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
+  </svg>
+  <aside class="core-sticky below" id="core-panel-cd" hidden aria-live="polite">
+    <div class="core-row">Core3/0/11,12,13 to Dist1,3,5/0/49</div>
+    <div class="core-row">Core3/0/21,22,23 to Dist2,4,6/0/49</div>
   </aside>
 
   <script type="importmap">
@@ -5984,6 +5997,7 @@
       C3C4: null, // world midpoint of C3↔C4 P47
       SM_C1: null, // just above C1 port 3
       SM_C2: null, // just above C2 port 3
+      SM_CD: null, // just under D6 port 50
     };
     // World endpoints of linked clusters (for frustum tests)
     const coreCalloutFrustumPts = {
@@ -5991,6 +6005,7 @@
       C3C4: [],
       SM_C1: [],
       SM_C2: [],
+      SM_CD: [],
     };
 
     function addCorePeerLinks(codeA, codeB) {
@@ -6067,12 +6082,12 @@
     addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
 
-    // SM callouts: above C1/C2 port 3; frustum covers each rack's three SM hops
-    function registerSmCallout(key, anchorCode, anchorPort, links) {
+    // SM callouts: C1/C2 above port 3 · Core→Dist under D6 port 50
+    function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1 } = {}) {
       const eq = findEquipmentByCode(anchorCode);
       const p = eq && portWorldPos(eq.unit, anchorPort);
       if (p) {
-        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
+        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5 * ySign, 0));
       }
       const pts = coreCalloutFrustumPts[key];
       if (!pts) return;
@@ -6096,6 +6111,14 @@
       ["C2", 4, "F2", 24],
       ["F2", 25, "C4", 2],
     ]);
+    registerSmCallout("SM_CD", "D6", 50, [
+      ["C3", 11, "D1", 49],
+      ["C3", 12, "D3", 49],
+      ["C3", 13, "D5", 49],
+      ["C3", 21, "D2", 49],
+      ["C3", 22, "D4", 49],
+      ["C3", 23, "D6", 49],
+    ], { ySign: -1 });
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -7372,6 +7395,7 @@
       showCoreDist = on;
       roomCoreDistLinks.visible = on;
       syncCoreDistButton();
+      setCoreDistCalloutVisible(on);
       nudgeIdle();
     }
 
@@ -7878,7 +7902,7 @@
     });
     infoPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
 
-    // --- Core sticky callouts (permanent while Controls → Core is shown) ---
+    // --- Core sticky callouts (Core · Core to Dist) ---
     const coreScreen = { x: 0, y: 0 };
     const coreCallouts = [
       {
@@ -7910,6 +7934,16 @@
         panel: document.getElementById("core-panel-sm-c2"),
       },
     ];
+    const coreDistCallouts = [
+      {
+        key: "SM_CD",
+        below: true,
+        leader: document.getElementById("core-leader-cd"),
+        line: document.getElementById("core-line-cd"),
+        anchorEl: document.getElementById("core-anchor-cd"),
+        panel: document.getElementById("core-panel-cd"),
+      },
+    ];
 
     function isWorldPointInView(v, margin = 0.02) {
       infoProj.copy(v).project(camera);
@@ -7932,9 +7966,9 @@
       return !!(mid && isWorldPointInView(mid));
     }
 
-    function layoutOneCoreCallout(callout) {
+    function layoutOneCoreCallout(callout, isShown) {
       const anchor = coreCalloutAnchors[callout.key];
-      if (!showCore || !anchor || callout.panel.hidden) return;
+      if (!isShown || !anchor || callout.panel.hidden) return;
 
       const inView = coreLinkClusterInView(callout.key);
       callout.panel.classList.toggle("off-frustum", !inView);
@@ -7953,16 +7987,20 @@
       const margin = 12;
       const gap = 14;
       const vw = window.innerWidth;
+      const vh = window.innerHeight;
       const topChrome = isMobile() ? 12 : 56;
+      const below = !!callout.below;
 
       const px = Math.min(Math.max(margin, ax - panelW * 0.5), vw - panelW - margin);
-      const py = Math.max(topChrome, ay - gap - panelH);
+      const py = below
+        ? Math.min(vh - panelH - margin, ay + gap)
+        : Math.max(topChrome, ay - gap - panelH);
 
       callout.panel.style.left = `${px}px`;
       callout.panel.style.top = `${py}px`;
 
       const joinX = px + panelW * 0.5;
-      const joinY = py + panelH;
+      const joinY = below ? py : py + panelH;
 
       callout.anchorEl.setAttribute("cx", ax.toFixed(1));
       callout.anchorEl.setAttribute("cy", ay.toFixed(1));
@@ -7973,11 +8011,12 @@
     }
 
     function layoutCoreCallout() {
-      for (const callout of coreCallouts) layoutOneCoreCallout(callout);
+      for (const callout of coreCallouts) layoutOneCoreCallout(callout, showCore);
+      for (const callout of coreDistCallouts) layoutOneCoreCallout(callout, showCoreDist);
     }
 
-    function setCoreCalloutVisible(on) {
-      for (const callout of coreCallouts) {
+    function setCalloutGroupVisible(callouts, on) {
+      for (const callout of callouts) {
         if (on) {
           if (!coreCalloutAnchors[callout.key]) continue;
           callout.panel.hidden = false;
@@ -7997,11 +8036,11 @@
       layoutCoreCallout();
       requestAnimationFrame(() => {
         layoutCoreCallout();
-        for (const callout of coreCallouts) {
+        for (const callout of callouts) {
           callout.line.style.strokeDashoffset = "1";
         }
         requestAnimationFrame(() => {
-          for (const callout of coreCallouts) {
+          for (const callout of callouts) {
             if (callout.panel.hidden) continue;
             callout.leader.classList.add("show");
             callout.panel.classList.add("show");
@@ -8009,6 +8048,14 @@
           }
         });
       });
+    }
+
+    function setCoreCalloutVisible(on) {
+      setCalloutGroupVisible(coreCallouts, on);
+    }
+
+    function setCoreDistCalloutVisible(on) {
+      setCalloutGroupVisible(coreDistCallouts, on);
     }
 
     function pickInteractive(clientX, clientY) {
@@ -8095,7 +8142,7 @@
 
       // Keep leader line glued to the equipment while orbiting
       if (infoTarget) layoutInfoCallout();
-      if (showCore) layoutCoreCallout();
+      if (showCore || showCoreDist) layoutCoreCallout();
 
       // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
       if (showPower) {
