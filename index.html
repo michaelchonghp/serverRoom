@@ -3409,17 +3409,22 @@
       return g;
     }
 
-    /** Ruijie RG-S6510-48VX8CQ front — 48× SFP+ + 8× QSFP, full-width silver face */
-    let ruijieS6510FrontTex = null;
-    function makeRuijieS6510FrontTexture() {
-      if (ruijieS6510FrontTex) return ruijieS6510FrontTex;
+    /** Ruijie RG-S6510-48VX8CQ front — 48× SFP28 + 8× QSFP28, full-width silver face */
+    const ruijieS6510TexCache = new Map();
+    function makeRuijieS6510FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (ruijieS6510TexCache.has(cacheKey)) return ruijieS6510TexCache.get(cacheKey);
 
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
       const pw = 2400;
       const ph = 260;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
       const ctx = c.getContext("2d");
+      const portCenters = {}; // port N → { u, v }
 
       // Light silver chassis
       const gFace = ctx.createLinearGradient(0, 0, 0, ph);
@@ -3441,8 +3446,7 @@
         ctx.closePath();
       }
 
-      function drawCage(x, y, w, h) {
-        // Silver metallic cage outline (empty — no optics seated)
+      function drawEmptyCage(x, y, w, h) {
         ctx.fillStyle = "#1a1e24";
         roundRect(x, y, w, h, 2);
         ctx.fill();
@@ -3451,11 +3455,47 @@
         ctx.stroke();
         ctx.fillStyle = "#0a0c10";
         ctx.fillRect(x + w * 0.14, y + h * 0.22, w * 0.72, h * 0.56);
-        // Tiny dark LED hole (unlit)
         ctx.fillStyle = "#2a3038";
         ctx.beginPath();
         ctx.arc(x + w * 0.82, y + h * 0.18, Math.max(1.4, h * 0.07), 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      function drawOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function placeCage(px, py, cageW, cageH, portNum) {
+        portCenters[portNum] = {
+          u: (px + cageW * 0.5) / pw,
+          v: (py + cageH * 0.5) / ph,
+        };
+        const xcvr = byPort.get(portNum);
+        if (xcvr) drawOptic(px, py, cageW, cageH, xcvr);
+        else drawEmptyCage(px, py, cageW, cageH);
       }
 
       // Top honeycomb vent strip
@@ -3479,11 +3519,11 @@
       const fieldW = pw - 36;
       const fieldH = ph - fieldY - 42; // leave brand strip at bottom
       const groupGap = 14;
-      // 4 SFP groups (each 6 cols) + 1 QSFP group (4 cols) → weight 6+6+6+6+8-ish
+      // 4 SFP groups (each 6 cols) + 1 QSFP group (4 cols)
       const sfpColsPerGroup = 6;
       const qsfpCols = 4;
       const sfpGroups = 4;
-      const totalUnits = sfpGroups * sfpColsPerGroup + qsfpCols * 1.35; // QSFP cages wider
+      const totalUnits = sfpGroups * sfpColsPerGroup + qsfpCols * 1.35;
       const unitW = (fieldW - groupGap * sfpGroups) / totalUnits;
       const sfpW = unitW;
       const qsfpW = unitW * 1.35;
@@ -3493,7 +3533,6 @@
       const pH = (fieldH - pGapY) / rows;
 
       let cx = fieldX;
-      // Tiny port-number tick row above cages
       ctx.fillStyle = "#5a6572";
       ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
       ctx.textAlign = "center";
@@ -3501,29 +3540,31 @@
       for (let gIdx = 0; gIdx < sfpGroups; gIdx++) {
         const gW = sfpColsPerGroup * sfpW + (sfpColsPerGroup - 1) * pGapX;
         const cageW = (gW - pGapX * (sfpColsPerGroup - 1)) / sfpColsPerGroup;
+        const portBase = gIdx * 12 + 1;
         for (let r = 0; r < rows; r++) {
           for (let col = 0; col < sfpColsPerGroup; col++) {
+            // Column-major: top/bottom pairs left→right (1/2, 3/4, …)
+            const portNum = portBase + col * rows + r;
             const px = cx + col * (cageW + pGapX);
             const py = fieldY + r * (pH + pGapY);
-            drawCage(px, py, cageW, pH);
+            placeCage(px, py, cageW, pH, portNum);
           }
         }
-        // Group index hint
-        const portBase = gIdx * 12 + 1;
         ctx.fillStyle = "#6a7380";
         ctx.fillText(`${portBase}`, cx + 8, fieldY - 2);
         cx += gW + groupGap;
       }
 
-      // QSFP block (wider cages)
+      // QSFP block — ports 49–56 (column-major)
       {
         const gW = qsfpCols * qsfpW + (qsfpCols - 1) * pGapX;
         const cageW = (gW - pGapX * (qsfpCols - 1)) / qsfpCols;
         for (let r = 0; r < rows; r++) {
           for (let col = 0; col < qsfpCols; col++) {
+            const portNum = 49 + col * rows + r;
             const px = cx + col * (cageW + pGapX);
             const py = fieldY + r * (pH + pGapY);
-            drawCage(px, py, cageW, pH * 0.98);
+            placeCage(px, py, cageW, pH * 0.98, portNum);
           }
         }
         ctx.fillStyle = "#6a7380";
@@ -3561,12 +3602,13 @@
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       tex.needsUpdate = true;
-      ruijieS6510FrontTex = tex;
+      tex.userData.portCenters = portCenters;
+      ruijieS6510TexCache.set(cacheKey, tex);
       return tex;
     }
 
     /** Ruijie RG-S6510-48VX8CQ — 1U distribution switch, 48×25G + 8×100G */
-    function makeRuijieS6510({ rackName = "Rack1", code = "" } = {}) {
+    function makeRuijieS6510({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.15;
       const w = 44.0;
@@ -3579,15 +3621,18 @@
       g.add(box(w, h, d, matChassis, 0, 0, 0));
       g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
 
+      const frontTex = makeRuijieS6510FrontTexture(transceivers);
       const frontMat = new THREE.MeshStandardMaterial({
-        map: makeRuijieS6510FrontTexture(),
+        map: frontTex,
         metalness: 0.28,
         roughness: 0.48,
         side: THREE.DoubleSide,
         emissive: 0x1a1e24,
         emissiveIntensity: 0.08,
       });
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
       face.position.set(0, 0, -d / 2 - 0.85);
       face.rotation.y = Math.PI;
       face.castShadow = true;
@@ -3604,6 +3649,39 @@
       g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
       g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
 
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "48× 25GE SFP28 · 8× 100GE QSFP28 · Front-to-rear airflow · ToR / distribution",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · ≈ 440 × 420 × 44 mm · Silver front panel · Dual hot-swap PSU",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        const kind = /multi/i.test(transceivers[0].kind) ? "multimode" : "single-mode";
+        blocks.push({
+          label: "Transceivers",
+          text: `Port ${ports.join(", ")}: ${transceivers[0].model} (${kind})`,
+        });
+      }
+
       g.userData.heightU = heightU;
       g.userData.mountZ = face.position.z;
       g.userData.interactive = true;
@@ -3616,16 +3694,7 @@
         title: "Ruijie Data Center Switch",
         model: "RG-S6510-48VX8CQ",
         rating: "1U · 48×25G + 8×100G",
-        blocks: [
-          {
-            label: "Interfaces",
-            text: "48× 25GE SFP28 · 8× 100GE QSFP28 · Front-to-rear airflow · ToR / distribution",
-          },
-          {
-            label: "Physical",
-            text: "1U rackmount · ≈ 440 × 420 × 44 mm · Silver front panel · Dual hot-swap PSU",
-          },
-        ],
+        blocks,
       };
       return g;
     }
@@ -5436,7 +5505,7 @@
           unit = makeHuaweiAr1600c({ rackName: name });
         }
         if (type === "sw-ruijie-s6510") {
-          unit = makeRuijieS6510({ rackName: name, code });
+          unit = makeRuijieS6510({ rackName: name, code, transceivers: transceivers || [] });
         }
         if (type === "sw-ruijie-s5760") {
           unit = makeRuijieS5760({ rackName: name, code });
@@ -5732,6 +5801,7 @@
     // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
     // SM yellow Rack1: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2
     // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
+    // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5754,11 +5824,8 @@
       ...CORE_MM_47_50,
     ];
     const CORE_XCVRS_C3 = [
-      ...[1, 2].map((port) => ({
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...[11, 12, 13, 21, 22, 23].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
     ];
@@ -5775,6 +5842,10 @@
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
     const FW_XCVRS_F2 = FW_XCVRS_F1;
+    // Dist QSFP28 port 49 — SM uplink from C3
+    const DIST_XCVRS_UPLINK = [{
+      port: 49, model: "QSFP28-LR4", kind: "single-mode", linked: true,
+    }];
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -5790,9 +5861,9 @@
           { type: "srv-poweredge-r750", startU: 16 }, // RU 17–18
           { type: "rt-cisco-c8300", startU: 19 }, // RU 20 — Voice
           // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
-          { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
-          { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
-          { type: "sw-ruijie-s6510", startU: 25, code: "D1" },
+          { type: "sw-ruijie-s6510", startU: 21, code: "D5", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D3", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D1", transceivers: DIST_XCVRS_UPLINK },
           { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1", transceivers: FW_XCVRS_F1 }, // RU 31 between C3 and C1
           { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1 },
@@ -5802,9 +5873,9 @@
         ],
         Rack2: [
           // Dist top→down: D2 (RU26), D4 (RU24), D6 (RU22)
-          { type: "sw-ruijie-s6510", startU: 21, code: "D6" },
-          { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
-          { type: "sw-ruijie-s6510", startU: 25, code: "D2" },
+          { type: "sw-ruijie-s6510", startU: 21, code: "D6", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D4", transceivers: DIST_XCVRS_UPLINK },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D2", transceivers: DIST_XCVRS_UPLINK },
           { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2", transceivers: FW_XCVRS_F2 }, // RU 31 between C4 and C2
           { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C2 },
@@ -5975,6 +6046,13 @@
     addCorePortLink("C2", 3, "C4", 1, matCoreSmXray, "CORE-SM-C2P3-C4P1");
     addCorePortLink("C2", 4, "F2", 24, matCoreSmXray, "CORE-SM-C2P4-F2P24");
     addCorePortLink("F2", 25, "C4", 2, matCoreSmXray, "CORE-SM-F2P25-C4P2");
+    // SM C3 → distribution (QSFP28 port 49)
+    addCorePortLink("C3", 11, "D1", 49, matCoreSmXray, "CORE-SM-C3P11-D1P49");
+    addCorePortLink("C3", 12, "D3", 49, matCoreSmXray, "CORE-SM-C3P12-D3P49");
+    addCorePortLink("C3", 13, "D5", 49, matCoreSmXray, "CORE-SM-C3P13-D5P49");
+    addCorePortLink("C3", 21, "D2", 49, matCoreSmXray, "CORE-SM-C3P21-D2P49");
+    addCorePortLink("C3", 22, "D4", 49, matCoreSmXray, "CORE-SM-C3P22-D4P49");
+    addCorePortLink("C3", 23, "D6", 49, matCoreSmXray, "CORE-SM-C3P23-D6P49");
 
     // SM callouts: above C1/C2 port 3; frustum covers each rack's three SM hops
     function registerSmCallout(key, anchorCode, anchorPort, links) {
