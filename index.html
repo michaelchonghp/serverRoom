@@ -2207,7 +2207,7 @@
       function drawSfp(px, py, pW, pH, xcvr) {
         // Industry tab colors: SM/LR = yellow, MM/SR = aqua
         const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
-        const linked = !!xcvr.linked; // green when patch cord up; red when seated only
+        const linked = !!xcvr.linked; // green when linked; red when seated only
         // Silver module body — reads clearly vs empty black cages
         const body = ctx.createLinearGradient(px, py, px, py + pH);
         body.addColorStop(0, "#e8edf3");
