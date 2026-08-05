@@ -5562,7 +5562,7 @@
         port,
         model: "XG-SFP-SR-MM850",
         kind: "multimode",
-        linked: port === 47,
+        linked: port === 47 || port === 49,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5647,8 +5647,10 @@
     );
 
     // -------------------------------------------------------------------------
-    // Core link — virtual aqua LC–LC indicator: C1 port 47 ↔ C2 port 47 only
-    // Straight port-to-port; no physical routing. Toggled via Controls → Core.
+    // Core links — virtual aqua LC–LC indicators (straight; no physical routing)
+    // C1↔C2 ports 47 and 49. Same-row ports share height, so offset ±thickness
+    // in world Y so the two tubes are spaced by exactly one line thickness.
+    // Toggled via Controls → Core.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5682,18 +5684,31 @@
       depthWrite: false,
     });
 
+    const CORE_LINK_R = 0.14;
+    const CORE_LINK_THICK = CORE_LINK_R * 2; // diameter = “thickness of the line”
+
     {
       const c1 = findEquipmentByCode("C1");
       const c2 = findEquipmentByCode("C2");
-      const a = c1 && portWorldPos(c1.unit, 47);
-      const b = c2 && portWorldPos(c2.unit, 47);
-      if (a && b) {
-        const link = makeCableTube([a, b], 0.14, matCoreXray, {
-          tension: 0,
-          tubular: 6,
-        });
-        if (link) {
-          link.name = "CORE-C1C2-P47";
+      // 47 up toward ceiling · 49 down toward floor · each by one thickness
+      // → clear gap between tube surfaces = one thickness
+      const corePairs = [
+        { port: 47, yOff: +CORE_LINK_THICK },
+        { port: 49, yOff: -CORE_LINK_THICK },
+      ];
+      if (c1 && c2) {
+        for (const { port, yOff } of corePairs) {
+          const a = portWorldPos(c1.unit, port);
+          const b = portWorldPos(c2.unit, port);
+          if (!a || !b) continue;
+          a.y += yOff;
+          b.y += yOff;
+          const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
+            tension: 0,
+            tubular: 6,
+          });
+          if (!link) continue;
+          link.name = `CORE-C1C2-P${port}`;
           link.userData.interactive = false;
           link.renderOrder = 4;
           roomCoreLinks.add(link);
