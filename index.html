@@ -6232,60 +6232,58 @@
     // --- Panduit WGSWF4BL side waterfalls (one per rack, rear side of basket) ---
     // Snaps onto the pathway sidewall; 3″ bend radius for drops into the rack.
     // Local frame: origin at pathway floor outer lip; +Z = outboard/drop; +X = along run.
-    const WG_WF_BEND_R = 7.6;   // 3″
-    const WG_WF_ALONG = 28.4;   // 11.2″
-    const WG_WF_RADIAL = 10.5;  // ~4.12″ fitting depth
+    const WG_WF_BEND_R = 7.6;   // 3″ bend radius (WGSWF4BL)
+    const WG_WF_ALONG = 28.4;   // 11.2″ along pathway
 
     function makeWyrGridSideWaterfall() {
       const g = new THREE.Group();
       g.name = "WyrGridSideWaterfall";
       const bendR = WG_WF_BEND_R;
       const along = WG_WF_ALONG;
+      const deckT = 0.55; // deck thickness
 
-      // Cable deck: extrude a flat bar along the quarter-pipe centerline
+      // Cable-bearing quarter-pipe: planks along θ=0 (lip) → θ=90° (hang)
+      // Local: origin at pathway floor outer lip; +Z outboard; +Y up
       const curvePts = [];
-      for (let i = 0; i <= 12; i++) {
-        const th = (i / 12) * (Math.PI / 2);
+      const segs = 10;
+      for (let i = 0; i <= segs; i++) {
+        const th = (i / segs) * (Math.PI / 2);
         curvePts.push(new THREE.Vector3(
           0,
           -bendR * (1 - Math.cos(th)),
           bendR * Math.sin(th)
         ));
       }
-      const curve = new THREE.CatmullRomCurve3(curvePts, false, "catmullrom", 0.1);
-      const deckShape = new THREE.Shape();
-      deckShape.moveTo(-along / 2, -0.28);
-      deckShape.lineTo(along / 2, -0.28);
-      deckShape.lineTo(along / 2, 0.28);
-      deckShape.lineTo(-along / 2, 0.28);
-      deckShape.closePath();
-      const deck = new THREE.Mesh(
-        new THREE.ExtrudeGeometry(deckShape, {
-          steps: 16,
-          bevelEnabled: false,
-          extrudePath: curve,
-        }),
-        matWyrGridWaterfall
-      );
-      g.add(deck);
+      for (let i = 0; i < segs; i++) {
+        const th0 = (i / segs) * (Math.PI / 2);
+        const th1 = ((i + 1) / segs) * (Math.PI / 2);
+        const th = (th0 + th1) * 0.5;
+        const y = -bendR * (1 - Math.cos(th));
+        const z = bendR * Math.sin(th);
+        const chord = bendR * (th1 - th0);
+        const plank = box(along, deckT, chord + 0.12, matWyrGridWaterfall, 0, y, z);
+        plank.rotation.x = -th; // follow the bend tangent
+        g.add(plank);
+      }
 
-      // Retaining side lips (cable posts) along both edges of the curve
-      [-along / 2 + 0.4, along / 2 - 0.4].forEach((x) => {
-        const lipPts = curvePts.map((p) => new THREE.Vector3(x, p.y + 1.1, p.z));
-        const lip = makeCableTube(lipPts, 0.35, matWyrGridWaterfall, {
-          tension: 0.05,
-          tubular: 20,
-        });
-        if (lip) {
-          lip.castShadow = false;
+      // Retaining side walls (cable posts) on both edges of the deck
+      [-along / 2 + 0.35, along / 2 - 0.35].forEach((x) => {
+        for (let i = 0; i < segs; i++) {
+          const th0 = (i / segs) * (Math.PI / 2);
+          const th1 = ((i + 1) / segs) * (Math.PI / 2);
+          const th = (th0 + th1) * 0.5;
+          const y = -bendR * (1 - Math.cos(th)) + 1.15;
+          const z = bendR * Math.sin(th);
+          const chord = bendR * (th1 - th0);
+          const lip = box(0.55, 2.2, chord + 0.1, matWyrGridWaterfall, x, y, z);
+          lip.rotation.x = -th;
           g.add(lip);
         }
       });
 
-      // Clip plate against the basket sidewall (inside lip)
-      g.add(box(along * 0.92, WG_SIDE * 0.9, 0.55, matWyrGridWaterfall, 0, WG_SIDE * 0.42, -0.35));
-      // Small top hook over the sidewall rail
-      g.add(box(along * 0.7, 0.45, 1.4, matWyrGridWaterfall, 0, WG_SIDE + 0.1, -0.55));
+      // Clip plate against the basket sidewall + top hook over the rail
+      g.add(box(along * 0.92, WG_SIDE * 0.95, 0.65, matWyrGridWaterfall, 0, WG_SIDE * 0.45, -0.4));
+      g.add(box(along * 0.75, 0.5, 1.6, matWyrGridWaterfall, 0, WG_SIDE + 0.15, -0.7));
 
       g.traverse((o) => {
         if (o.isMesh) {
