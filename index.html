@@ -497,16 +497,6 @@
       margin-top: 0.084rem;
     }
 
-    /* SM mesh callout — equal-weight rows, no bold title */
-    .core-sticky .core-row {
-      font-size: 0.49rem;
-      font-weight: 400;
-      letter-spacing: 0.02em;
-    }
-    .core-sticky .core-row + .core-row {
-      margin-top: 0.084rem;
-    }
-
     .info-panel .info-close {
       position: absolute;
       top: 0.35rem;
@@ -758,24 +748,6 @@
   <aside class="core-sticky" id="core-panel-c34" hidden aria-live="polite">
     <div class="core-title">Core3 - Core4</div>
     <div class="core-ports">Ports 47, 48, 49, 50</div>
-  </aside>
-
-  <svg class="info-leader" id="core-leader-sm-c1" aria-hidden="true">
-    <circle class="anchor-dot" id="core-anchor-sm-c1" r="4" cx="0" cy="0" />
-    <line id="core-line-sm-c1" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
-  </svg>
-  <aside class="core-sticky" id="core-panel-sm-c1" hidden aria-live="polite">
-    <div class="core-row">Core1/0/3 to Core3/0/1</div>
-    <div class="core-row">Core1/0/4 to Core4/0/1</div>
-  </aside>
-
-  <svg class="info-leader" id="core-leader-sm-c2" aria-hidden="true">
-    <circle class="anchor-dot" id="core-anchor-sm-c2" r="4" cx="0" cy="0" />
-    <line id="core-line-sm-c2" x1="0" y1="0" x2="0" y2="0" pathLength="1" />
-  </svg>
-  <aside class="core-sticky" id="core-panel-sm-c2" hidden aria-live="polite">
-    <div class="core-row">Core2/0/3 to Core3/0/2</div>
-    <div class="core-row">Core2/0/4 to Core4/0/2</div>
   </aside>
 
   <script type="importmap">
@@ -5658,43 +5630,18 @@
 
     // Optic maps — linked=true → green port LED.
     // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
-    // SM yellow cross-core mesh (C1:1–2 reserved upstream — not drawn yet):
-    //   C1:3→C3:1 · C1:4→C4:1 · C2:3→C3:2 · C2:4→C4:2
+    // SM optics seated but unlinked for now (pathing goes via firewall — TBD).
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
-    const CORE_XCVRS_C1 = [
-      ...[1, 2].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
-      })),
-      ...[3, 4].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...CORE_MM_47_50,
-    ];
-    const CORE_XCVRS_C2 = [
-      ...[1, 2].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
-      })),
-      ...[3, 4].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...CORE_MM_47_50,
-    ];
-    const CORE_XCVRS_C3 = [
-      ...[1, 2].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...[11, 12, 13, 21, 22, 23].map((port) => ({
+    const CORE_XCVRS_C1C2 = [
+      ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
     ];
-    const CORE_XCVRS_C4 = [
-      ...[1, 2].map((port) => ({
-        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
-      })),
-      ...[11, 12, 13, 21, 22, 23].map((port) => ({
+    const CORE_XCVRS_C3C4 = [
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...CORE_MM_47_50,
@@ -5717,9 +5664,9 @@
           { type: "sw-ruijie-s6510", startU: 21, code: "D5" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D3" },
           { type: "sw-ruijie-s6510", startU: 25, code: "D1" },
-          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
+          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F1" }, // RU 31 between C3 and C1
-          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1 },
+          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1C2 },
           { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 + CFAPPBL1
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 fixed shelf — Telecom reserve RU 39–42
@@ -5729,9 +5676,9 @@
           { type: "sw-ruijie-s6510", startU: 21, code: "D6" },
           { type: "sw-ruijie-s6510", startU: 23, code: "D4" },
           { type: "sw-ruijie-s6510", startU: 25, code: "D2" },
-          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C4 },
+          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C3C4 },
           { type: "fw-hillstone-a3800", startU: 30, code: "F2" }, // RU 31 between C4 and C2
-          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C2 },
+          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C1C2 },
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — fiber (same as Rack1)
           { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
         ],
@@ -5773,9 +5720,9 @@
     );
 
     // -------------------------------------------------------------------------
-    // Core links — virtual LC–LC indicators (straight; no physical routing)
-    // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
-    // SM yellow cross-core mesh (see CORE_XCVRS_* linked ports). Controls → Core.
+    // Core links — virtual aqua LC–LC indicators (straight; no physical routing)
+    // C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
+    // Controls → Core. (SM via firewall — not drawn yet.)
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
       for (const { group: rack } of racks) {
@@ -5808,13 +5755,6 @@
       depthTest: false,
       depthWrite: false,
     });
-    const matCoreSmXray = new THREE.MeshBasicMaterial({
-      color: 0xf0d000, // yellow = single-mode (matches SFP pull-tab)
-      transparent: true,
-      opacity: 0.9,
-      depthTest: false,
-      depthWrite: false,
-    });
 
     const CORE_LINK_R = 0.14;
     const CORE_LINK_THICK = CORE_LINK_R * 2; // diameter = “thickness of the line”
@@ -5828,15 +5768,11 @@
     const coreCalloutAnchors = {
       C1C2: null, // world midpoint of C1↔C2 P47
       C3C4: null, // world midpoint of C3↔C4 P47
-      SM_C1: null, // just above C1 port 3
-      SM_C2: null, // just above C2 port 3
     };
-    // World endpoints of linked clusters (for frustum tests)
+    // World endpoints of aqua peer-link clusters (for frustum tests)
     const coreCalloutFrustumPts = {
       C1C2: [],
       C3C4: [],
-      SM_C1: [],
-      SM_C2: [],
     };
 
     function addCorePeerLinks(codeA, codeB) {
@@ -5870,61 +5806,8 @@
       }
     }
 
-    /** One straight virtual LC–LC between two named core ports. */
-    function addCorePortLink(codeA, portA, codeB, portB, material, name) {
-      const aEq = findEquipmentByCode(codeA);
-      const bEq = findEquipmentByCode(codeB);
-      if (!aEq || !bEq) return null;
-      const a = portWorldPos(aEq.unit, portA);
-      const b = portWorldPos(bEq.unit, portB);
-      if (!a || !b) return null;
-      const link = makeCableTube([a, b], CORE_LINK_R, material, {
-        tension: 0,
-        tubular: 6,
-      });
-      if (!link) return null;
-      link.name = name || `CORE-${codeA}P${portA}-${codeB}P${portB}`;
-      link.userData.interactive = false;
-      link.renderOrder = 4;
-      roomCoreLinks.add(link);
-      return link;
-    }
-
     addCorePeerLinks("C1", "C2");
     addCorePeerLinks("C3", "C4");
-    // SM cross-core mesh (C1:1–2 upstream — not drawn yet)
-    addCorePortLink("C1", 3, "C3", 1, matCoreSmXray, "CORE-SM-C1P3-C3P1");
-    addCorePortLink("C1", 4, "C4", 1, matCoreSmXray, "CORE-SM-C1P4-C4P1");
-    addCorePortLink("C2", 3, "C3", 2, matCoreSmXray, "CORE-SM-C2P3-C3P2");
-    addCorePortLink("C2", 4, "C4", 2, matCoreSmXray, "CORE-SM-C2P4-C4P2");
-
-    // SM callouts: C1 above port 3 · C2 above port 3; frustum covers each pair's SM links
-    function registerSmCallout(key, anchorCode, anchorPort, links) {
-      const eq = findEquipmentByCode(anchorCode);
-      const p = eq && portWorldPos(eq.unit, anchorPort);
-      if (p) {
-        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5, 0));
-      }
-      const pts = coreCalloutFrustumPts[key];
-      if (!pts) return;
-      pts.length = 0;
-      for (const [codeA, portA, codeB, portB] of links) {
-        const aEq = findEquipmentByCode(codeA);
-        const bEq = findEquipmentByCode(codeB);
-        const a = aEq && portWorldPos(aEq.unit, portA);
-        const b = bEq && portWorldPos(bEq.unit, portB);
-        if (a) pts.push(a);
-        if (b) pts.push(b);
-      }
-    }
-    registerSmCallout("SM_C1", "C1", 3, [
-      ["C1", 3, "C3", 1],
-      ["C1", 4, "C4", 1],
-    ]);
-    registerSmCallout("SM_C2", "C2", 3, [
-      ["C2", 3, "C3", 2],
-      ["C2", 4, "C4", 2],
-    ]);
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -7703,20 +7586,6 @@
         line: document.getElementById("core-line-c34"),
         anchorEl: document.getElementById("core-anchor-c34"),
         panel: document.getElementById("core-panel-c34"),
-      },
-      {
-        key: "SM_C1",
-        leader: document.getElementById("core-leader-sm-c1"),
-        line: document.getElementById("core-line-sm-c1"),
-        anchorEl: document.getElementById("core-anchor-sm-c1"),
-        panel: document.getElementById("core-panel-sm-c1"),
-      },
-      {
-        key: "SM_C2",
-        leader: document.getElementById("core-leader-sm-c2"),
-        line: document.getElementById("core-line-sm-c2"),
-        anchorEl: document.getElementById("core-anchor-sm-c2"),
-        panel: document.getElementById("core-panel-sm-c2"),
       },
     ];
 
