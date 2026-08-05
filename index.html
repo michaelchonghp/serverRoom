@@ -5661,11 +5661,11 @@
       return null;
     }
 
-    function portWorldPos(unit, port, aisleCm = 2.5) {
+    function portWorldPos(unit, port) {
       const local = unit.userData.portAnchors?.[port];
       if (!local) return null;
-      // Step slightly into the aisle so the x-ray clears the faceplate
-      return unit.localToWorld(local.clone().add(new THREE.Vector3(0, 0, -aisleCm)));
+      // Sit on the faceplate optic (anchor is already just proud of the face texture)
+      return unit.localToWorld(local.clone());
     }
 
     const roomCoreLinks = new THREE.Group();
