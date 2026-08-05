@@ -6199,6 +6199,36 @@
       return link;
     }
 
+    /** Short loose pigtail hanging out of a port (no full run — less visual clutter). */
+    function addDanglingPortStub(code, port, material, name, group, {
+      length = 5.5,
+      droop = 2.8,
+    } = {}) {
+      const eq = findEquipmentByCode(code);
+      if (!eq) return null;
+      eq.unit.updateWorldMatrix(true, false);
+      const a = portWorldPos(eq.unit, port);
+      if (!a) return null;
+      const q = eq.unit.getWorldQuaternion(new THREE.Quaternion());
+      const outward = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
+      const mid = a.clone()
+        .addScaledVector(outward, length * 0.45)
+        .add(new THREE.Vector3(0, -droop * 0.25, 0));
+      const tip = a.clone()
+        .addScaledVector(outward, length)
+        .add(new THREE.Vector3(0, -droop, 0));
+      const link = makeCableTube([a, mid, tip], CORE_LINK_R, material, {
+        tension: 0.55,
+        tubular: 12,
+      });
+      if (!link) return null;
+      link.name = name || `STUB-${code}P${port}`;
+      link.userData.interactive = false;
+      link.renderOrder = 4;
+      group.add(link);
+      return link;
+    }
+
     addCorePeerLinks("C1", "C2");
     addCorePeerLinks("C3", "C4");
     // SM via firewalls (and direct top↔bottom core) — Controls → Core
@@ -6221,8 +6251,9 @@
     addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50", roomCoreDistLinks);
     addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
-    // SM Dist → Access — Controls → Access
-    addCorePortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks);
+    // SM Dist → Access — dangling pigtails (Controls → Access); full run was too busy
+    addDanglingPortStub("D1", 1, matCoreSmXray, "DIST-STUB-D1P1", roomDistAccessLinks);
+    addDanglingPortStub("A1", 49, matCoreSmXray, "DIST-STUB-A1P49", roomDistAccessLinks);
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
     function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1 } = {}) {
