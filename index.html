@@ -5945,7 +5945,7 @@
     // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
     // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
     // SM yellow Dist→Access:
-    //   D1:1–4 → A1–A4:49 · D2:1–4 → A1–A4:50 · D3:1 → A5:49
+    //   D1:1–4 → A1–A4:49 · D2:1–4 → A1–A4:50 · D3:1→A5:49 · D3:2→A6:49
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -6001,7 +6001,9 @@
     ];
     const DIST_XCVRS_D3 = [
       ...DIST_XCVRS_UPLINK,
-      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
     ];
     const ACCESS_XCVRS_UPLINK_49_50 = [49, 50].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
@@ -6014,6 +6016,7 @@
     const ACCESS_XCVRS_A3 = ACCESS_XCVRS_UPLINK_49_50;
     const ACCESS_XCVRS_A4 = ACCESS_XCVRS_UPLINK_49_50;
     const ACCESS_XCVRS_A5 = ACCESS_XCVRS_UPLINK_49;
+    const ACCESS_XCVRS_A6 = ACCESS_XCVRS_UPLINK_49;
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -6071,7 +6074,7 @@
         Rack4: [
           // Access top→down: A8/A6/A4/A2 at RU 18, 20, 22, 24 (equally spaced)
           { type: "sw-ruijie-s5760", startU: 17, code: "A8" }, // RU 18
-          { type: "sw-ruijie-s5760", startU: 19, code: "A6" }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 19, code: "A6", transceivers: ACCESS_XCVRS_A6 }, // RU 20
           { type: "sw-ruijie-s5760", startU: 21, code: "A4", transceivers: ACCESS_XCVRS_A4 }, // RU 22
           { type: "sw-ruijie-s5760", startU: 23, code: "A2", transceivers: ACCESS_XCVRS_A2 }, // RU 24
         ],
@@ -6415,6 +6418,10 @@
       { material: matAccessWifiAuraSoft, radiusScale: 4.6 },
     ];
     addSlackPortLink("D3", 1, "A5", 49, matCoreSmXray, "DIST-SM-D3P1-A5P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
+    });
+    addSlackPortLink("D3", 2, "A6", 49, matCoreSmXray, "DIST-SM-D3P2-A6P49", roomDistAccessLinks, {
       sag: 50,
       aura: ACCESS_WIFI_AURA,
     });
