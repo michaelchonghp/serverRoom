@@ -757,6 +757,10 @@
           <span class="label">Dist</span>
           <span class="action">Show</span>
         </button>
+        <button type="button" id="btn-show-access" role="menuitem" aria-pressed="false">
+          <span class="label">Access</span>
+          <span class="action">Show</span>
+        </button>
       </div>
       <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
         <span class="label">Controls</span>
@@ -7368,6 +7372,7 @@
     let showPower = false;
     let showCore = false;
     let showCoreDist = false;
+    let showAccess = false;
 
     const ctrlMenu = document.getElementById("ctrl-menu");
     const controlsPanel = document.getElementById("controls-panel");
@@ -7377,9 +7382,14 @@
     const btnShowPower = document.getElementById("btn-show-power");
     const btnShowCore = document.getElementById("btn-show-core");
     const btnShowCoreDist = document.getElementById("btn-show-core-dist");
+    const btnShowAccess = document.getElementById("btn-show-access");
     const powerLegend = document.getElementById("power-legend");
     const distLegend = document.getElementById("dist-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
+
+    function roleHighlightsActive() {
+      return showCoreDist || showAccess;
+    }
 
     // Face-role colors for Dist / Access (LAN · Wi-Fi · Security)
     const DIST_ROLE_COLORS = {
@@ -7529,16 +7539,36 @@
       );
     }
 
+    function syncRoleLegend() {
+      const on = roleHighlightsActive();
+      distLegend.hidden = !on;
+      distLegend.classList.toggle("visible", on);
+    }
+
     function syncCoreDistButton() {
       btnShowCoreDist.classList.toggle("open", showCoreDist);
       btnShowCoreDist.setAttribute("aria-pressed", String(showCoreDist));
       btnShowCoreDist.querySelector(".action").textContent = showCoreDist ? "Hide" : "Show";
       btnShowCoreDist.setAttribute(
         "aria-label",
-        showCoreDist ? "Hide distribution role highlight" : "Show distribution role highlight"
+        showCoreDist
+          ? "Hide core-to-dist links and role highlight"
+          : "Show core-to-dist links and role highlight"
       );
-      distLegend.hidden = !showCoreDist;
-      distLegend.classList.toggle("visible", showCoreDist);
+      syncRoleLegend();
+    }
+
+    function syncAccessButton() {
+      btnShowAccess.classList.toggle("open", showAccess);
+      btnShowAccess.setAttribute("aria-pressed", String(showAccess));
+      btnShowAccess.querySelector(".action").textContent = showAccess ? "Hide" : "Show";
+      btnShowAccess.setAttribute(
+        "aria-label",
+        showAccess
+          ? "Hide access and distribution role highlight"
+          : "Show access and distribution role highlight"
+      );
+      syncRoleLegend();
     }
 
     function setShowPower(on) {
@@ -7572,9 +7602,16 @@
     function setShowCoreDist(on) {
       showCoreDist = on;
       roomCoreDistLinks.visible = on;
-      setDistRoleHighlights(on);
+      setDistRoleHighlights(roleHighlightsActive());
       syncCoreDistButton();
       setCoreDistCalloutVisible(on);
+      nudgeIdle();
+    }
+
+    function setShowAccess(on) {
+      showAccess = on;
+      setDistRoleHighlights(roleHighlightsActive());
+      syncAccessButton();
       nudgeIdle();
     }
 
@@ -7658,6 +7695,7 @@
     btnShowPower.addEventListener("click", () => setShowPower(!showPower));
     btnShowCore.addEventListener("click", () => setShowCore(!showCore));
     btnShowCoreDist.addEventListener("click", () => setShowCoreDist(!showCoreDist));
+    btnShowAccess.addEventListener("click", () => setShowAccess(!showAccess));
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
