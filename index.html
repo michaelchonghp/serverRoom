@@ -5691,11 +5691,10 @@
       if (!local) return null;
       const bundle = CORE_OM4_PORTS.map((p) => anchors[p]).filter(Boolean);
       if (!bundle.length) return null;
-      const center = bundle.reduce(
-        (acc, p) => acc.add(p),
-        new THREE.Vector3()
-      ).multiplyScalar(1 / bundle.length);
-      const p = center.clone().add(local.clone().sub(center).multiplyScalar(spread));
+      const center = new THREE.Vector3();
+      for (const bp of bundle) center.add(bp);
+      center.multiplyScalar(1 / bundle.length);
+      const p = local.clone().sub(center).multiplyScalar(spread).add(center);
       p.z -= aisleCm; // clear of faceplate, into aisle
       return unit.localToWorld(p);
     }
