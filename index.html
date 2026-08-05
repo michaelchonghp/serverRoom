@@ -7468,8 +7468,9 @@
     }
 
     function buildDistRoleLabels() {
-      // Outside the left RU strip (−X rail), adjacent to the height labels
-      const x = -(RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6);
+      // Viewer's left when facing the front is +X (same side as Dist.*/Access field tags).
+      // Sit just outside the RU strip on that side.
+      const x = RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6;
       for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
         const eq = findEquipmentByCode(code);
         if (!eq?.unit) continue;
