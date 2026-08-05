@@ -6228,7 +6228,7 @@
     // --- Fiber patch cords (after Wyr-Grid so routes can climb into the basket) ---
     // Route per end: port → nearest side → rear → up through top cable opening → Wyr-Grid,
     // then across the basket, then the reverse into the peer rack/port.
-    // Four cords stay in a 2×2 parallel bundle (velcro) — never coincident.
+    // Four cords stay in a tight 2×2 parallel bundle (looks strapped — no velcro mesh).
     const roomFiber = new THREE.Group();
     roomFiber.name = "RoomFiberPatches";
     scene.add(roomFiber);
@@ -6238,83 +6238,69 @@
       metalness: 0.05,
       roughness: 0.55,
     });
-    const matVelcro = new THREE.MeshStandardMaterial({
-      color: 0x22262c,
-      metalness: 0.08,
-      roughness: 0.92,
-    });
 
     const FIBER_CORD_R = 0.2;
-    const FIBER_BUNDLE_PITCH = 0.7; // center-to-center in the 2×2 bundle
+    // Center-to-center must exceed 2×radius or tubes fuse into one mass
+    const FIBER_BUNDLE_PITCH = 0.55;
 
     /** 2×2 bundle slot for lane 0..3 → { col, row } */
     function fiberBundleSlot(lane) {
       return { col: (lane / 2) | 0, row: lane % 2 };
     }
 
-    /** Thin velcro strap around a bundle (torus; hole follows cable tangent) */
-    function makeVelcroStrap(centerWorld, tangentWorld, radius = 0.95) {
-      const mesh = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, 0.11, 6, 20),
-        matVelcro
-      );
-      mesh.position.copy(centerWorld);
-      const t = tangentWorld.clone();
-      if (t.lengthSq() > 1e-8) {
-        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), t.normalize());
-      }
-      mesh.userData.interactive = false;
-      mesh.name = "FiberVelcroStrap";
-      return mesh;
-    }
-
-    /** Rack-local dress from a front port up into the Wyr-Grid above this rack */
+    /**
+     * Rack-local dress: port → nearest side → rear → top opening → Wyr-Grid.
+     * Lane offsets always sit in the plane ⊥ to travel so same-height ports
+     * (47/49, 48/50) stay distinct on the face run — never stagger along ±X there.
+     */
     function dressPortToWyrGrid(rack, portWorld, lane = 0) {
       const open = rack.userData.cableOpen;
-      if (!open) return { pts: [], sideStrapLocal: null, riseStrapLocal: null };
+      if (!open) return { pts: [] };
       const p = rack.worldToLocal(portWorld.clone());
       const side = p.x >= 0 ? 1 : -1; // nearest side of the rack
       const { col, row } = fiberBundleSlot(lane);
       const pitch = FIBER_BUNDLE_PITCH;
-      // Side wall: separate in X (inward layers) so same-height ports (47/49, 48/50) don't merge
-      const sideX = side * (OUTER_W / 2 - 2.5 - col * pitch);
-      const bundleY = p.y + (row - 0.5) * pitch * 0.35;
+      const dy = (row - 0.5) * pitch;       // vertical pair in bundle
+      const dLayer = (col - 0.5) * pitch;   // second axis of the 2×2
+      // Shared side-rail X — whole bundle hugs one line (as if one velcro wrap)
+      const sideX = side * (OUTER_W / 2 - 2.8);
       const openY = open.y;
       const openZ = open.z;
-      // Rise / opening: tight parallel 2×2 in X–Z
-      const openLaneX = side * (5.0 + col * pitch);
-      const openLaneZ = openZ - row * pitch;
-      const wgY = WG_Y + 1.0 + row * 0.15;
+      // Face run travels ±X → pack in Y + Z (depth from face)
+      const faceZ = p.z + dLayer;
+      const bundleY = p.y + dy;
+      // Side rear-run travels ±Z → pack in Y + X (layers inward from rail)
+      const sideRunX = sideX - side * dLayer;
+      // Rise / opening travels +Y → pack in X–Z
+      const openLaneX = side * (5.0 + dLayer);
+      const openLaneZ = openZ - dy;
+      const wgY = WG_Y + 1.0 + dy * 0.3;
       const localPts = [
         p.clone(),
-        new THREE.Vector3(THREE.MathUtils.lerp(p.x, sideX, 0.45), p.y, p.z),
-        new THREE.Vector3(sideX, bundleY, p.z), // at side (front) — unique per lane
-        new THREE.Vector3(sideX, bundleY, THREE.MathUtils.lerp(p.z, openZ, 0.4)),
-        new THREE.Vector3(sideX, bundleY, openZ), // rear of side run
-        new THREE.Vector3(sideX, openY - 8, openLaneZ), // rise in rear channel
-        new THREE.Vector3(openLaneX, openY - 1.2, openLaneZ), // under top opening
-        new THREE.Vector3(openLaneX, openY + 2.8, openLaneZ), // through top opening
+        // Fan into bundle lanes quickly after leaving the SFP
+        new THREE.Vector3(
+          THREE.MathUtils.lerp(p.x, sideX, 0.28),
+          p.y + dy * 0.55,
+          p.z + dLayer * 0.45
+        ),
+        // Horizontal face run to the side — same X progression, distinct Y/Z
+        new THREE.Vector3(
+          THREE.MathUtils.lerp(p.x, sideX, 0.72),
+          bundleY,
+          faceZ
+        ),
+        new THREE.Vector3(sideX, bundleY, faceZ),
+        // Corner into rear channel — shift layer offset from Z into X
+        new THREE.Vector3(sideRunX, bundleY, THREE.MathUtils.lerp(faceZ, openZ, 0.35)),
+        new THREE.Vector3(sideRunX, bundleY, openZ),
+        new THREE.Vector3(sideRunX, openY - 8, openLaneZ),
+        new THREE.Vector3(openLaneX, openY - 1.2, openLaneZ),
+        new THREE.Vector3(openLaneX, openY + 2.8, openLaneZ),
         new THREE.Vector3(openLaneX, (openY + wgY) * 0.52, openLaneZ * 0.5),
-        new THREE.Vector3(openLaneX * 0.4, wgY, (row - 0.5) * pitch), // into Wyr-Grid
+        new THREE.Vector3(openLaneX * 0.4, wgY, dy), // into Wyr-Grid
       ];
       const pts = localPts.map((pt) => rack.localToWorld(pt.clone()));
-      const sideStrapLocal = {
-        center: new THREE.Vector3(
-          side * (OUTER_W / 2 - 2.5 - 0.5 * pitch),
-          p.y,
-          THREE.MathUtils.lerp(p.z, openZ, 0.55)
-        ),
-        tangent: new THREE.Vector3(0, 0, Math.sign(openZ - p.z) || 1),
-      };
-      const riseStrapLocal = {
-        center: new THREE.Vector3(
-          side * (5.0 + 0.5 * pitch),
-          (openY + wgY) * 0.52,
-          openZ - 0.5 * pitch
-        ),
-        tangent: new THREE.Vector3(0, 1, 0),
-      };
-      return { pts, sideStrapLocal, riseStrapLocal, rack };
+      return { pts, rack };
     }
 
     function makeOm4PatchPathViaWyrGrid(aRack, aPortWorld, bRack, bPortWorld, lane = 0) {
@@ -6328,10 +6314,10 @@
       const { row, col } = fiberBundleSlot(lane);
       const aGridLane = aGrid.clone();
       aGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      aGridLane.y += (col - 0.5) * 0.2;
+      aGridLane.y += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.35;
       const bGridLane = bGrid.clone();
       bGridLane.z += (row - 0.5) * FIBER_BUNDLE_PITCH;
-      bGridLane.y += (col - 0.5) * 0.2;
+      bGridLane.y += (col - 0.5) * FIBER_BUNDLE_PITCH * 0.35;
       const mid = new THREE.Vector3().addVectors(aGridLane, bGridLane).multiplyScalar(0.5);
       mid.y += 0.55;
       const bDown = bUp.slice().reverse();
@@ -6340,16 +6326,6 @@
         aDress,
         bDress,
       };
-    }
-
-    const fiberStrapKeys = new Set();
-    function addVelcroAtRack(key, rack, local) {
-      if (!local || fiberStrapKeys.has(key)) return;
-      fiberStrapKeys.add(key);
-      const center = rack.localToWorld(local.center.clone());
-      const tip = rack.localToWorld(local.center.clone().add(local.tangent));
-      const tangent = tip.sub(center);
-      roomFiber.add(makeVelcroStrap(center, tangent, 0.98));
     }
 
     FIBER_LINKS.forEach((link, i) => {
@@ -6362,22 +6338,14 @@
       const routed = makeOm4PatchPathViaWyrGrid(aEq.rack, aPos, bEq.rack, bPos, i);
       if (!routed) return;
       const cord = makeCableTube(routed.pts, FIBER_CORD_R, matOm4Aqua, {
-        tension: 0.16,
-        tubular: Math.max(56, routed.pts.length * 12),
+        tension: 0.12,
+        tubular: Math.max(64, routed.pts.length * 14),
       });
       if (!cord) return;
       cord.name = link.id;
       cord.userData.fiberLink = link;
       cord.userData.interactive = false; // no detail popup
       roomFiber.add(cord);
-
-      // Shared velcro straps (once per rack): side bundle + rise to Wyr-Grid
-      if (i === 0) {
-        addVelcroAtRack(`velcro-side-${aEq.rack.name}`, aEq.rack, routed.aDress.sideStrapLocal);
-        addVelcroAtRack(`velcro-rise-${aEq.rack.name}`, aEq.rack, routed.aDress.riseStrapLocal);
-        addVelcroAtRack(`velcro-side-${bEq.rack.name}`, bEq.rack, routed.bDress.sideStrapLocal);
-        addVelcroAtRack(`velcro-rise-${bEq.rack.name}`, bEq.rack, routed.bDress.riseStrapLocal);
-      }
     });
 
     // --- Ceiling power trunk (U around both hot-aisle rears) ---
