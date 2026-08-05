@@ -5944,7 +5944,7 @@
     // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
     // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
     // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
-    // SM yellow Dist→Access: D1:1→A1:49
+    // SM yellow Dist→Access: D1:1→A1:49 · D1:2→A2:49
     const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
       port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
     }));
@@ -5986,14 +5986,17 @@
     const DIST_XCVRS_UPLINK = [49, 50].map((port) => ({
       port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
     }));
-    // D1:1 → A1:49 (Access downlink) in addition to core uplinks
+    // D1:1→A1:49 · D1:2→A2:49 (Access downlinks) in addition to core uplinks
     const DIST_XCVRS_D1 = [
       ...DIST_XCVRS_UPLINK,
-      { port: 1, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
     ];
     const ACCESS_XCVRS_A1 = [
       { port: 49, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true },
     ];
+    const ACCESS_XCVRS_A2 = ACCESS_XCVRS_A1;
 
     // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
     placeRow(
@@ -6053,7 +6056,7 @@
           { type: "sw-ruijie-s5760", startU: 17, code: "A8" }, // RU 18
           { type: "sw-ruijie-s5760", startU: 19, code: "A6" }, // RU 20
           { type: "sw-ruijie-s5760", startU: 21, code: "A4" }, // RU 22
-          { type: "sw-ruijie-s5760", startU: 23, code: "A2" }, // RU 24
+          { type: "sw-ruijie-s5760", startU: 23, code: "A2", transceivers: ACCESS_XCVRS_A2 }, // RU 24
         ],
         // APC Smart-UPS On-Line SRTG15KXLI 15kVA — 7U at bottom of Rack6
         // + 4× SRTG192XLBP2 192V battery packs (4U each) stacked above
@@ -6283,6 +6286,9 @@
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
     // SM Dist → Access — Controls → Access (sagged clear of straight Dist uplinks)
     addSlackPortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks, {
+      sag: 50,
+    });
+    addSlackPortLink("D1", 2, "A2", 49, matCoreSmXray, "DIST-SM-D1P2-A2P49", roomDistAccessLinks, {
       sag: 50,
     });
 
