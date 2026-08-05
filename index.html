@@ -6200,8 +6200,8 @@
     }
 
     /**
-     * Full port-to-port link with downward slack so the run sags clear of
-     * existing straight core/dist lines.
+     * Full port-to-port link with slack: drops near each face first, then a
+     * flatter low run across the middle (more like a hung cable than a U).
      */
     function addSlackPortLink(codeA, portA, codeB, portB, material, name, group, {
       sag = 10,
@@ -6209,18 +6209,48 @@
       const aEq = findEquipmentByCode(codeA);
       const bEq = findEquipmentByCode(codeB);
       if (!aEq || !bEq) return null;
+      aEq.unit.updateWorldMatrix(true, false);
+      bEq.unit.updateWorldMatrix(true, false);
       const a = portWorldPos(aEq.unit, portA);
       const b = portWorldPos(bEq.unit, portB);
       if (!a || !b) return null;
-      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
-      mid.y -= sag;
-      // Soft lead-out so the curve leaves each face before dropping
-      const q1 = a.clone().lerp(mid, 0.28);
-      const q2 = b.clone().lerp(mid, 0.28);
-      const link = makeCableTube([a, q1, mid, q2, b], CORE_LINK_R, material, {
-        tension: 0.35,
-        tubular: 28,
-      });
+
+      const qa = aEq.unit.getWorldQuaternion(new THREE.Quaternion());
+      const qb = bEq.unit.getWorldQuaternion(new THREE.Quaternion());
+      const outA = new THREE.Vector3(0, 0, -1).applyQuaternion(qa).normalize();
+      const outB = new THREE.Vector3(0, 0, -1).applyQuaternion(qb).normalize();
+      const across = new THREE.Vector3().subVectors(b, a);
+      const span = across.length();
+      if (span < 1e-3) return null;
+      const dir = across.clone().multiplyScalar(1 / span);
+      const floorY = Math.min(a.y, b.y) - sag;
+      const leave = Math.min(4.2, span * 0.05);
+      const aisle = outA.clone().add(outB);
+      if (aisle.lengthSq() > 1e-4) aisle.normalize();
+      else aisle.set(0, 0, 0);
+
+      const along = (t, y, aisleAmt = leave * 0.55) => {
+        const p = a.clone().addScaledVector(dir, span * t);
+        p.y = y;
+        if (aisleAmt) p.addScaledVector(aisle, aisleAmt);
+        return p;
+      };
+
+      // Leave face → dump most of the drop early → flat midspan → climb late
+      const aExit = a.clone().addScaledVector(outA, leave);
+      const bExit = b.clone().addScaledVector(outB, leave);
+      const aDrop = along(0.1, THREE.MathUtils.lerp(a.y, floorY, 0.94), leave * 0.7);
+      const bDrop = along(0.9, THREE.MathUtils.lerp(b.y, floorY, 0.94), leave * 0.7);
+      const flat1 = along(0.28, floorY);
+      const flatMid = along(0.5, floorY, leave * 0.7);
+      const flat2 = along(0.72, floorY);
+
+      const link = makeCableTube(
+        [a, aExit, aDrop, flat1, flatMid, flat2, bDrop, bExit, b],
+        CORE_LINK_R,
+        material,
+        { tension: 0.12, tubular: 56 }
+      );
       if (!link) return null;
       link.name = name || `SLACK-${codeA}P${portA}-${codeB}P${portB}`;
       link.userData.interactive = false;
