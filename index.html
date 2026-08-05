@@ -641,10 +641,6 @@
           <span class="label">Power</span>
           <span class="action">Show</span>
         </button>
-        <button type="button" id="btn-show-core" role="menuitem" aria-pressed="false">
-          <span class="label">Core</span>
-          <span class="action">Show</span>
-        </button>
       </div>
       <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
         <span class="label">Controls</span>
@@ -2447,58 +2443,6 @@
       g.userData.code = code;
       g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
       g.userData.frontMat = frontMat;
-
-      // Front-face port anchors (switch-local cm) — for virtual link indicators
-      {
-        const faceW = w - 0.12;
-        const faceH = h - 0.15;
-        const faceZ = face.position.z - 0.35;
-        const pw = 1400;
-        const ph = 560;
-        const inset = 18;
-        const gap = 10;
-        const gridX = inset + 8;
-        const gridY = inset + 8;
-        const gridW = pw - inset * 2 - 16;
-        const gridH = ph - inset * 2 - 16;
-        const modW = (gridW - gap) / 2;
-        const modH = (gridH - gap) / 2;
-        const modules = [
-          { mx: gridX, my: gridY, portOffset: 0 },
-          { mx: gridX + modW + gap, my: gridY, portOffset: 18 },
-          { mx: gridX, my: gridY + modH + gap, portOffset: 36 },
-          { mx: gridX + modW + gap, my: gridY + modH + gap, portOffset: 54 },
-        ];
-        const portAnchors = {};
-        modules.forEach(({ mx, my, portOffset }) => {
-          const portAreaX = mx + modW * 0.06;
-          const portAreaY = my + modH * 0.26;
-          const portAreaW = modW * 0.88;
-          const portAreaH = modH * 0.66;
-          const rows = 2;
-          const cols = 9;
-          const pGapX = 4;
-          const pGapY = 6;
-          const pW = (portAreaW - pGapX * (cols + 1)) / cols;
-          const pH = (portAreaH - pGapY * (rows + 1)) / rows;
-          for (let r = 0; r < rows; r++) {
-            for (let col = 0; col < cols; col++) {
-              const portNum = portOffset + col * rows + r + 1;
-              const px = portAreaX + pGapX + col * (pW + pGapX) + pW * 0.5;
-              const py = portAreaY + pGapY + r * (pH + pGapY) + pH * 0.5;
-              const u = px / pw;
-              const v = py / ph;
-              // Canvas left → aisle-view left (+X) because front face is rotY=π
-              portAnchors[portNum] = new THREE.Vector3(
-                (0.5 - u) * faceW,
-                (0.5 - v) * faceH,
-                faceZ
-              );
-            }
-          }
-        });
-        g.userData.portAnchors = portAnchors;
-      }
 
       g.userData.info = {
         eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
@@ -5554,13 +5498,13 @@
       });
     }
 
-    // Optic maps — linked=true → green port LED. C1↔C2 MM 47–50 = OM4 redundancy.
+    // Optic maps — linked=true → green port LED
     const CORE_XCVRS_C1C2 = [
       ...[1, 2, 3, 4].map((port) => ({
         port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
       })),
       ...[47, 48, 49, 50].map((port) => ({
-        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
+        port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: false,
       })),
     ];
     const CORE_XCVRS_C3C4 = [
@@ -5643,84 +5587,6 @@
         ],
       }
     );
-
-    // -------------------------------------------------------------------------
-    // Core redundancy — virtual OM4 LC–LC aqua indicators (C1 ↔ C2 ports 47–50)
-    // Straight port-to-port lines; ignore racks / Wyr-Grid / physical routing.
-    // Toggled from Controls → Core (same show/hide pattern as Power).
-    // -------------------------------------------------------------------------
-    function findEquipmentByCode(code) {
-      for (const { group: rack } of racks) {
-        for (const child of rack.children) {
-          if (child.userData && child.userData.code === code) {
-            return { rack, unit: child };
-          }
-        }
-      }
-      return null;
-    }
-
-    function portWorldPos(unit, port) {
-      const local = unit.userData.portAnchors?.[port];
-      if (!local) return null;
-      return unit.localToWorld(local.clone());
-    }
-
-    const CORE_OM4_PORTS = [47, 48, 49, 50];
-    const roomCoreLinks = new THREE.Group();
-    roomCoreLinks.name = "CoreRedundancyLinks";
-    roomCoreLinks.visible = false;
-    scene.add(roomCoreLinks);
-
-    const matCoreXray = new THREE.MeshBasicMaterial({
-      color: 0x3dcec7, // Panduit OM4 aqua
-      transparent: true,
-      opacity: 0.92,
-      depthTest: false,
-      depthWrite: false,
-    });
-
-    /**
-     * Virtual indicator endpoint: step into the aisle, then scale XY offsets
-     * from the 4-port centroid so the 2×2 stays four distinct parallels
-     * (native SFP pitch is tight enough that fat tubes read as two ribbons).
-     */
-    function portWorldPosCoreLink(unit, port, aisleCm = 3.5, spread = 1.65) {
-      const anchors = unit.userData.portAnchors;
-      const local = anchors?.[port];
-      if (!local) return null;
-      const bundle = CORE_OM4_PORTS.map((p) => anchors[p]).filter(Boolean);
-      if (!bundle.length) return null;
-      const center = new THREE.Vector3();
-      for (const bp of bundle) center.add(bp);
-      center.multiplyScalar(1 / bundle.length);
-      const p = local.clone().sub(center).multiplyScalar(spread).add(center);
-      p.z -= aisleCm; // clear of faceplate, into aisle
-      return unit.localToWorld(p);
-    }
-
-    {
-      const c1 = findEquipmentByCode("C1");
-      const c2 = findEquipmentByCode("C2");
-      if (c1 && c2) {
-        const CORE_LINK_R = 0.1; // thin — must be << half column/row pitch
-        CORE_OM4_PORTS.forEach((port) => {
-          const a = portWorldPosCoreLink(c1.unit, port);
-          const b = portWorldPosCoreLink(c2.unit, port);
-          if (!a || !b) return;
-          // Straight parallels preserving the face 2×2 (as in the sketch)
-          const link = makeCableTube([a, b], CORE_LINK_R, matCoreXray, {
-            tension: 0,
-            tubular: 6,
-          });
-          if (!link) return;
-          link.name = `CORE-C1C2-P${port}`;
-          link.userData.interactive = false;
-          link.renderOrder = 4;
-          roomCoreLinks.add(link);
-        });
-      }
-    }
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -6904,7 +6770,6 @@
       rearRTarget: REAR_R_OPEN,
     };
     let showPower = false;
-    let showCore = false;
 
     const ctrlMenu = document.getElementById("ctrl-menu");
     const controlsPanel = document.getElementById("controls-panel");
@@ -6912,7 +6777,6 @@
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
     const btnShowPower = document.getElementById("btn-show-power");
-    const btnShowCore = document.getElementById("btn-show-core");
     const powerLegend = document.getElementById("power-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
 
@@ -6943,16 +6807,6 @@
       powerLegend.classList.toggle("visible", showPower);
     }
 
-    function syncCoreButton() {
-      btnShowCore.classList.toggle("open", showCore);
-      btnShowCore.setAttribute("aria-pressed", String(showCore));
-      btnShowCore.querySelector(".action").textContent = showCore ? "Hide" : "Show";
-      btnShowCore.setAttribute(
-        "aria-label",
-        showCore ? "Hide core redundancy links" : "Show core redundancy links"
-      );
-    }
-
     function setShowPower(on) {
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
@@ -6971,13 +6825,6 @@
         scene.fog.far = FOG_FAR;
         nudgeIdle();
       }
-    }
-
-    function setShowCore(on) {
-      showCore = on;
-      roomCoreLinks.visible = on;
-      syncCoreButton();
-      nudgeIdle();
     }
 
     function nudgeIdle() {
@@ -7058,7 +6905,6 @@
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
     btnShowPower.addEventListener("click", () => setShowPower(!showPower));
-    btnShowCore.addEventListener("click", () => setShowCore(!showCore));
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
@@ -7073,7 +6919,6 @@
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
     syncPowerButton();
-    syncCoreButton();
     syncRackButtons();
 
     // Deep-link helpers: ?focus=Rack6&info=ups|battery
