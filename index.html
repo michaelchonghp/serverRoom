@@ -6126,11 +6126,19 @@
       depthTest: false,
       depthWrite: false,
     });
-    // Access LAN role aura — blue glow around SM yellow cores (industry SM = yellow)
-    // Peak opacities match the earlier stronger LAN glow; animate pulses them slowly.
-    const ACCESS_LAN_AURA_PEAK = 0.32;
-    const ACCESS_LAN_AURA_SOFT_PEAK = 0.16;
+    // Access LAN role aura — blue glow around SM yellow cores (industry SM = yellow).
+    // At pulse peak a near-core blue cover fully occludes yellow; trough lets SM show.
+    const ACCESS_LAN_COVER_PEAK = 1.0;
+    const ACCESS_LAN_AURA_PEAK = 0.55;
+    const ACCESS_LAN_AURA_SOFT_PEAK = 0.32;
     const ACCESS_LAN_AURA_PULSE_SEC = 3;
+    const matAccessLanBlueCover = new THREE.MeshBasicMaterial({
+      color: 0x3b82f6,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
     const matAccessLanAura = new THREE.MeshBasicMaterial({
       color: 0x3b82f6,
       transparent: true,
@@ -6325,6 +6333,7 @@
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
     // Dist → Access — SM yellow core + LAN blue aura (Controls → Access)
     const ACCESS_LAN_AURA = [
+      { material: matAccessLanBlueCover, radiusScale: 1.12 }, // peaks opaque → hides yellow
       { material: matAccessLanAura, radiusScale: 2.8 },
       { material: matAccessLanAuraSoft, radiusScale: 4.6 },
     ];
@@ -8581,13 +8590,14 @@
       if (infoTarget) layoutInfoCallout();
       if (showCore || showCoreDist) layoutCoreCallout();
 
-      // LAN blue aura on Access links — slow breathe (3s/cycle); SM yellow core stays put
+      // LAN blue aura on Access links — 3s pulse; peak cover fully overcomes SM yellow
       if (showAccess) {
         const pulse = 0.5 - 0.5 * Math.cos(
           (clock.elapsedTime * Math.PI * 2) / ACCESS_LAN_AURA_PULSE_SEC
         );
-        matAccessLanAura.opacity = ACCESS_LAN_AURA_PEAK * (0.45 + 0.55 * pulse);
-        matAccessLanAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * (0.45 + 0.55 * pulse);
+        matAccessLanBlueCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
+        matAccessLanAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
+        matAccessLanAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
       }
       // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
       if (showPower) {
