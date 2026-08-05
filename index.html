@@ -6199,30 +6199,30 @@
       return link;
     }
 
-    /** Short loose pigtail hanging out of a port (no full run — less visual clutter). */
-    function addDanglingPortStub(code, port, material, name, group, {
-      length = 5.5,
-      droop = 2.8,
+    /**
+     * Full port-to-port link with downward slack so the run sags clear of
+     * existing straight core/dist lines.
+     */
+    function addSlackPortLink(codeA, portA, codeB, portB, material, name, group, {
+      sag = 10,
     } = {}) {
-      const eq = findEquipmentByCode(code);
-      if (!eq) return null;
-      eq.unit.updateWorldMatrix(true, false);
-      const a = portWorldPos(eq.unit, port);
-      if (!a) return null;
-      const q = eq.unit.getWorldQuaternion(new THREE.Quaternion());
-      const outward = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
-      const mid = a.clone()
-        .addScaledVector(outward, length * 0.45)
-        .add(new THREE.Vector3(0, -droop * 0.25, 0));
-      const tip = a.clone()
-        .addScaledVector(outward, length)
-        .add(new THREE.Vector3(0, -droop, 0));
-      const link = makeCableTube([a, mid, tip], CORE_LINK_R, material, {
-        tension: 0.55,
-        tubular: 12,
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return null;
+      const a = portWorldPos(aEq.unit, portA);
+      const b = portWorldPos(bEq.unit, portB);
+      if (!a || !b) return null;
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      mid.y -= sag;
+      // Soft lead-out so the curve leaves each face before dropping
+      const q1 = a.clone().lerp(mid, 0.28);
+      const q2 = b.clone().lerp(mid, 0.28);
+      const link = makeCableTube([a, q1, mid, q2, b], CORE_LINK_R, material, {
+        tension: 0.35,
+        tubular: 28,
       });
       if (!link) return null;
-      link.name = name || `STUB-${code}P${port}`;
+      link.name = name || `SLACK-${codeA}P${portA}-${codeB}P${portB}`;
       link.userData.interactive = false;
       link.renderOrder = 4;
       group.add(link);
@@ -6251,9 +6251,10 @@
     addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50", roomCoreDistLinks);
     addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
     addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
-    // SM Dist → Access — dangling pigtails (Controls → Access); full run was too busy
-    addDanglingPortStub("D1", 1, matCoreSmXray, "DIST-STUB-D1P1", roomDistAccessLinks);
-    addDanglingPortStub("A1", 49, matCoreSmXray, "DIST-STUB-A1P49", roomDistAccessLinks);
+    // SM Dist → Access — Controls → Access (sagged clear of straight Dist uplinks)
+    addSlackPortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks, {
+      sag: 12,
+    });
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
     function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1 } = {}) {
