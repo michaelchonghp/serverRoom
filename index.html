@@ -307,12 +307,26 @@
       border-color: var(--ink);
     }
 
-    /* Access role filters — appear to the right of Controls when Access is shown */
+    /* Access role filters — sit to the right of Access in the Controls menu */
+    .access-menu-row {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.28rem;
+      width: 100%;
+    }
+
+    .access-menu-row > #btn-show-access {
+      flex: 1 1 auto;
+      width: auto;
+      min-width: 5.5rem;
+    }
+
     .access-role-filters {
       display: flex;
       flex-wrap: nowrap;
       align-items: stretch;
-      gap: 0.25rem;
+      gap: 0.2rem;
       flex: 0 0 auto;
     }
 
@@ -320,9 +334,11 @@
       display: none;
     }
 
-    .access-role-filters button {
-      min-width: 2.6rem;
-      padding: 0.45rem 0.4rem;
+    .ctrl-menu-panel .access-role-filters button {
+      width: auto;
+      min-width: 2.35rem;
+      padding: 0.35rem 0.35rem;
+      text-align: center;
       font-weight: 700;
       letter-spacing: 0.04em;
       border-width: 1.5px;
@@ -331,8 +347,12 @@
 
     .access-role-filters button .action {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 0.58rem;
+      font-size: 0.55rem;
       font-weight: 800;
+    }
+
+    .access-role-filters button .label {
+      display: none;
     }
 
     .access-role-filters button.role-lan {
@@ -385,12 +405,14 @@
     .ctrl-menu-panel {
       position: absolute;
       left: 0;
-      right: 0;
+      right: auto;
       bottom: calc(100% + 0.35rem);
       display: flex;
       flex-direction: column;
       gap: 0.28rem;
       min-width: 7.5rem;
+      width: max-content;
+      max-width: min(92vw, 22rem);
       padding: 0.35rem;
       background: color-mix(in srgb, #ffffff 92%, transparent);
       border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
@@ -727,12 +749,12 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
-      .access-role-filters button {
-        min-width: 2.15rem;
-        padding: 0.35rem 0.28rem;
+      .ctrl-menu-panel .access-role-filters button {
+        min-width: 2rem;
+        padding: 0.3rem 0.25rem;
       }
       .access-role-filters button .action {
-        font-size: 0.5rem;
+        font-size: 0.48rem;
       }
       .ctrl-menu-panel {
         min-width: 6.8rem;
@@ -830,25 +852,27 @@
           <span class="label">Dist</span>
           <span class="action">Show</span>
         </button>
-        <button type="button" id="btn-show-access" role="menuitem" aria-pressed="false">
-          <span class="label">Access</span>
-          <span class="action">Show</span>
-        </button>
+        <div class="access-menu-row">
+          <button type="button" id="btn-show-access" role="menuitem" aria-pressed="false">
+            <span class="label">Access</span>
+            <span class="action">Show</span>
+          </button>
+          <div class="access-role-filters" id="access-role-filters" hidden role="group" aria-label="Access role filters">
+            <button type="button" class="role-lan open" id="btn-access-lan" data-role="LAN" aria-pressed="true" title="LAN">
+              <span class="action">LAN</span>
+            </button>
+            <button type="button" class="role-wifi open" id="btn-access-wifi" data-role="WIFI" aria-pressed="true" title="Wi-Fi">
+              <span class="action">WIFI</span>
+            </button>
+            <button type="button" class="role-security open" id="btn-access-sq" data-role="SECURITY" aria-pressed="true" title="Security">
+              <span class="action">SQ</span>
+            </button>
+          </div>
+        </div>
       </div>
       <button type="button" id="btn-controls-toggle" aria-expanded="false" aria-controls="controls-panel" aria-haspopup="true">
         <span class="label">Controls</span>
         <span class="action">Menu</span>
-      </button>
-    </div>
-    <div class="access-role-filters" id="access-role-filters" hidden role="group" aria-label="Access role filters">
-      <button type="button" class="role-lan open" id="btn-access-lan" data-role="LAN" aria-pressed="true" title="LAN">
-        <span class="action">LAN</span>
-      </button>
-      <button type="button" class="role-wifi open" id="btn-access-wifi" data-role="WIFI" aria-pressed="true" title="Wi-Fi">
-        <span class="action">WIFI</span>
-      </button>
-      <button type="button" class="role-security open" id="btn-access-sq" data-role="SECURITY" aria-pressed="true" title="Security">
-        <span class="action">SQ</span>
       </button>
     </div>
     <div class="rack-group" role="group" aria-label="Zoom to rack">
