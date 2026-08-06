@@ -8395,10 +8395,10 @@
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 10;
-    key.shadow.camera.far = 700;
+    key.shadow.camera.far = 1100;
     key.shadow.camera.left = -280;
     key.shadow.camera.right = 280;
-    key.shadow.camera.top = 220;
+    key.shadow.camera.top = 520;
     key.shadow.camera.bottom = -80;
     key.shadow.bias = -0.0002;
     scene.add(key);
@@ -8444,29 +8444,32 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
 
+      // Fit 25F bay plus both raised-floor decks so 26F is in the overview
       framingBox.setFromObject(bay);
+      framingBox.expandByObject(raisedFloor);
+      framingBox.expandByObject(raisedFloor26);
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
       framingBox.getSize(size);
       framingBox.getCenter(center);
 
-      const padX = mobile ? 1.35 : 1.2;
-      const padY = mobile ? 1.5 : 1.25;
+      const padX = mobile ? 1.35 : 1.15;
+      const padY = mobile ? 1.35 : 1.18;
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
       const distY = (size.y * padY * 0.5) / Math.tan(vFov / 2);
       const distX = (size.x * padX * 0.5) / Math.tan(hFov / 2);
       const distZ = (size.z * padX * 0.5) / Math.tan(hFov / 2);
-      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.1 : 1.05);
+      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.05 : 1.0);
 
       controls.target.copy(center);
       if (mobile) controls.target.y = center.y * 0.98;
-      controls.minDistance = Math.max(32, distance * 0.24); // 20% more zoom-in
-      controls.maxDistance = Math.max(1400, distance * 3.5);
+      controls.minDistance = Math.max(32, distance * 0.2);
+      controls.maxDistance = Math.max(1800, distance * 3.5);
 
       if (forceReset) {
-        // Elevated view looking down the cold aisle between the two rows
-        const dir = new THREE.Vector3(0.75, mobile ? 0.42 : 0.48, 0.35).normalize();
+        // Side-elevated view so 25F racks and the 26F deck read as stacked storeys
+        const dir = new THREE.Vector3(0.82, mobile ? 0.28 : 0.22, 0.42).normalize();
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
