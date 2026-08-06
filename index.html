@@ -596,7 +596,7 @@
 
     .core-sticky[hidden] { display: none; }
 
-    /* Hidden while the linked aqua lines are outside the camera frustum */
+    /* Hidden while the Dist/Core switch (or linked cluster) is outside the camera frustum */
     .core-sticky.off-frustum {
       opacity: 0 !important;
       visibility: hidden !important;
@@ -6657,7 +6657,8 @@
     });
 
     // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
-    function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1 } = {}) {
+    // frustum: "links" (default) = any linked port in view · "anchor" = only the callout switch
+    function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1, frustum = "links" } = {}) {
       const eq = findEquipmentByCode(anchorCode);
       const p = eq && portWorldPos(eq.unit, anchorPort);
       if (p) {
@@ -6666,6 +6667,11 @@
       const pts = coreCalloutFrustumPts[key];
       if (!pts) return;
       pts.length = 0;
+      if (frustum === "anchor") {
+        // Dist callouts: hide when the Dist switch leaves view (not when remote core ports linger)
+        if (p) pts.push(p.clone());
+        return;
+      }
       for (const [codeA, portA, codeB, portB] of links) {
         const aEq = findEquipmentByCode(codeA);
         const bEq = findEquipmentByCode(codeB);
@@ -6692,7 +6698,7 @@
       ["C3", 21, "D2", 49],
       ["C3", 22, "D4", 49],
       ["C3", 23, "D6", 49],
-    ], { ySign: -1 });
+    ], { ySign: -1, frustum: "anchor" });
     registerSmCallout("SM_CD2", "D6", 50, [
       ["C4", 11, "D1", 50],
       ["C4", 12, "D3", 50],
@@ -6700,7 +6706,7 @@
       ["C4", 21, "D2", 50],
       ["C4", 22, "D4", 50],
       ["C4", 23, "D6", 50],
-    ], { ySign: -1 });
+    ], { ySign: -1, frustum: "anchor" });
 
     // Floor aisle markings — blue cold aisle, red hot aisles
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
