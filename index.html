@@ -307,18 +307,18 @@
       border-color: var(--ink);
     }
 
-    /* Access role filters — float outside the Access row (don’t widen the menu) */
-    .access-menu-row {
+    /* Side chips float outside a menu row (don’t widen the popup) */
+    .ctrl-extra-row {
       position: relative;
       display: block;
       width: 100%;
     }
 
-    .access-menu-row > #btn-show-access {
+    .ctrl-extra-row > button[role="menuitem"] {
       width: 100%;
     }
 
-    .access-role-filters {
+    .ctrl-extra-chips {
       position: absolute;
       left: calc(100% + 0.35rem);
       top: 0;
@@ -331,11 +331,11 @@
       pointer-events: auto;
     }
 
-    .access-role-filters[hidden] {
+    .ctrl-extra-chips[hidden] {
       display: none;
     }
 
-    .ctrl-menu-panel .access-role-filters button {
+    .ctrl-menu-panel .ctrl-extra-chips button {
       width: auto;
       min-width: 2.35rem;
       height: 100%;
@@ -345,54 +345,65 @@
       letter-spacing: 0.04em;
       border-width: 1.5px;
       color: #fff;
-      /* Match menu chrome so chips read as companions, not menu rows */
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
 
-    .access-role-filters button .action {
+    .ctrl-extra-chips button .action {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       font-size: 0.55rem;
       font-weight: 800;
     }
 
-    .access-role-filters button .label {
+    .ctrl-extra-chips button .label {
       display: none;
     }
 
-    .access-role-filters button.role-lan {
+    .ctrl-extra-chips button.role-lan {
       background: color-mix(in srgb, #3b82f6 78%, #fff);
       border-color: #2563eb;
     }
-    .access-role-filters button.role-wifi {
+    .ctrl-extra-chips button.role-wifi {
       background: color-mix(in srgb, #14b8a6 78%, #fff);
       border-color: #0d9488;
     }
-    .access-role-filters button.role-security {
+    .ctrl-extra-chips button.role-security {
       background: color-mix(in srgb, #f04343 78%, #fff);
       border-color: #dc2626;
     }
+    .ctrl-extra-chips button.chip-info {
+      background: color-mix(in srgb, #3dff9a 55%, #0a1a12);
+      border-color: #2bd47a;
+      color: #e8fff2;
+    }
 
-    .access-role-filters button.open.role-lan {
+    .ctrl-extra-chips button.open.role-lan {
       background: #3b82f6;
       border-color: #1d4ed8;
       box-shadow: 0 0 0 1px color-mix(in srgb, #3b82f6 55%, transparent),
         0 0 14px color-mix(in srgb, #3b82f6 45%, transparent);
     }
-    .access-role-filters button.open.role-wifi {
+    .ctrl-extra-chips button.open.role-wifi {
       background: #14b8a6;
       border-color: #0f766e;
       box-shadow: 0 0 0 1px color-mix(in srgb, #14b8a6 55%, transparent),
         0 0 14px color-mix(in srgb, #14b8a6 45%, transparent);
     }
-    .access-role-filters button.open.role-security {
+    .ctrl-extra-chips button.open.role-security {
       background: #f04343;
       border-color: #b91c1c;
       box-shadow: 0 0 0 1px color-mix(in srgb, #f04343 55%, transparent),
         0 0 14px color-mix(in srgb, #f04343 45%, transparent);
     }
+    .ctrl-extra-chips button.open.chip-info {
+      background: #1a8f55;
+      border-color: #3dff9a;
+      color: #e8fff2;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #3dff9a 45%, transparent),
+        0 0 14px color-mix(in srgb, #3dff9a 40%, transparent);
+    }
 
-    .access-role-filters button:not(.open) {
+    .ctrl-extra-chips button:not(.open) {
       opacity: 0.42;
       filter: grayscale(0.25);
       box-shadow: none;
@@ -755,11 +766,11 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
-      .ctrl-menu-panel .access-role-filters button {
+      .ctrl-menu-panel .ctrl-extra-chips button {
         min-width: 2rem;
         padding: 0.3rem 0.25rem;
       }
-      .access-role-filters button .action {
+      .ctrl-extra-chips button .action {
         font-size: 0.48rem;
       }
       .ctrl-menu-panel {
@@ -850,20 +861,34 @@
           <span class="label">Power</span>
           <span class="action">Show</span>
         </button>
-        <button type="button" id="btn-show-core" role="menuitem" aria-pressed="false">
-          <span class="label">Core</span>
-          <span class="action">Show</span>
-        </button>
-        <button type="button" id="btn-show-core-dist" role="menuitem" aria-pressed="false">
-          <span class="label">Dist</span>
-          <span class="action">Show</span>
-        </button>
-        <div class="access-menu-row">
+        <div class="ctrl-extra-row">
+          <button type="button" id="btn-show-core" role="menuitem" aria-pressed="false">
+            <span class="label">Core</span>
+            <span class="action">Show</span>
+          </button>
+          <div class="ctrl-extra-chips" id="core-info-chip" hidden role="group" aria-label="Core info toggle">
+            <button type="button" class="chip-info open" id="btn-core-info" aria-pressed="true" title="Core detail boxes">
+              <span class="action">Info</span>
+            </button>
+          </div>
+        </div>
+        <div class="ctrl-extra-row">
+          <button type="button" id="btn-show-core-dist" role="menuitem" aria-pressed="false">
+            <span class="label">Dist</span>
+            <span class="action">Show</span>
+          </button>
+          <div class="ctrl-extra-chips" id="dist-info-chip" hidden role="group" aria-label="Dist info toggle">
+            <button type="button" class="chip-info open" id="btn-dist-info" aria-pressed="true" title="Dist detail boxes">
+              <span class="action">Info</span>
+            </button>
+          </div>
+        </div>
+        <div class="ctrl-extra-row">
           <button type="button" id="btn-show-access" role="menuitem" aria-pressed="false">
             <span class="label">Access</span>
             <span class="action">Show</span>
           </button>
-          <div class="access-role-filters" id="access-role-filters" hidden role="group" aria-label="Access role filters">
+          <div class="ctrl-extra-chips" id="access-role-filters" hidden role="group" aria-label="Access role filters">
             <button type="button" class="role-lan open" id="btn-access-lan" data-role="LAN" aria-pressed="true" title="LAN">
               <span class="action">LAN</span>
             </button>
@@ -7862,6 +7887,8 @@
     let showCore = false;
     let showCoreDist = false;
     let showAccess = false;
+    let showCoreInfo = true;
+    let showDistInfo = true;
     const accessRoleOn = { LAN: true, WIFI: true, SECURITY: true };
 
     const ctrlMenu = document.getElementById("ctrl-menu");
@@ -7873,6 +7900,10 @@
     const btnShowCore = document.getElementById("btn-show-core");
     const btnShowCoreDist = document.getElementById("btn-show-core-dist");
     const btnShowAccess = document.getElementById("btn-show-access");
+    const coreInfoChipEl = document.getElementById("core-info-chip");
+    const distInfoChipEl = document.getElementById("dist-info-chip");
+    const btnCoreInfo = document.getElementById("btn-core-info");
+    const btnDistInfo = document.getElementById("btn-dist-info");
     const accessRoleFiltersEl = document.getElementById("access-role-filters");
     const btnAccessLan = document.getElementById("btn-access-lan");
     const btnAccessWifi = document.getElementById("btn-access-wifi");
@@ -8054,6 +8085,17 @@
         "aria-label",
         showCore ? "Hide core link indicator" : "Show core link indicator"
       );
+      coreInfoChipEl.hidden = !showCore;
+      syncCoreInfoButton();
+    }
+
+    function syncCoreInfoButton() {
+      btnCoreInfo.classList.toggle("open", showCoreInfo);
+      btnCoreInfo.setAttribute("aria-pressed", String(showCoreInfo));
+      btnCoreInfo.setAttribute(
+        "aria-label",
+        showCoreInfo ? "Hide core detail boxes" : "Show core detail boxes"
+      );
     }
 
     function syncRoleLegend() {
@@ -8072,7 +8114,18 @@
           ? "Hide core-to-dist links and role highlight"
           : "Show core-to-dist links and role highlight"
       );
+      distInfoChipEl.hidden = !showCoreDist;
+      syncDistInfoButton();
       syncRoleLegend();
+    }
+
+    function syncDistInfoButton() {
+      btnDistInfo.classList.toggle("open", showDistInfo);
+      btnDistInfo.setAttribute("aria-pressed", String(showDistInfo));
+      btnDistInfo.setAttribute(
+        "aria-label",
+        showDistInfo ? "Hide dist detail boxes" : "Show dist detail boxes"
+      );
     }
 
     function syncAccessButton() {
@@ -8131,7 +8184,14 @@
       showCore = on;
       roomCoreLinks.visible = on;
       syncCoreButton();
-      setCoreCalloutVisible(on);
+      setCoreCalloutVisible(on && showCoreInfo);
+      nudgeIdle();
+    }
+
+    function setShowCoreInfo(on) {
+      showCoreInfo = on;
+      syncCoreInfoButton();
+      setCoreCalloutVisible(showCore && showCoreInfo);
       nudgeIdle();
     }
 
@@ -8140,7 +8200,14 @@
       roomCoreDistLinks.visible = on;
       setDistRoleHighlights();
       syncCoreDistButton();
-      setCoreDistCalloutVisible(on);
+      setCoreDistCalloutVisible(on && showDistInfo);
+      nudgeIdle();
+    }
+
+    function setShowDistInfo(on) {
+      showDistInfo = on;
+      syncDistInfoButton();
+      setCoreDistCalloutVisible(showCoreDist && showDistInfo);
       nudgeIdle();
     }
 
@@ -8234,6 +8301,8 @@
     btnShowCore.addEventListener("click", () => setShowCore(!showCore));
     btnShowCoreDist.addEventListener("click", () => setShowCoreDist(!showCoreDist));
     btnShowAccess.addEventListener("click", () => setShowAccess(!showAccess));
+    btnCoreInfo.addEventListener("click", () => setShowCoreInfo(!showCoreInfo));
+    btnDistInfo.addEventListener("click", () => setShowDistInfo(!showDistInfo));
     Object.entries(accessRoleButtons).forEach(([role, btn]) => {
       if (!btn) return;
       btn.addEventListener("click", () => setAccessRoleFilter(role, !accessRoleOn[role]));
@@ -8778,8 +8847,8 @@
     }
 
     function layoutCoreCallout() {
-      for (const callout of coreCallouts) layoutOneCoreCallout(callout, showCore);
-      for (const callout of coreDistCallouts) layoutOneCoreCallout(callout, showCoreDist);
+      for (const callout of coreCallouts) layoutOneCoreCallout(callout, showCore && showCoreInfo);
+      for (const callout of coreDistCallouts) layoutOneCoreCallout(callout, showCoreDist && showDistInfo);
     }
 
     function setCalloutGroupVisible(callouts, on) {
