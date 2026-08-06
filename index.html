@@ -5875,12 +5875,14 @@
       return { group: rack, frontDoor, rearLeft, rearRight };
     }
 
-    // --- Raised access floor (data hall) ---
+    // --- Raised access floors (data hall) ---
+    // Units are cm. 25F slab ≈ y=0; 26F slab at STOREY_H (4.2 m FTF — clears racks + Wyr-Grid).
     const TILE = 60;           // 600 mm tiles
-    const FLOOR_H = 45;        // raised floor height
+    const FLOOR_H = 45;        // raised floor height (void + tile)
     const FLOOR_TILE_T = 3.2;  // tile thickness
     const FLOOR_COLS = 14;
     const FLOOR_ROWS = 12;
+    const STOREY_H = 420;      // 25F slab → 26F slab
     const floorW = FLOOR_COLS * TILE;
     const floorD = FLOOR_ROWS * TILE;
     const floorOriginX = -floorW / 2 + TILE / 2;
@@ -5924,7 +5926,7 @@
       [xDiagAtZMin, floorZMin],
     ];
 
-    // Building slab under the void
+    // Building slab under the 25F void
     const subfloor = new THREE.Mesh(
       new THREE.CircleGeometry(520, 64),
       matSubfloor
@@ -5934,25 +5936,8 @@
     subfloor.receiveShadow = true;
     scene.add(subfloor);
 
-    const raisedFloor = new THREE.Group();
-    scene.add(raisedFloor);
-
     // Raised-floor void is open (no solid plenum box) so underfloor trunking is visible
     const plenumH = FLOOR_H - FLOOR_TILE_T;
-
-    // Pedestals in the void (only under remaining floor)
-    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
-    for (let c = 0; c <= FLOOR_COLS; c += 2) {
-      for (let r = 0; r <= FLOOR_ROWS; r += 2) {
-        const px = -floorW / 2 + c * TILE;
-        const pz = -floorD / 2 + r * TILE;
-        if (!inRoomFootprint(px, pz)) continue;
-        const ped = new THREE.Mesh(pedGeo, matPedestal);
-        ped.position.set(px, plenumH / 2, pz);
-        ped.castShadow = true;
-        raisedFloor.add(ped);
-      }
-    }
 
     // Perforation texture for airflow tiles in the cold aisle
     function makePerfTileTexture() {
@@ -6015,11 +6000,12 @@
     const aisleZ1 = AISLE / 2;
 
     const tileGeo = new THREE.BoxGeometry(TILE - 0.7, FLOOR_TILE_T, TILE - 0.7);
-    const dummy = new THREE.Object3D();
+    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
+    const floorTileDummy = new THREE.Object3D();
+
     const solidTiles = [];
     const solidAltTiles = [];
     const perfTiles = [];
-
     for (let r = 0; r < FLOOR_ROWS; r++) {
       for (let c = 0; c < FLOOR_COLS; c++) {
         const x = floorOriginX + c * TILE;
@@ -6033,29 +6019,134 @@
       }
     }
 
-    function addTileInstances(list, material) {
-      if (!list.length) return null;
-      const mesh = new THREE.InstancedMesh(tileGeo, material, list.length);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      list.forEach((t, i) => {
-        dummy.position.set(t.x, FLOOR_H - FLOOR_TILE_T / 2, t.z);
-        dummy.updateMatrix();
-        mesh.setMatrixAt(i, dummy.matrix);
+    function makeFloorMark(text, fillColor, widthCm, depthCm) {
+      const pw = 1024;
+      const ph = 256;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillRect(0, ph * 0.18, pw, ph * 0.64);
+      ctx.fillStyle = fillColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.5)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        roughness: 0.85,
+        metalness: 0.05,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
-      mesh.instanceMatrix.needsUpdate = true;
-      raisedFloor.add(mesh);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
+      mesh.rotation.x = -Math.PI / 2;
       return mesh;
     }
 
-    addTileInstances(solidTiles, matFloorTile);
-    addTileInstances(solidAltTiles, matFloorTileAlt);
-    addTileInstances(perfTiles, matFloorPerfMapped);
+    /** Structural slab matching the diagonal room footprint. */
+    function makeRoomSlab(y, material) {
+      const shape = new THREE.Shape();
+      shape.moveTo(roomOutline[0][0], -roomOutline[0][1]);
+      for (let i = 1; i < roomOutline.length; i++) {
+        shape.lineTo(roomOutline[i][0], -roomOutline[i][1]);
+      }
+      shape.closePath();
+      const geo = new THREE.ShapeGeometry(shape);
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = y;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
 
-    // No side skirts / edge lips — keep the raised-floor void open and readable
+    /**
+     * Build one raised-floor deck (pedestals + tiles + aisle marks) on a slab at slabY.
+     * Tile plan matches 25F; deck surface is at slabY + FLOOR_H.
+     */
+    function buildRaisedFloorLevel(name, slabY, { aisleMarks = true, floorTag = "" } = {}) {
+      const group = new THREE.Group();
+      group.name = name;
+
+      // Pedestals in the void
+      for (let c = 0; c <= FLOOR_COLS; c += 2) {
+        for (let r = 0; r <= FLOOR_ROWS; r += 2) {
+          const px = -floorW / 2 + c * TILE;
+          const pz = -floorD / 2 + r * TILE;
+          if (!inRoomFootprint(px, pz)) continue;
+          const ped = new THREE.Mesh(pedGeo, matPedestal);
+          ped.position.set(px, slabY + plenumH / 2, pz);
+          ped.castShadow = true;
+          group.add(ped);
+        }
+      }
+
+      function addTileInstances(list, material) {
+        if (!list.length) return null;
+        const mesh = new THREE.InstancedMesh(tileGeo, material, list.length);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        list.forEach((t, i) => {
+          floorTileDummy.position.set(t.x, slabY + FLOOR_H - FLOOR_TILE_T / 2, t.z);
+          floorTileDummy.updateMatrix();
+          mesh.setMatrixAt(i, floorTileDummy.matrix);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        group.add(mesh);
+        return mesh;
+      }
+
+      addTileInstances(solidTiles, matFloorTile);
+      addTileInstances(solidAltTiles, matFloorTileAlt);
+      addTileInstances(perfTiles, matFloorPerfMapped);
+
+      const markY = slabY + FLOOR_H + 0.2;
+      if (aisleMarks) {
+        const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
+        coldMark.position.set(-RACK_PITCH / 2, markY, 0);
+        group.add(coldMark);
+
+        const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+        hotA.position.set(0, markY, ROW_SEP / 2 + OUTER_D / 2 + 28);
+        group.add(hotA);
+
+        const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+        hotB.rotation.z = Math.PI;
+        hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
+        group.add(hotB);
+      }
+
+      if (floorTag) {
+        const tag = makeFloorMark(floorTag, "#1a2330", 90, 28);
+        tag.position.set(floorXMax - 70, markY, floorZMin + 40);
+        group.add(tag);
+      }
+
+      scene.add(group);
+      return group;
+    }
+
+    const raisedFloor = buildRaisedFloorLevel("RaisedFloor25F", 0, {
+      aisleMarks: true,
+      floorTag: "25F",
+    });
+    // 26F — same tile plan; slab 4.2 m above 25F slab (deck at STOREY_H + FLOOR_H)
+    const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
+      aisleMarks: true,
+      floorTag: "26F",
+    });
+    scene.add(makeRoomSlab(STOREY_H - 0.4, matSubfloor));
 
     const bay = new THREE.Group();
-    // Cabinets sit on the raised floor deck
+    // Cabinets sit on the 25F raised floor deck
     bay.position.y = FLOOR_H;
     scene.add(bay);
 
@@ -6707,57 +6798,6 @@
       ["C4", 22, "D4", 50],
       ["C4", 23, "D6", 50],
     ], { ySign: -1, frustum: "anchor" });
-
-    // Floor aisle markings — blue cold aisle, red hot aisles
-    function makeFloorMark(text, fillColor, widthCm, depthCm) {
-      const pw = 1024;
-      const ph = 256;
-      const c = document.createElement("canvas");
-      c.width = pw;
-      c.height = ph;
-      const ctx = c.getContext("2d");
-      ctx.clearRect(0, 0, pw, ph);
-      // Soft lane paint under text for contrast on grey tiles
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillRect(0, ph * 0.18, pw, ph * 0.64);
-      ctx.fillStyle = fillColor;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.font = `800 ${Math.floor(ph * 0.5)}px "Archivo Black", "Arial Black", sans-serif`;
-      ctx.fillText(text, pw / 2, ph / 2 + 2);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 8;
-      const mat = new THREE.MeshStandardMaterial({
-        map: tex,
-        transparent: true,
-        roughness: 0.85,
-        metalness: 0.05,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
-      mesh.rotation.x = -Math.PI / 2;
-      return mesh;
-    }
-
-    const markY = FLOOR_H + 0.2;
-    // Cold aisle between the two rows (fronts face each other)
-    const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
-    coldMark.position.set(-RACK_PITCH / 2, markY, 0);
-    raisedFloor.add(coldMark);
-
-    // Hot aisles at the rear of each row
-    const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
-    hotA.position.set(0, markY, ROW_SEP / 2 + OUTER_D / 2 + 28);
-    raisedFloor.add(hotA);
-
-    const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
-    hotB.rotation.z = Math.PI; // readable when facing that row's rear
-    hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
-    raisedFloor.add(hotB);
 
     // --- Single thin translucent wall behind Rack1–3 + MCB ---
     // (no walls on the other sides — diagonal room shape is the floor cut)
@@ -8374,6 +8414,11 @@
     const bounce = new THREE.PointLight(0xffffff, 90, 340, 2);
     bounce.position.set(0, FLOOR_H + 20, 0);
     scene.add(bounce);
+
+    // Soft fill so the 26F raised deck reads when looking up from 25F
+    const floor26Fill = new THREE.PointLight(0xe8f0f8, 140, 520, 2);
+    floor26Fill.position.set(-RACK_PITCH / 2, STOREY_H + FLOOR_H + 90, 0);
+    scene.add(floor26Fill);
 
     // Aisle light to lift door faces and equipment bezels
     const aisleLight = new THREE.PointLight(0xe8f2ff, 110, 280, 2);
