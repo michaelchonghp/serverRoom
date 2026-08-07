@@ -5903,8 +5903,9 @@
     const AISLE = 220; // cm clear between front doors
     const ROW_SEP = OUTER_D + AISLE;
     // Rack4 at x=0 (row B, i=0 with −RACK_PITCH shift); interior face toward +X
+    // Plus two more tile rows beyond that face (user request)
     const rack4InteriorX = 0 + OUTER_W / 2;
-    const floorXMax26 = rack4InteriorX;
+    const floorXMax26 = rack4InteriorX + 2 * TILE;
 
     function floorXMinAt(z) {
       const t = (z - floorZMin) / (floorZMax - floorZMin);
@@ -6000,7 +6001,7 @@
       return new THREE.Plane(n, c);
     })();
     // 26F also clips flush to its shorter interior wall (discard x > floorXMax26)
-    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(1, 0, 0), -floorXMax26);
+    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(-1, 0, 0), floorXMax26);
 
     [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
       m.clippingPlanes = [floorDiagClip];
