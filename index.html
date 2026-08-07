@@ -5909,7 +5909,7 @@
     // Plus two more tile rows beyond that face (user request)
     const rack4InteriorX = 0 + OUTER_W / 2;
     const floorXMax26 = rack4InteriorX + 2 * TILE;
-    // 26F rack row center (mid-depth); fronts face the window side (−X)
+    // 26F rack row center (mid-depth); rotY = −π/2 → fronts face +X (into the room)
     const rack26X = (floorXMinAt(0) + floorXMax26) * 0.5;
 
     function floorXMinAt(z) {
@@ -6059,14 +6059,14 @@
       a0: aisleZ0,
       a1: aisleZ1,
     });
-    // 26F cold aisle is in front of the single rack row (toward −X / windows)
+    // 26F cold aisle is in front of the rack row (rotY −π/2 → front at +X)
     const coldAisle26 = 160;
-    const rack26FrontX = rack26X - OUTER_D / 2;
-    const rack26RearX = rack26X + OUTER_D / 2;
+    const rack26FrontX = rack26X + OUTER_D / 2;
+    const rack26RearX = rack26X - OUTER_D / 2;
     const tiles26 = collectFloorTiles(floorXMax26, floorZMin, floorZMax, {
       axis: "x",
-      a0: rack26FrontX - coldAisle26,
-      a1: rack26FrontX,
+      a0: rack26FrontX,
+      a1: rack26FrontX + coldAisle26,
     });
 
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
@@ -6236,17 +6236,17 @@
       aisleMarks: false,
       floorTag: "26F",
     });
-    // 26F aisle marks — cold in front (−X), hot behind (+X), text runs along the row (Z)
+    // 26F aisle marks — cold in front (+X), hot at rear (−X), text along the row (Z)
     {
       const markY = STOREY_H + FLOOR_H + 0.2;
       const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 200, 28);
       coldMark.rotation.z = Math.PI / 2;
-      coldMark.position.set(rack26FrontX - coldAisle26 * 0.45, markY, 0);
+      coldMark.position.set(rack26FrontX + coldAisle26 * 0.45, markY, 0);
       raisedFloor26.add(coldMark);
 
       const hotMark = makeFloorMark("HOT AISLE", "#e11d2e", 200, 28);
       hotMark.rotation.z = Math.PI / 2;
-      hotMark.position.set(rack26RearX + 32, markY, 0);
+      hotMark.position.set(rack26RearX - 32, markY, 0);
       raisedFloor26.add(hotMark);
     }
     scene.add(makeRoomSlab(STOREY_H, roomOutline26, matSubfloor));
@@ -6280,7 +6280,7 @@
       });
     }
 
-    /** 26F: one row parallel to the window façade (along Z), fronts face windows (−X). */
+    /** 26F: one row parallel to the window façade (along Z), fronts face into the room (+X). */
     function placeRow26AlongWindows(names, extrasByName = {}, equipmentByName = {}) {
       names.forEach((name, i) => {
         const unit = createRack(
@@ -6288,8 +6288,8 @@
           extrasByName[name] || [],
           equipmentByName[name] || []
         );
-        // LTR when facing the windows (−X): left = −Z
-        const z = (i - (names.length - 1) / 2) * RACK_PITCH;
+        // LTR when facing into the room (+X): left = +Z
+        const z = ((names.length - 1) / 2 - i) * RACK_PITCH;
         unit.group.position.set(rack26X, 0, z);
         unit.group.rotation.y = -Math.PI / 2;
         bay26.add(unit.group);
