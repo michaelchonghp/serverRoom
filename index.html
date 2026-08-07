@@ -5909,6 +5909,8 @@
     // Plus two more tile rows beyond that face (user request)
     const rack4InteriorX = 0 + OUTER_W / 2;
     const floorXMax26 = rack4InteriorX + 2 * TILE;
+    // 26F rack row center (mid-depth); fronts face the window side (−X)
+    const rack26X = (floorXMinAt(0) + floorXMax26) * 0.5;
 
     function floorXMinAt(z) {
       const t = (z - floorZMin) / (floorZMax - floorZMin);
@@ -6026,7 +6028,7 @@
     const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
     const floorTileDummy = new THREE.Object3D();
 
-    function collectFloorTiles(xMax, zMin, zMax) {
+    function collectFloorTiles(xMax, zMin, zMax, aisle = null) {
       const solid = [];
       const solidAlt = [];
       const perf = [];
@@ -6035,7 +6037,14 @@
           const x = floorOriginX + c * TILE;
           const z = floorOriginZ + r * TILE;
           if (!tileOverlapsFootprint(x, z, xMax, zMin, zMax)) continue;
-          const inAisle = z >= aisleZ0 && z <= aisleZ1;
+          let inAisle = false;
+          if (aisle && aisle.axis === "x") {
+            inAisle = x >= aisle.a0 && x <= aisle.a1;
+          } else if (aisle && aisle.axis === "z") {
+            inAisle = z >= aisle.a0 && z <= aisle.a1;
+          } else {
+            inAisle = z >= aisleZ0 && z <= aisleZ1;
+          }
           const entry = { x, z };
           if (inAisle) perf.push(entry);
           else if ((r + c) % 2 === 0) solid.push(entry);
@@ -6045,8 +6054,20 @@
       return { solid, solidAlt, perf };
     }
 
-    const tiles25 = collectFloorTiles(floorXMax, floorZMin, floorZMax);
-    const tiles26 = collectFloorTiles(floorXMax26, floorZMin, floorZMax);
+    const tiles25 = collectFloorTiles(floorXMax, floorZMin, floorZMax, {
+      axis: "z",
+      a0: aisleZ0,
+      a1: aisleZ1,
+    });
+    // 26F cold aisle is in front of the single rack row (toward −X / windows)
+    const coldAisle26 = 160;
+    const rack26FrontX = rack26X - OUTER_D / 2;
+    const rack26RearX = rack26X + OUTER_D / 2;
+    const tiles26 = collectFloorTiles(floorXMax26, floorZMin, floorZMax, {
+      axis: "x",
+      a0: rack26FrontX - coldAisle26,
+      a1: rack26FrontX,
+    });
 
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
       const pw = 1024;
@@ -6212,9 +6233,22 @@
         solidAlt: matFloorTileAlt26,
         perf: matFloorPerfMapped26,
       },
-      aisleMarks: true,
+      aisleMarks: false,
       floorTag: "26F",
     });
+    // 26F aisle marks — cold in front (−X), hot behind (+X), text runs along the row (Z)
+    {
+      const markY = STOREY_H + FLOOR_H + 0.2;
+      const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 200, 28);
+      coldMark.rotation.z = Math.PI / 2;
+      coldMark.position.set(rack26FrontX - coldAisle26 * 0.45, markY, 0);
+      raisedFloor26.add(coldMark);
+
+      const hotMark = makeFloorMark("HOT AISLE", "#e11d2e", 200, 28);
+      hotMark.rotation.z = Math.PI / 2;
+      hotMark.position.set(rack26RearX + 32, markY, 0);
+      raisedFloor26.add(hotMark);
+    }
     scene.add(makeRoomSlab(STOREY_H, roomOutline26, matSubfloor));
 
     const bay = new THREE.Group();
@@ -6246,19 +6280,18 @@
       });
     }
 
-    /** 26F: one row parallel to the window façade (along Z), fronts face into the room (+X). */
+    /** 26F: one row parallel to the window façade (along Z), fronts face windows (−X). */
     function placeRow26AlongWindows(names, extrasByName = {}, equipmentByName = {}) {
-      const xMid = (floorXMinAt(0) + floorXMax26) * 0.5;
       names.forEach((name, i) => {
         const unit = createRack(
           name,
           extrasByName[name] || [],
           equipmentByName[name] || []
         );
-        // LTR when facing into the room (+X): left = +Z
-        const z = ((names.length - 1) / 2 - i) * RACK_PITCH;
-        unit.group.position.set(xMid, 0, z);
-        unit.group.rotation.y = Math.PI / 2;
+        // LTR when facing the windows (−X): left = −Z
+        const z = (i - (names.length - 1) / 2) * RACK_PITCH;
+        unit.group.position.set(rack26X, 0, z);
+        unit.group.rotation.y = -Math.PI / 2;
         bay26.add(unit.group);
         racks.push(unit);
       });
