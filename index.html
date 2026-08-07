@@ -1031,10 +1031,10 @@
     renderer.localClippingEnabled = true;
 
     const scene = new THREE.Scene();
-    const FOG_NEAR = 800;
-    const FOG_FAR = 2200;
-    const FOG_NEAR_POWER = 1400;
-    const FOG_FAR_POWER = 3600;
+    const FOG_NEAR = 1600;
+    const FOG_FAR = 4400;
+    const FOG_NEAR_POWER = 2800;
+    const FOG_FAR_POWER = 7200;
     scene.fog = new THREE.Fog(0xe8eef4, FOG_NEAR, FOG_FAR);
 
     const isMobile = () => window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
