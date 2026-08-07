@@ -913,6 +913,9 @@
       <button type="button" class="rack-btn" data-rack="Rack4" aria-label="Zoom to Rack 4">4</button>
       <button type="button" class="rack-btn" data-rack="Rack5" aria-label="Zoom to Rack 5">5</button>
       <button type="button" class="rack-btn" data-rack="Rack6" aria-label="Zoom to Rack 6">6</button>
+      <button type="button" class="rack-btn" data-rack="26F-1" aria-label="Zoom to 26F Rack 1">A</button>
+      <button type="button" class="rack-btn" data-rack="26F-2" aria-label="Zoom to 26F Rack 2">B</button>
+      <button type="button" class="rack-btn" data-rack="26F-3" aria-label="Zoom to 26F Rack 3">C</button>
     </div>
   </div>
 
@@ -6219,6 +6222,12 @@
     bay.position.y = FLOOR_H;
     scene.add(bay);
 
+    // 26F cabinets sit on the upper raised floor deck
+    const bay26 = new THREE.Group();
+    bay26.name = "Bay26F";
+    bay26.position.y = STOREY_H + FLOOR_H;
+    scene.add(bay26);
+
     const racks = [];
 
     function placeRow(names, z, rotY, xShift = 0, extrasByName = {}, equipmentByName = {}) {
@@ -6233,6 +6242,24 @@
         unit.group.position.set(x, 0, z);
         unit.group.rotation.y = rotY;
         bay.add(unit.group);
+        racks.push(unit);
+      });
+    }
+
+    /** 26F: one row parallel to the window façade (along Z), fronts face into the room (+X). */
+    function placeRow26AlongWindows(names, extrasByName = {}, equipmentByName = {}) {
+      const xMid = (floorXMinAt(0) + floorXMax26) * 0.5;
+      names.forEach((name, i) => {
+        const unit = createRack(
+          name,
+          extrasByName[name] || [],
+          equipmentByName[name] || []
+        );
+        // LTR when facing into the room (+X): left = +Z
+        const z = ((names.length - 1) / 2 - i) * RACK_PITCH;
+        unit.group.position.set(xMid, 0, z);
+        unit.group.rotation.y = Math.PI / 2;
+        bay26.add(unit.group);
         racks.push(unit);
       });
     }
@@ -6401,6 +6428,9 @@
         ],
       }
     );
+
+    // 26F — three empty cabinets in one row parallel to the windows (plan 26-F10)
+    placeRow26AlongWindows(["26F-1", "26F-2", "26F-3"]);
 
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
@@ -8513,10 +8543,11 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
 
-      // Fit 25F bay plus both raised-floor decks so 26F is in the overview
+      // Fit 25F bay plus both raised-floor decks (and 26F racks) so storeys read stacked
       framingBox.setFromObject(bay);
       framingBox.expandByObject(raisedFloor);
       framingBox.expandByObject(raisedFloor26);
+      framingBox.expandByObject(bay26);
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
       framingBox.getSize(size);
