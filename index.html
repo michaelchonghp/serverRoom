@@ -5888,8 +5888,9 @@
     const floorOriginX = -floorW / 2 + TILE / 2;
     const floorOriginZ = -floorD / 2 + TILE / 2;
 
-    // Room footprint: rectangle with diagonal cut on the Rack6 / −X end
-    // (wider clearance past Rack6, narrows toward Rack3 — matches floor-plan sketch)
+    // Room footprints (approx — not CAD-precise).
+    // Shared width (~3 window bays). Diagonal cut on the Rack6 / −X end.
+    // 25F: full depth to the door-wall side. 26F: shorter — far wall at Rack4 aisle face.
     const floorZMax = floorD / 2;
     const floorZMin = -floorD / 2;
     const floorXMax = floorW / 2;
@@ -5897,34 +5898,46 @@
     const rack3OuterX = -RACK_PITCH - OUTER_W / 2;
     const xDiagAtZMin = Math.max(-floorW / 2, rack6OuterX - 4.5 * TILE);
     const xDiagAtZMax = rack3OuterX - 0.75 * TILE;
+
+    // Need aisle spacing before the 26F depth cut (Rack4 lives on the −Z row)
+    const AISLE = 220; // cm clear between front doors
+    const ROW_SEP = OUTER_D + AISLE;
+    // Rack4 at −ROW_SEP/2, rotY=π → aisle (+Z) face is the “top” extent toward 25F’s deeper end
+    const rack4TopZ = -ROW_SEP / 2 + OUTER_D / 2;
+    const floorZMax26 = rack4TopZ;
+
     function floorXMinAt(z) {
       const t = (z - floorZMin) / (floorZMax - floorZMin);
       return xDiagAtZMin + t * (xDiagAtZMax - xDiagAtZMin);
     }
-    function inRoomFootprint(x, z) {
-      return (
-        z >= floorZMin &&
-        z <= floorZMax &&
-        x <= floorXMax &&
-        x >= floorXMinAt(z)
-      );
+    function makeRoomOutline(zMin, zMax) {
+      return [
+        [floorXMax, zMin],
+        [floorXMax, zMax],
+        [floorXMinAt(zMax), zMax],
+        [floorXMinAt(zMin), zMin],
+      ];
     }
-    /** True if the tile quad overlaps the room (may straddle the diagonal). */
-    function tileOverlapsRoom(x, z) {
+    function inFootprint(x, z, zMin, zMax) {
+      return z >= zMin && z <= zMax && x <= floorXMax && x >= floorXMinAt(z);
+    }
+    function tileOverlapsFootprint(x, z, zMin, zMax) {
       const half = (TILE - 0.7) * 0.5;
-      if (z + half < floorZMin || z - half > floorZMax) return false;
+      if (z + half < zMin || z - half > zMax) return false;
       if (x - half > floorXMax || x + half < -floorW / 2) return false;
-      // Keep if any part reaches the room side of the diagonal
       const xRight = x + half;
       const need = Math.min(floorXMinAt(z - half), floorXMinAt(z + half));
       return xRight >= need;
     }
-    const roomOutline = [
-      [floorXMax, floorZMin],
-      [floorXMax, floorZMax],
-      [xDiagAtZMax, floorZMax],
-      [xDiagAtZMin, floorZMin],
-    ];
+    // 25F helpers (full room) — used by wall / Wyr-Grid / trunking
+    function inRoomFootprint(x, z) {
+      return inFootprint(x, z, floorZMin, floorZMax);
+    }
+    function tileOverlapsRoom(x, z) {
+      return tileOverlapsFootprint(x, z, floorZMin, floorZMax);
+    }
+    const roomOutline = makeRoomOutline(floorZMin, floorZMax);
+    const roomOutline26 = makeRoomOutline(floorZMin, floorZMax26);
 
     // Building slab under the 25F void
     const subfloor = new THREE.Mesh(
@@ -5973,8 +5986,8 @@
       roughness: 0.55,
     });
 
-    // Slice tiles flush to the diagonal (no stair-step overhang)
-    {
+    // Diagonal clip shared by both floors (same −X cut line)
+    const floorDiagClip = (() => {
       const dx = xDiagAtZMax - xDiagAtZMin;
       const dz = floorZMax - floorZMin;
       const len = Math.hypot(dx, dz) || 1;
@@ -5984,16 +5997,22 @@
         n.negate();
         c = -c;
       }
-      const floorDiagClip = new THREE.Plane(n, c);
-      [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
-        m.clippingPlanes = [floorDiagClip];
-        m.clipShadows = true;
-      });
-    }
+      return new THREE.Plane(n, c);
+    })();
+    // 26F also clips flush to its shorter far wall (discard z > floorZMax26)
+    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), floorZMax26);
 
-    // Two rows face-to-face across a cold aisle (extra clearance for inward-opening doors)
-    const AISLE = 220; // cm clear between front doors
-    const ROW_SEP = OUTER_D + AISLE;
+    [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
+      m.clippingPlanes = [floorDiagClip];
+      m.clipShadows = true;
+    });
+    const matFloorTile26 = matFloorTile.clone();
+    const matFloorTileAlt26 = matFloorTileAlt.clone();
+    const matFloorPerfMapped26 = matFloorPerfMapped.clone();
+    [matFloorTile26, matFloorTileAlt26, matFloorPerfMapped26].forEach((m) => {
+      m.clippingPlanes = [floorDiagClip, floor26DepthClip];
+      m.clipShadows = true;
+    });
 
     // Cold-aisle Z band (between the two front door lines) → perforated tiles
     const aisleZ0 = -AISLE / 2;
@@ -6003,21 +6022,27 @@
     const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
     const floorTileDummy = new THREE.Object3D();
 
-    const solidTiles = [];
-    const solidAltTiles = [];
-    const perfTiles = [];
-    for (let r = 0; r < FLOOR_ROWS; r++) {
-      for (let c = 0; c < FLOOR_COLS; c++) {
-        const x = floorOriginX + c * TILE;
-        const z = floorOriginZ + r * TILE;
-        if (!tileOverlapsRoom(x, z)) continue;
-        const inAisle = z >= aisleZ0 && z <= aisleZ1;
-        const entry = { x, z };
-        if (inAisle) perfTiles.push(entry);
-        else if ((r + c) % 2 === 0) solidTiles.push(entry);
-        else solidAltTiles.push(entry);
+    function collectFloorTiles(zMin, zMax) {
+      const solid = [];
+      const solidAlt = [];
+      const perf = [];
+      for (let r = 0; r < FLOOR_ROWS; r++) {
+        for (let c = 0; c < FLOOR_COLS; c++) {
+          const x = floorOriginX + c * TILE;
+          const z = floorOriginZ + r * TILE;
+          if (!tileOverlapsFootprint(x, z, zMin, zMax)) continue;
+          const inAisle = z >= aisleZ0 && z <= aisleZ1;
+          const entry = { x, z };
+          if (inAisle) perf.push(entry);
+          else if ((r + c) % 2 === 0) solid.push(entry);
+          else solidAlt.push(entry);
+        }
       }
+      return { solid, solidAlt, perf };
     }
+
+    const tiles25 = collectFloorTiles(floorZMin, floorZMax);
+    const tiles26 = collectFloorTiles(floorZMin, floorZMax26);
 
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
       const pw = 1024;
@@ -6052,13 +6077,13 @@
       return mesh;
     }
 
-    /** Structural slab matching the diagonal room footprint (has real underside). */
+    /** Structural slab matching a room outline (has real underside). */
     const SLAB_T = 22; // cm — typical RC floor thickness so underside reads from below
-    function makeRoomSlab(topY, material, thickness = SLAB_T) {
+    function makeRoomSlab(topY, outline, material, thickness = SLAB_T) {
       const shape = new THREE.Shape();
-      shape.moveTo(roomOutline[0][0], -roomOutline[0][1]);
-      for (let i = 1; i < roomOutline.length; i++) {
-        shape.lineTo(roomOutline[i][0], -roomOutline[i][1]);
+      shape.moveTo(outline[0][0], -outline[0][1]);
+      for (let i = 1; i < outline.length; i++) {
+        shape.lineTo(outline[i][0], -outline[i][1]);
       }
       shape.closePath();
       // Extrude in local +Z, then tip flat so depth becomes world +Y (top at topY)
@@ -6077,9 +6102,16 @@
 
     /**
      * Build one raised-floor deck (pedestals + tiles + aisle marks) on a slab at slabY.
-     * Tile plan matches 25F; deck surface is at slabY + FLOOR_H.
+     * Deck surface is at slabY + FLOOR_H.
      */
-    function buildRaisedFloorLevel(name, slabY, { aisleMarks = true, floorTag = "" } = {}) {
+    function buildRaisedFloorLevel(name, slabY, {
+      zMin,
+      zMax,
+      tiles,
+      mats,
+      aisleMarks = true,
+      floorTag = "",
+    }) {
       const group = new THREE.Group();
       group.name = name;
 
@@ -6088,7 +6120,7 @@
         for (let r = 0; r <= FLOOR_ROWS; r += 2) {
           const px = -floorW / 2 + c * TILE;
           const pz = -floorD / 2 + r * TILE;
-          if (!inRoomFootprint(px, pz)) continue;
+          if (!inFootprint(px, pz, zMin, zMax)) continue;
           const ped = new THREE.Mesh(pedGeo, matPedestal);
           ped.position.set(px, slabY + plenumH / 2, pz);
           ped.castShadow = true;
@@ -6111,29 +6143,38 @@
         return mesh;
       }
 
-      addTileInstances(solidTiles, matFloorTile);
-      addTileInstances(solidAltTiles, matFloorTileAlt);
-      addTileInstances(perfTiles, matFloorPerfMapped);
+      addTileInstances(tiles.solid, mats.solid);
+      addTileInstances(tiles.solidAlt, mats.solidAlt);
+      addTileInstances(tiles.perf, mats.perf);
 
       const markY = slabY + FLOOR_H + 0.2;
       if (aisleMarks) {
-        const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
-        coldMark.position.set(-RACK_PITCH / 2, markY, 0);
-        group.add(coldMark);
+        const coldZ = 0;
+        if (coldZ >= zMin && coldZ <= zMax) {
+          const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
+          coldMark.position.set(-RACK_PITCH / 2, markY, coldZ);
+          group.add(coldMark);
+        }
 
-        const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
-        hotA.position.set(0, markY, ROW_SEP / 2 + OUTER_D / 2 + 28);
-        group.add(hotA);
+        const hotAZ = ROW_SEP / 2 + OUTER_D / 2 + 28;
+        if (hotAZ >= zMin && hotAZ <= zMax) {
+          const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+          hotA.position.set(0, markY, hotAZ);
+          group.add(hotA);
+        }
 
-        const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
-        hotB.rotation.z = Math.PI;
-        hotB.position.set(-RACK_PITCH, markY, -(ROW_SEP / 2 + OUTER_D / 2 + 28));
-        group.add(hotB);
+        const hotBZ = -(ROW_SEP / 2 + OUTER_D / 2 + 28);
+        if (hotBZ >= zMin && hotBZ <= zMax) {
+          const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+          hotB.rotation.z = Math.PI;
+          hotB.position.set(-RACK_PITCH, markY, hotBZ);
+          group.add(hotB);
+        }
       }
 
       if (floorTag) {
         const tag = makeFloorMark(floorTag, "#1a2330", 90, 28);
-        tag.position.set(floorXMax - 70, markY, floorZMin + 40);
+        tag.position.set(floorXMax - 70, markY, zMin + 40);
         group.add(tag);
       }
 
@@ -6142,15 +6183,31 @@
     }
 
     const raisedFloor = buildRaisedFloorLevel("RaisedFloor25F", 0, {
+      zMin: floorZMin,
+      zMax: floorZMax,
+      tiles: tiles25,
+      mats: {
+        solid: matFloorTile,
+        solidAlt: matFloorTileAlt,
+        perf: matFloorPerfMapped,
+      },
       aisleMarks: true,
       floorTag: "25F",
     });
-    // 26F — same tile plan; slab 8.4 m above 25F slab (deck at STOREY_H + FLOOR_H)
+    // 26F — same width / diagonal; depth stops at Rack4 aisle face (shorter than 25F)
     const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
+      zMin: floorZMin,
+      zMax: floorZMax26,
+      tiles: tiles26,
+      mats: {
+        solid: matFloorTile26,
+        solidAlt: matFloorTileAlt26,
+        perf: matFloorPerfMapped26,
+      },
       aisleMarks: true,
       floorTag: "26F",
     });
-    scene.add(makeRoomSlab(STOREY_H, matSubfloor));
+    scene.add(makeRoomSlab(STOREY_H, roomOutline26, matSubfloor));
 
     const bay = new THREE.Group();
     // Cabinets sit on the 25F raised floor deck
