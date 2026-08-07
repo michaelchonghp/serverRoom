@@ -5876,13 +5876,13 @@
     }
 
     // --- Raised access floors (data hall) ---
-    // Units are cm. 25F slab ≈ y=0; 26F slab at STOREY_H (4.2 m FTF — clears racks + Wyr-Grid).
+    // Units are cm. 25F slab ≈ y=0; 26F slab at STOREY_H (8.4 m FTF — 2× prior storey).
     const TILE = 60;           // 600 mm tiles
     const FLOOR_H = 45;        // raised floor height (void + tile)
     const FLOOR_TILE_T = 3.2;  // tile thickness
     const FLOOR_COLS = 14;
     const FLOOR_ROWS = 12;
-    const STOREY_H = 420;      // 25F slab → 26F slab
+    const STOREY_H = 840;      // 25F slab → 26F slab (2× prior 4.2 m)
     const floorW = FLOOR_COLS * TILE;
     const floorD = FLOOR_ROWS * TILE;
     const floorOriginX = -floorW / 2 + TILE / 2;
@@ -6138,7 +6138,7 @@
       aisleMarks: true,
       floorTag: "25F",
     });
-    // 26F — same tile plan; slab 4.2 m above 25F slab (deck at STOREY_H + FLOOR_H)
+    // 26F — same tile plan; slab 8.4 m above 25F slab (deck at STOREY_H + FLOOR_H)
     const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
       aisleMarks: true,
       floorTag: "26F",
@@ -8395,10 +8395,10 @@
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 10;
-    key.shadow.camera.far = 1100;
+    key.shadow.camera.far = 1600;
     key.shadow.camera.left = -280;
     key.shadow.camera.right = 280;
-    key.shadow.camera.top = 520;
+    key.shadow.camera.top = 980;
     key.shadow.camera.bottom = -80;
     key.shadow.bias = -0.0002;
     scene.add(key);
@@ -8416,7 +8416,7 @@
     scene.add(bounce);
 
     // Soft fill so the 26F raised deck reads when looking up from 25F
-    const floor26Fill = new THREE.PointLight(0xe8f0f8, 140, 520, 2);
+    const floor26Fill = new THREE.PointLight(0xe8f0f8, 180, 780, 2);
     floor26Fill.position.set(-RACK_PITCH / 2, STOREY_H + FLOOR_H + 90, 0);
     scene.add(floor26Fill);
 
