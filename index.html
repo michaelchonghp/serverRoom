@@ -5889,8 +5889,9 @@
     const floorOriginZ = -floorD / 2 + TILE / 2;
 
     // Room footprints (approx — not CAD-precise).
-    // Shared width (~3 window bays). Diagonal cut on the Rack6 / −X end.
-    // 25F: full depth to the door-wall side. 26F: shorter — far wall at Rack4 aisle face.
+    // Shared WIDTH along Z (~3 window bays on the slanted −X façade).
+    // Depth runs −X (windows) → +X (interior). 25F uses full depth to floorXMax;
+    // 26F stops at Rack4’s interior (+X) face — same idea as the plan red boxes.
     const floorZMax = floorD / 2;
     const floorZMin = -floorD / 2;
     const floorXMax = floorW / 2;
@@ -5899,45 +5900,44 @@
     const xDiagAtZMin = Math.max(-floorW / 2, rack6OuterX - 4.5 * TILE);
     const xDiagAtZMax = rack3OuterX - 0.75 * TILE;
 
-    // Need aisle spacing before the 26F depth cut (Rack4 lives on the −Z row)
     const AISLE = 220; // cm clear between front doors
     const ROW_SEP = OUTER_D + AISLE;
-    // Rack4 at −ROW_SEP/2, rotY=π → aisle (+Z) face is the “top” extent toward 25F’s deeper end
-    const rack4TopZ = -ROW_SEP / 2 + OUTER_D / 2;
-    const floorZMax26 = rack4TopZ;
+    // Rack4 at x=0 (row B, i=0 with −RACK_PITCH shift); interior face toward +X
+    const rack4InteriorX = 0 + OUTER_W / 2;
+    const floorXMax26 = rack4InteriorX;
 
     function floorXMinAt(z) {
       const t = (z - floorZMin) / (floorZMax - floorZMin);
       return xDiagAtZMin + t * (xDiagAtZMax - xDiagAtZMin);
     }
-    function makeRoomOutline(zMin, zMax) {
+    function makeRoomOutline(xMax, zMin, zMax) {
       return [
-        [floorXMax, zMin],
-        [floorXMax, zMax],
+        [xMax, zMin],
+        [xMax, zMax],
         [floorXMinAt(zMax), zMax],
         [floorXMinAt(zMin), zMin],
       ];
     }
-    function inFootprint(x, z, zMin, zMax) {
-      return z >= zMin && z <= zMax && x <= floorXMax && x >= floorXMinAt(z);
+    function inFootprint(x, z, xMax, zMin, zMax) {
+      return z >= zMin && z <= zMax && x <= xMax && x >= floorXMinAt(z);
     }
-    function tileOverlapsFootprint(x, z, zMin, zMax) {
+    function tileOverlapsFootprint(x, z, xMax, zMin, zMax) {
       const half = (TILE - 0.7) * 0.5;
       if (z + half < zMin || z - half > zMax) return false;
-      if (x - half > floorXMax || x + half < -floorW / 2) return false;
+      if (x - half > xMax || x + half < -floorW / 2) return false;
       const xRight = x + half;
       const need = Math.min(floorXMinAt(z - half), floorXMinAt(z + half));
       return xRight >= need;
     }
     // 25F helpers (full room) — used by wall / Wyr-Grid / trunking
     function inRoomFootprint(x, z) {
-      return inFootprint(x, z, floorZMin, floorZMax);
+      return inFootprint(x, z, floorXMax, floorZMin, floorZMax);
     }
     function tileOverlapsRoom(x, z) {
-      return tileOverlapsFootprint(x, z, floorZMin, floorZMax);
+      return tileOverlapsFootprint(x, z, floorXMax, floorZMin, floorZMax);
     }
-    const roomOutline = makeRoomOutline(floorZMin, floorZMax);
-    const roomOutline26 = makeRoomOutline(floorZMin, floorZMax26);
+    const roomOutline = makeRoomOutline(floorXMax, floorZMin, floorZMax);
+    const roomOutline26 = makeRoomOutline(floorXMax26, floorZMin, floorZMax);
 
     // Building slab under the 25F void
     const subfloor = new THREE.Mesh(
@@ -5999,8 +5999,8 @@
       }
       return new THREE.Plane(n, c);
     })();
-    // 26F also clips flush to its shorter far wall (discard z > floorZMax26)
-    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(0, 0, -1), floorZMax26);
+    // 26F also clips flush to its shorter interior wall (discard x > floorXMax26)
+    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(1, 0, 0), -floorXMax26);
 
     [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
       m.clippingPlanes = [floorDiagClip];
@@ -6022,7 +6022,7 @@
     const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
     const floorTileDummy = new THREE.Object3D();
 
-    function collectFloorTiles(zMin, zMax) {
+    function collectFloorTiles(xMax, zMin, zMax) {
       const solid = [];
       const solidAlt = [];
       const perf = [];
@@ -6030,7 +6030,7 @@
         for (let c = 0; c < FLOOR_COLS; c++) {
           const x = floorOriginX + c * TILE;
           const z = floorOriginZ + r * TILE;
-          if (!tileOverlapsFootprint(x, z, zMin, zMax)) continue;
+          if (!tileOverlapsFootprint(x, z, xMax, zMin, zMax)) continue;
           const inAisle = z >= aisleZ0 && z <= aisleZ1;
           const entry = { x, z };
           if (inAisle) perf.push(entry);
@@ -6041,8 +6041,8 @@
       return { solid, solidAlt, perf };
     }
 
-    const tiles25 = collectFloorTiles(floorZMin, floorZMax);
-    const tiles26 = collectFloorTiles(floorZMin, floorZMax26);
+    const tiles25 = collectFloorTiles(floorXMax, floorZMin, floorZMax);
+    const tiles26 = collectFloorTiles(floorXMax26, floorZMin, floorZMax);
 
     function makeFloorMark(text, fillColor, widthCm, depthCm) {
       const pw = 1024;
@@ -6105,6 +6105,7 @@
      * Deck surface is at slabY + FLOOR_H.
      */
     function buildRaisedFloorLevel(name, slabY, {
+      xMax,
       zMin,
       zMax,
       tiles,
@@ -6120,7 +6121,7 @@
         for (let r = 0; r <= FLOOR_ROWS; r += 2) {
           const px = -floorW / 2 + c * TILE;
           const pz = -floorD / 2 + r * TILE;
-          if (!inFootprint(px, pz, zMin, zMax)) continue;
+          if (!inFootprint(px, pz, xMax, zMin, zMax)) continue;
           const ped = new THREE.Mesh(pedGeo, matPedestal);
           ped.position.set(px, slabY + plenumH / 2, pz);
           ped.castShadow = true;
@@ -6150,21 +6151,21 @@
       const markY = slabY + FLOOR_H + 0.2;
       if (aisleMarks) {
         const coldZ = 0;
-        if (coldZ >= zMin && coldZ <= zMax) {
+        if (coldZ >= zMin && coldZ <= zMax && -RACK_PITCH / 2 <= xMax) {
           const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
           coldMark.position.set(-RACK_PITCH / 2, markY, coldZ);
           group.add(coldMark);
         }
 
         const hotAZ = ROW_SEP / 2 + OUTER_D / 2 + 28;
-        if (hotAZ >= zMin && hotAZ <= zMax) {
+        if (hotAZ >= zMin && hotAZ <= zMax && 0 <= xMax) {
           const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
           hotA.position.set(0, markY, hotAZ);
           group.add(hotA);
         }
 
         const hotBZ = -(ROW_SEP / 2 + OUTER_D / 2 + 28);
-        if (hotBZ >= zMin && hotBZ <= zMax) {
+        if (hotBZ >= zMin && hotBZ <= zMax && -RACK_PITCH <= xMax) {
           const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
           hotB.rotation.z = Math.PI;
           hotB.position.set(-RACK_PITCH, markY, hotBZ);
@@ -6174,7 +6175,8 @@
 
       if (floorTag) {
         const tag = makeFloorMark(floorTag, "#1a2330", 90, 28);
-        tag.position.set(floorXMax - 70, markY, zMin + 40);
+        // Keep tag inside this floor’s xMax
+        tag.position.set(Math.min(xMax, floorXMax) - 70, markY, zMin + 40);
         group.add(tag);
       }
 
@@ -6183,6 +6185,7 @@
     }
 
     const raisedFloor = buildRaisedFloorLevel("RaisedFloor25F", 0, {
+      xMax: floorXMax,
       zMin: floorZMin,
       zMax: floorZMax,
       tiles: tiles25,
@@ -6194,10 +6197,11 @@
       aisleMarks: true,
       floorTag: "25F",
     });
-    // 26F — same width / diagonal; depth stops at Rack4 aisle face (shorter than 25F)
+    // 26F — full window-span (Z); depth stops at Rack4 interior face
     const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
+      xMax: floorXMax26,
       zMin: floorZMin,
-      zMax: floorZMax26,
+      zMax: floorZMax,
       tiles: tiles26,
       mats: {
         solid: matFloorTile26,
