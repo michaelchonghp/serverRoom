@@ -6052,19 +6052,26 @@
       return mesh;
     }
 
-    /** Structural slab matching the diagonal room footprint. */
-    function makeRoomSlab(y, material) {
+    /** Structural slab matching the diagonal room footprint (has real underside). */
+    const SLAB_T = 22; // cm — typical RC floor thickness so underside reads from below
+    function makeRoomSlab(topY, material, thickness = SLAB_T) {
       const shape = new THREE.Shape();
       shape.moveTo(roomOutline[0][0], -roomOutline[0][1]);
       for (let i = 1; i < roomOutline.length; i++) {
         shape.lineTo(roomOutline[i][0], -roomOutline[i][1]);
       }
       shape.closePath();
-      const geo = new THREE.ShapeGeometry(shape);
+      // Extrude in local +Z, then tip flat so depth becomes world +Y (top at topY)
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: false,
+        curveSegments: 1,
+      });
       const mesh = new THREE.Mesh(geo, material);
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.y = y;
+      mesh.position.y = topY - thickness;
       mesh.receiveShadow = true;
+      mesh.castShadow = true;
       return mesh;
     }
 
@@ -6143,7 +6150,7 @@
       aisleMarks: true,
       floorTag: "26F",
     });
-    scene.add(makeRoomSlab(STOREY_H - 0.4, matSubfloor));
+    scene.add(makeRoomSlab(STOREY_H, matSubfloor));
 
     const bay = new THREE.Group();
     // Cabinets sit on the 25F raised floor deck
