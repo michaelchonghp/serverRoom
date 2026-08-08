@@ -8209,7 +8209,7 @@
       setControlsMenuOpen(false);
       setFloorMenuOpen(false);
 
-      // Clear 25F-only overlays when leaving that floor
+      // Leaving 25F: drop Core / Dist / Power overlays (26F is access-layer only)
       if (currentFloor !== 25) {
         if (showPower) setShowPower(false);
         if (showCore) setShowCore(false);
