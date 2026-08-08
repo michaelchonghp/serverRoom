@@ -5357,8 +5357,8 @@
       const fieldTag = makeFieldLabel(code || "PATCH", { fit: true, widthCm: 4.4 });
       const tagW = fieldTag.userData.labelW || 4.4;
       const tagH = fieldTag.userData.labelH || 0.68;
-      // Bottom-left of the 1U face
-      fieldTag.position.set(-w / 2 + tagW * 0.55 + 1.2, -h / 2 + tagH * 0.55 + 0.12, -d / 2 - 0.62);
+      // Bottom-left as seen from the aisle (+X matches other field labels)
+      fieldTag.position.set(w / 2 - tagW * 0.55 - 1.2, -h / 2 + tagH * 0.55 + 0.12, -d / 2 - 0.62);
       fieldTag.rotation.z = -0.02;
       g.add(fieldTag);
 
