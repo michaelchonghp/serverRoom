@@ -6725,10 +6725,17 @@
     // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Dist · D1→A1 under Access.
     // -------------------------------------------------------------------------
     function findEquipmentByCode(code) {
-      for (const { group: rack } of racks) {
-        for (const child of rack.children) {
-          if (child.userData && child.userData.code === code) {
-            return { rack, unit: child };
+      // Prefer 25F — 26F mirrors access/PATCH codes for local gear but must not join 25F links.
+      const pools = [
+        racks.filter((r) => r.group.parent === bay),
+        racks.filter((r) => r.group.parent !== bay),
+      ];
+      for (const pool of pools) {
+        for (const { group: rack } of pool) {
+          for (const child of rack.children) {
+            if (child.userData && child.userData.code === code) {
+              return { rack, unit: child };
+            }
           }
         }
       }
