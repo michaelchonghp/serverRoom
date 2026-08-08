@@ -309,6 +309,11 @@
       pointer-events: none;
     }
 
+    /* 26F is access-layer only — Core / Dist never appear in that menu */
+    .door-controls[data-floor="26"] .ctrl-25-only {
+      display: none !important;
+    }
+
     .door-controls button.rack-btn.active {
       background: var(--ink);
       color: #f4f7fb;
@@ -8174,19 +8179,20 @@
         btn.hidden = f !== currentFloor;
       });
 
-      // 26F: no Core / Dist rows; Power + Access stay visible but greyed out
+      // 26F: Core / Dist removed (access layer only). Power greyed; Access stays usable.
       ctrl25OnlyRows.forEach((row) => {
         row.hidden = !on25;
       });
       btnShowPower.disabled = !on25;
       btnShowPower.classList.toggle("is-disabled", !on25);
-      btnShowAccess.disabled = !on25;
-      btnShowAccess.classList.toggle("is-disabled", !on25);
+      btnShowAccess.disabled = false;
+      btnShowAccess.classList.remove("is-disabled");
       if (!on25) {
-        accessRoleFiltersEl.hidden = true;
         coreInfoChipEl.hidden = true;
         distInfoChipEl.hidden = true;
       }
+      // Refresh Access chip visibility from current showAccess state
+      accessRoleFiltersEl.hidden = !showAccess;
 
       syncRackButtons();
     }
@@ -8515,7 +8521,6 @@
     }
 
     function setShowAccess(on) {
-      if (on && currentFloor !== 25) return;
       showAccess = on;
       roomDistAccessLinks.visible = on;
       if (on) syncAccessRoleLinkVisibility();
