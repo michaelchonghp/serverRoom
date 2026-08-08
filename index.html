@@ -2701,11 +2701,10 @@
     function makeFieldLabel(text, { fit = false, widthCm = null } = {}) {
       const long = text.length > 14;
       const mid = !long && text.length > 8;
-      const labelW = widthCm ?? (fit ? 8.8 : long ? 7.8 : mid ? 7.15 : 6.44);
-      const labelH = fit ? 1.35 : 1.085;
-      // Canvas aspect matches the physical plate so glyphs aren't letterboxed.
-      const pw = fit ? 880 : 768;
-      const ph = fit ? Math.max(96, Math.round(pw * (labelH / labelW))) : 160;
+      const labelW = widthCm ?? (fit ? 4.4 : long ? 7.8 : mid ? 7.15 : 6.44);
+      const labelH = fit ? 0.68 : 1.085;
+      const pw = 768;
+      const ph = 160;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
@@ -2714,31 +2713,24 @@
       ctx.fillStyle = "#f4f1ea";
       ctx.fillRect(0, 0, pw, ph);
       ctx.strokeStyle = "rgba(20, 24, 30, 0.35)";
-      ctx.lineWidth = Math.max(4, Math.round(ph * 0.045));
-      ctx.strokeRect(2, 2, pw - 4, ph - 4);
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, pw - 6, ph - 6);
       // Soft edge wear
       ctx.fillStyle = "rgba(0,0,0,0.04)";
-      ctx.fillRect(0, ph - Math.max(10, ph * 0.12), pw, Math.max(10, ph * 0.12));
-      ctx.fillStyle = "#0a0d12";
+      ctx.fillRect(0, ph - 18, pw, 18);
+      ctx.fillStyle = "#12161c";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       if (fit) {
-        // Bold condensed — binary-search the largest size that fills the plate.
-        const padX = pw * 0.04;
-        const padY = ph * 0.08;
-        let lo = 10, hi = Math.floor(ph * 1.35), best = 24;
-        while (lo <= hi) {
-          const midSz = (lo + hi) >> 1;
-          ctx.font = `900 ${midSz}px "Archivo Black", "Arial Black", sans-serif`;
-          const m = ctx.measureText(text);
-          const asc = m.actualBoundingBoxAscent || midSz * 0.78;
-          const desc = m.actualBoundingBoxDescent || midSz * 0.18;
-          const ok = m.width <= pw - padX * 2 && asc + desc <= ph - padY * 2;
-          if (ok) { best = midSz; lo = midSz + 1; }
-          else hi = midSz - 1;
-        }
-        ctx.font = `900 ${best}px "Archivo Black", "Arial Black", sans-serif`;
-        ctx.fillText(text, pw / 2, ph / 2);
+        // Bold, ~half the previous fill size
+        let fontSize = Math.floor(ph * 0.42);
+        const maxW = pw * 0.86;
+        do {
+          ctx.font = `800 ${fontSize}px "Archivo Black", "Arial Black", sans-serif`;
+          if (ctx.measureText(text).width <= maxW) break;
+          fontSize -= 2;
+        } while (fontSize > 22);
+        ctx.fillText(text, pw / 2, ph / 2 + 2);
       } else {
         const fontSize = Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48));
         ctx.font = `800 ${fontSize}px "IBM Plex Mono", ui-monospace, monospace`;
@@ -2756,6 +2748,7 @@
       const label = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
       label.rotation.y = Math.PI; // face rack front (−Z)
       label.userData.labelW = labelW;
+      label.userData.labelH = labelH;
       return label;
     }
 
@@ -5277,12 +5270,11 @@
       ctx.fillRect(0, 14, 22, ph - 28);
       ctx.fillRect(pw - 22, 14, 22, ph - 28);
 
-      // 24× RJ45 in a single row — bright jack bodies so they read on black metal.
-      // Leave a clear strip on the right for the PATCH N field label.
+      // 24× RJ45 in a single row — bright jack bodies so they read on black metal
       const cols = 24;
       const areaX = 48;
       const areaY = ph * 0.2;
-      const areaW = pw - 96 - 280;
+      const areaW = pw - 96;
       const areaH = ph * 0.58;
       const gapX = 2.5;
       const pW = (areaW - gapX * (cols - 1)) / cols;
@@ -5362,11 +5354,12 @@
       g.add(box(1.7, h * 0.92, 1.0, matChrome, -w / 2 - 0.45, 0, -d / 2 - 0.3));
       g.add(box(1.7, h * 0.92, 1.0, matChrome, w / 2 + 0.45, 0, -d / 2 - 0.3));
 
-      const fieldTag = makeFieldLabel(code || "PATCH", { fit: true, widthCm: 8.8 });
-      const tagW = fieldTag.userData.labelW || 8.8;
-      // Right-side clear strip left open in the front texture
-      fieldTag.position.set(w / 2 - tagW * 0.52, 0, -d / 2 - 0.62);
-      fieldTag.rotation.z = -0.03;
+      const fieldTag = makeFieldLabel(code || "PATCH", { fit: true, widthCm: 4.4 });
+      const tagW = fieldTag.userData.labelW || 4.4;
+      const tagH = fieldTag.userData.labelH || 0.68;
+      // Bottom-left of the 1U face
+      fieldTag.position.set(-w / 2 + tagW * 0.55 + 1.2, -h / 2 + tagH * 0.55 + 0.12, -d / 2 - 0.62);
+      fieldTag.rotation.z = -0.02;
       g.add(fieldTag);
 
       g.userData.heightU = heightU;
