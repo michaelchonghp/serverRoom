@@ -2722,14 +2722,14 @@
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       if (fit) {
-        // Bold, ~half the previous fill size
-        let fontSize = Math.floor(ph * 0.42);
-        const maxW = pw * 0.86;
+        // Bold type sized to fill the plate (plate size stays small)
+        let fontSize = Math.floor(ph * 0.72);
+        const maxW = pw * 0.92;
         do {
           ctx.font = `800 ${fontSize}px "Archivo Black", "Arial Black", sans-serif`;
           if (ctx.measureText(text).width <= maxW) break;
           fontSize -= 2;
-        } while (fontSize > 22);
+        } while (fontSize > 28);
         ctx.fillText(text, pw / 2, ph / 2 + 2);
       } else {
         const fontSize = Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48));
