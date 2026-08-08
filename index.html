@@ -6687,7 +6687,7 @@
       { "26F-1": ["ACCESS"], "26F-2": ["ACCESS"] },
       {
         "26F-1": [
-          // Same stack as 25F Rack3
+          // Same stack as 25F Rack3, plus fiber panel as on 25F Rack1 (RU 38)
           { type: "sw-ruijie-s5760", startU: 17, code: "A7", transceivers: ACCESS_XCVRS_A7 },
           { type: "sw-ruijie-s5760", startU: 19, code: "A5", transceivers: ACCESS_XCVRS_A5 },
           { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 },
@@ -6700,6 +6700,7 @@
           { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
           { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
           { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+          { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 (same as 25F Rack1)
         ],
         "26F-2": [
           // Same stack as 25F Rack4
