@@ -301,30 +301,6 @@
       flex: 0 0 auto;
     }
 
-    .door-controls .floor-group {
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: stretch;
-      gap: 0.25rem;
-      flex: 0 0 auto;
-    }
-
-    .door-controls button.floor-btn {
-      min-width: 2.55rem;
-      padding: 0.4rem 0.42rem;
-    }
-
-    .door-controls button.floor-btn.active {
-      background: var(--ink);
-      color: #f4f7fb;
-      border-color: var(--ink);
-    }
-
-    .door-controls button.floor-btn.active .label {
-      opacity: 0.7;
-      color: #c5ccd6;
-    }
-
     .door-controls button:disabled,
     .door-controls button.is-disabled {
       opacity: 0.38;
@@ -480,19 +456,37 @@
       padding: 0.5rem 0.65rem;
     }
 
-    .ctrl-menu > #btn-controls-toggle .action::after {
+    .ctrl-menu > #btn-controls-toggle .action::after,
+    .ctrl-menu > #btn-floor-toggle .action::after {
       content: " ▴";
       opacity: 0.55;
       font-size: 0.7em;
     }
 
-    .ctrl-menu.open > #btn-controls-toggle {
+    .ctrl-menu.open > #btn-controls-toggle,
+    .ctrl-menu.open > #btn-floor-toggle {
       background: var(--ink);
       color: #f4f7fb;
       border-color: var(--ink);
     }
 
-    .ctrl-menu.open > #btn-controls-toggle .label {
+    .ctrl-menu.open > #btn-controls-toggle .label,
+    .ctrl-menu.open > #btn-floor-toggle .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
+    .floor-menu .ctrl-menu-panel {
+      min-width: 4.8rem;
+    }
+
+    .floor-menu .ctrl-menu-panel button.floor-opt.active {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .floor-menu .ctrl-menu-panel button.floor-opt.active .label {
       opacity: 0.7;
       color: #c5ccd6;
     }
@@ -798,13 +792,6 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
-      .door-controls .floor-group {
-        gap: 0.18rem;
-      }
-      .door-controls button.floor-btn {
-        min-width: 2.15rem;
-        padding: 0.32rem 0.28rem;
-      }
       .ctrl-menu-panel .ctrl-extra-chips button {
         min-width: 2rem;
         padding: 0.3rem 0.25rem;
@@ -886,18 +873,24 @@
     </span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
-    <div class="floor-group" role="group" aria-label="Floor">
-      <button type="button" class="floor-btn active" data-floor="25" aria-pressed="true">
+    <div class="ctrl-menu floor-menu" id="floor-menu">
+      <div class="ctrl-menu-panel" id="floor-panel" hidden role="menu" aria-label="Select floor">
+        <button type="button" class="floor-opt active" data-floor="25" role="menuitem" aria-pressed="true">
+          <span class="label">Floor</span>
+          <span class="action">25F</span>
+        </button>
+        <button type="button" class="floor-opt" data-floor="26" role="menuitem" aria-pressed="false">
+          <span class="label">Floor</span>
+          <span class="action">26F</span>
+        </button>
+        <button type="button" class="floor-opt" data-floor="27" role="menuitem" aria-pressed="false" disabled title="Coming later">
+          <span class="label">Floor</span>
+          <span class="action">27F</span>
+        </button>
+      </div>
+      <button type="button" id="btn-floor-toggle" aria-expanded="false" aria-controls="floor-panel" aria-haspopup="true">
         <span class="label">Floor</span>
-        <span class="action">25F</span>
-      </button>
-      <button type="button" class="floor-btn" data-floor="26" aria-pressed="false">
-        <span class="label">Floor</span>
-        <span class="action">26F</span>
-      </button>
-      <button type="button" class="floor-btn" data-floor="27" aria-pressed="false" disabled title="Coming later">
-        <span class="label">Floor</span>
-        <span class="action">27F</span>
+        <span class="action" id="floor-toggle-action">25F</span>
       </button>
     </div>
     <div class="ctrl-menu" id="ctrl-menu">
@@ -8127,6 +8120,10 @@
     const ctrlMenu = document.getElementById("ctrl-menu");
     const controlsPanel = document.getElementById("controls-panel");
     const btnControlsToggle = document.getElementById("btn-controls-toggle");
+    const floorMenu = document.getElementById("floor-menu");
+    const floorPanel = document.getElementById("floor-panel");
+    const btnFloorToggle = document.getElementById("btn-floor-toggle");
+    const floorToggleAction = document.getElementById("floor-toggle-action");
     const btnFront = document.getElementById("btn-front");
     const btnRear = document.getElementById("btn-rear");
     const btnShowPower = document.getElementById("btn-show-power");
@@ -8149,14 +8146,21 @@
     const powerLegend = document.getElementById("power-legend");
     const distLegend = document.getElementById("dist-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
-    const floorButtons = Array.from(document.querySelectorAll(".floor-btn[data-floor]"));
+    const floorButtons = Array.from(document.querySelectorAll(".floor-opt[data-floor]"));
     const ctrl25OnlyRows = Array.from(document.querySelectorAll(".ctrl-25-only"));
     const doorControlsEl = document.querySelector(".door-controls");
 
+    function setFloorMenuOpen(open) {
+      floorMenu.classList.toggle("open", open);
+      floorPanel.hidden = !open;
+      btnFloorToggle.setAttribute("aria-expanded", String(open));
+    }
+
     function syncFloorChrome() {
       const on25 = currentFloor === 25;
-      const on26 = currentFloor === 26;
       if (doorControlsEl) doorControlsEl.dataset.floor = String(currentFloor);
+      if (floorToggleAction) floorToggleAction.textContent = `${currentFloor}F`;
+      btnFloorToggle.setAttribute("aria-label", `Floor ${currentFloor}F`);
 
       floorButtons.forEach((btn) => {
         const f = Number(btn.dataset.floor);
@@ -8197,6 +8201,7 @@
       currentFloor = next;
       viewMode = "overview";
       setControlsMenuOpen(false);
+      setFloorMenuOpen(false);
 
       // Clear 25F-only overlays when leaving that floor
       if (currentFloor !== 25) {
@@ -8350,6 +8355,7 @@
       ctrlMenu.classList.toggle("open", open);
       controlsPanel.hidden = !open;
       btnControlsToggle.setAttribute("aria-expanded", String(open));
+      if (open) setFloorMenuOpen(false);
     }
 
     function syncDoorButton(btn, isOpen, noun) {
@@ -8599,6 +8605,12 @@
       e.stopPropagation();
       setControlsMenuOpen(controlsPanel.hidden);
     });
+    btnFloorToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = floorPanel.hidden;
+      setFloorMenuOpen(opening);
+      if (opening) setControlsMenuOpen(false);
+    });
     btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
     btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
     btnShowPower.addEventListener("click", () => setShowPower(!showPower));
@@ -8623,10 +8635,12 @@
     document.querySelector(".door-controls").addEventListener("pointerdown", (e) => {
       e.stopPropagation();
       if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+      if (!floorMenu.contains(e.target)) setFloorMenuOpen(false);
     });
-    // Close drop-up when clicking the canvas / elsewhere
+    // Close drop-ups when clicking the canvas / elsewhere
     document.addEventListener("pointerdown", (e) => {
       if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+      if (!floorMenu.contains(e.target)) setFloorMenuOpen(false);
     });
     syncDoorButton(btnFront, true, "front doors");
     syncDoorButton(btnRear, true, "rear doors");
