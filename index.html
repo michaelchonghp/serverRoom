@@ -7015,6 +7015,9 @@
     roomPower.position.y = FLOOR_H;
     scene.add(roomPower);
 
+    // 25F power / Wyr-Grid / sockets stay on the lower bay only — never attach to 26F racks
+    const racks25F = () => racks.filter((r) => r.group.parent === bay);
+
     const backWall = box(wallW, WALL_H, WALL_T, matWall, wallCenterX, WALL_H / 2, wallCenterZ);
     backWall.castShadow = false;
     roomPower.add(backWall);
@@ -7512,7 +7515,7 @@
     }
 
     // One side waterfall per rack on the rear (hot-aisle) rail of the basket
-    racks.forEach(({ group: rack }) => {
+    racks25F().forEach(({ group: rack }) => {
       const isRowA = rack.position.z > 0;
       const rearSign = isRowA ? 1 : -1; // world +Z = Row A rear; −Z = Row B rear
       const basketZ = isRowA ? rowAZ : rowBZ;
@@ -7557,10 +7560,10 @@
         if (seg) ceilingPowerTrunk.add(seg);
       }
     }
-    // Industrial sockets on trunk underside — one above each rack PDU, facing down
+    // Industrial sockets on trunk underside — one above each 25F rack PDU, facing down
     const sockY = CPT_Y - CPT / 2 - 0.35;
     const industrialSocketByKey = new Map(); // `${rackName}|${pdu}` → { x, y, z, scale }
-    racks.forEach(({ group }) => {
+    racks25F().forEach(({ group }) => {
       const rackName = group.name;
       const rackX = group.position.x;
       const rotY = group.rotation.y;
@@ -7582,14 +7585,14 @@
     });
     roomPower.add(ceilingPowerTrunk);
 
-    // --- PDU whips: each rack PDU1/PDU2 → top cable opening → plug into ceiling socket ---
+    // --- PDU whips: each 25F rack PDU1/PDU2 → top cable opening → plug into ceiling socket ---
     const matWhip = new THREE.MeshStandardMaterial({
       color: 0x12151a, metalness: 0.05, roughness: 0.72,
     });
     const pduH = (INNER_H - 4) * 0.6;
     const pduTopY = BASE_H + INNER_H / 2 + pduH / 2;
     const pduLocalZ = OUTER_D / 2 - 12 + 1.5; // railZRear + 1.5
-    racks.forEach(({ group: rack }) => {
+    racks25F().forEach(({ group: rack }) => {
       const rackName = rack.name;
       const rotY = rack.rotation.y;
       const cos = Math.cos(rotY);
