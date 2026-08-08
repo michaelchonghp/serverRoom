@@ -301,6 +301,38 @@
       flex: 0 0 auto;
     }
 
+    .door-controls .floor-group {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.25rem;
+      flex: 0 0 auto;
+    }
+
+    .door-controls button.floor-btn {
+      min-width: 2.55rem;
+      padding: 0.4rem 0.42rem;
+    }
+
+    .door-controls button.floor-btn.active {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .door-controls button.floor-btn.active .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
+    .door-controls button:disabled,
+    .door-controls button.is-disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      filter: grayscale(0.35);
+      pointer-events: none;
+    }
+
     .door-controls button.rack-btn.active {
       background: var(--ink);
       color: #f4f7fb;
@@ -766,6 +798,13 @@
       .door-controls .rack-group {
         gap: 0.18rem;
       }
+      .door-controls .floor-group {
+        gap: 0.18rem;
+      }
+      .door-controls button.floor-btn {
+        min-width: 2.15rem;
+        padding: 0.32rem 0.28rem;
+      }
       .ctrl-menu-panel .ctrl-extra-chips button {
         min-width: 2rem;
         padding: 0.3rem 0.25rem;
@@ -847,6 +886,20 @@
     </span>
   </div>
   <div class="door-controls" role="group" aria-label="Scene controls">
+    <div class="floor-group" role="group" aria-label="Floor">
+      <button type="button" class="floor-btn active" data-floor="25" aria-pressed="true">
+        <span class="label">Floor</span>
+        <span class="action">25F</span>
+      </button>
+      <button type="button" class="floor-btn" data-floor="26" aria-pressed="false">
+        <span class="label">Floor</span>
+        <span class="action">26F</span>
+      </button>
+      <button type="button" class="floor-btn" data-floor="27" aria-pressed="false" disabled title="Coming later">
+        <span class="label">Floor</span>
+        <span class="action">27F</span>
+      </button>
+    </div>
     <div class="ctrl-menu" id="ctrl-menu">
       <div class="ctrl-menu-panel" id="controls-panel" hidden role="menu" aria-label="View controls">
         <button type="button" id="btn-front" role="menuitem" aria-pressed="true">
@@ -861,7 +914,7 @@
           <span class="label">Power</span>
           <span class="action">Show</span>
         </button>
-        <div class="ctrl-extra-row">
+        <div class="ctrl-extra-row ctrl-25-only">
           <button type="button" id="btn-show-core" role="menuitem" aria-pressed="false">
             <span class="label">Core</span>
             <span class="action">Show</span>
@@ -872,7 +925,7 @@
             </button>
           </div>
         </div>
-        <div class="ctrl-extra-row">
+        <div class="ctrl-extra-row ctrl-25-only">
           <button type="button" id="btn-show-core-dist" role="menuitem" aria-pressed="false">
             <span class="label">Dist</span>
             <span class="action">Show</span>
@@ -907,15 +960,15 @@
       </button>
     </div>
     <div class="rack-group" role="group" aria-label="Zoom to rack">
-      <button type="button" class="rack-btn" data-rack="Rack1" aria-label="Zoom to Rack 1">1</button>
-      <button type="button" class="rack-btn" data-rack="Rack2" aria-label="Zoom to Rack 2">2</button>
-      <button type="button" class="rack-btn" data-rack="Rack3" aria-label="Zoom to Rack 3">3</button>
-      <button type="button" class="rack-btn" data-rack="Rack4" aria-label="Zoom to Rack 4">4</button>
-      <button type="button" class="rack-btn" data-rack="Rack5" aria-label="Zoom to Rack 5">5</button>
-      <button type="button" class="rack-btn" data-rack="Rack6" aria-label="Zoom to Rack 6">6</button>
-      <button type="button" class="rack-btn" data-rack="26F-1" aria-label="Zoom to 26F Rack 1">A</button>
-      <button type="button" class="rack-btn" data-rack="26F-2" aria-label="Zoom to 26F Rack 2">B</button>
-      <button type="button" class="rack-btn" data-rack="26F-3" aria-label="Zoom to 26F Rack 3">C</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack1" aria-label="Zoom to Rack 1">1</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack2" aria-label="Zoom to Rack 2">2</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack3" aria-label="Zoom to Rack 3">3</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack4" aria-label="Zoom to Rack 4">4</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack5" aria-label="Zoom to Rack 5">5</button>
+      <button type="button" class="rack-btn" data-floor="25" data-rack="Rack6" aria-label="Zoom to Rack 6">6</button>
+      <button type="button" class="rack-btn" data-floor="26" data-rack="26F-1" aria-label="Zoom to 26F Rack 1" hidden>1</button>
+      <button type="button" class="rack-btn" data-floor="26" data-rack="26F-2" aria-label="Zoom to 26F Rack 2" hidden>2</button>
+      <button type="button" class="rack-btn" data-floor="26" data-rack="26F-3" aria-label="Zoom to 26F Rack 3" hidden>3</button>
     </div>
   </div>
 
@@ -8067,6 +8120,8 @@
     let showAccess = false;
     let showCoreInfo = true;
     let showDistInfo = true;
+    let currentFloor = 25; // 25 | 26 (27 reserved)
+
     const accessRoleOn = { LAN: true, WIFI: true, SECURITY: true };
 
     const ctrlMenu = document.getElementById("ctrl-menu");
@@ -8094,6 +8149,67 @@
     const powerLegend = document.getElementById("power-legend");
     const distLegend = document.getElementById("dist-legend");
     const rackButtons = Array.from(document.querySelectorAll(".rack-btn[data-rack]"));
+    const floorButtons = Array.from(document.querySelectorAll(".floor-btn[data-floor]"));
+    const ctrl25OnlyRows = Array.from(document.querySelectorAll(".ctrl-25-only"));
+    const doorControlsEl = document.querySelector(".door-controls");
+
+    function syncFloorChrome() {
+      const on25 = currentFloor === 25;
+      const on26 = currentFloor === 26;
+      if (doorControlsEl) doorControlsEl.dataset.floor = String(currentFloor);
+
+      floorButtons.forEach((btn) => {
+        const f = Number(btn.dataset.floor);
+        const active = f === currentFloor;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+
+      rackButtons.forEach((btn) => {
+        const f = Number(btn.dataset.floor || 25);
+        btn.hidden = f !== currentFloor;
+      });
+
+      // 26F: no Core / Dist rows; Power + Access stay visible but greyed out
+      ctrl25OnlyRows.forEach((row) => {
+        row.hidden = !on25;
+      });
+      btnShowPower.disabled = !on25;
+      btnShowPower.classList.toggle("is-disabled", !on25);
+      btnShowAccess.disabled = !on25;
+      btnShowAccess.classList.toggle("is-disabled", !on25);
+      if (!on25) {
+        accessRoleFiltersEl.hidden = true;
+        coreInfoChipEl.hidden = true;
+        distInfoChipEl.hidden = true;
+      }
+
+      syncRackButtons();
+    }
+
+    function setFloor(floor, { frame = true } = {}) {
+      const next = Number(floor);
+      if (next !== 25 && next !== 26) return;
+      if (currentFloor === next && !frame) {
+        syncFloorChrome();
+        return;
+      }
+      currentFloor = next;
+      viewMode = "overview";
+      setControlsMenuOpen(false);
+
+      // Clear 25F-only overlays when leaving that floor
+      if (currentFloor !== 25) {
+        if (showPower) setShowPower(false);
+        if (showCore) setShowCore(false);
+        if (showCoreDist) setShowCoreDist(false);
+        if (showAccess) setShowAccess(false);
+      }
+
+      syncFloorChrome();
+      if (frame) frameScene(true);
+      nudgeIdle();
+    }
 
     function roleHighlightsActive() {
       return showCoreDist || showAccess;
@@ -8339,6 +8455,7 @@
     }
 
     function setShowPower(on) {
+      if (on && currentFloor !== 25) return;
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
       syncPowerButton();
@@ -8359,6 +8476,7 @@
     }
 
     function setShowCore(on) {
+      if (on && currentFloor !== 25) return;
       showCore = on;
       roomCoreLinks.visible = on;
       syncCoreButton();
@@ -8374,6 +8492,7 @@
     }
 
     function setShowCoreDist(on) {
+      if (on && currentFloor !== 25) return;
       showCoreDist = on;
       roomCoreDistLinks.visible = on;
       setDistRoleHighlights();
@@ -8390,6 +8509,7 @@
     }
 
     function setShowAccess(on) {
+      if (on && currentFloor !== 25) return;
       showAccess = on;
       roomDistAccessLinks.visible = on;
       if (on) syncAccessRoleLinkVisibility();
@@ -8431,6 +8551,12 @@
     function focusRackFront(name) {
       const unit = racks.find((r) => r.group.name === name);
       if (!unit) return;
+
+      // Keep floor chrome in sync with the rack being viewed
+      const floorForRack = String(name).startsWith("26F") ? 26 : 25;
+      if (currentFloor !== floorForRack) {
+        setFloor(floorForRack, { frame: false });
+      }
 
       viewMode = name;
       syncRackButtons();
@@ -8488,6 +8614,12 @@
     rackButtons.forEach((btn) => {
       btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
     });
+    floorButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        setFloor(btn.dataset.floor, { frame: true });
+      });
+    });
     document.querySelector(".door-controls").addEventListener("pointerdown", (e) => {
       e.stopPropagation();
       if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
@@ -8500,6 +8632,7 @@
     syncDoorButton(btnRear, true, "rear doors");
     syncPowerButton();
     syncCoreButton();
+    syncFloorChrome();
     syncRackButtons();
 
     // Deep-link helpers: ?focus=Rack6&info=ups|battery
@@ -8576,33 +8709,35 @@
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
 
-      // Fit 25F bay plus both raised-floor decks (and 26F racks) so storeys read stacked
-      framingBox.setFromObject(bay);
-      framingBox.expandByObject(raisedFloor);
-      framingBox.expandByObject(raisedFloor26);
-      framingBox.expandByObject(bay26);
+      // Fit the active floor’s bay + raised deck
+      if (currentFloor === 26) {
+        framingBox.setFromObject(bay26);
+        framingBox.expandByObject(raisedFloor26);
+      } else {
+        framingBox.setFromObject(bay);
+        framingBox.expandByObject(raisedFloor);
+      }
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
       framingBox.getSize(size);
       framingBox.getCenter(center);
 
-      const padX = mobile ? 1.35 : 1.15;
-      const padY = mobile ? 1.35 : 1.18;
+      const padX = mobile ? 1.35 : 1.2;
+      const padY = mobile ? 1.45 : 1.25;
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
       const distY = (size.y * padY * 0.5) / Math.tan(vFov / 2);
       const distX = (size.x * padX * 0.5) / Math.tan(hFov / 2);
       const distZ = (size.z * padX * 0.5) / Math.tan(hFov / 2);
-      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.05 : 1.0);
+      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.1 : 1.05);
 
       controls.target.copy(center);
       if (mobile) controls.target.y = center.y * 0.98;
-      controls.minDistance = Math.max(32, distance * 0.2);
-      controls.maxDistance = Math.max(1800, distance * 3.5);
+      controls.minDistance = Math.max(32, distance * 0.22);
+      controls.maxDistance = Math.max(1600, distance * 3.5);
 
       if (forceReset) {
-        // Side-elevated view so 25F racks and the 26F deck read as stacked storeys
-        const dir = new THREE.Vector3(0.82, mobile ? 0.28 : 0.22, 0.42).normalize();
+        const dir = new THREE.Vector3(0.78, mobile ? 0.38 : 0.42, 0.38).normalize();
         camera.position.copy(center).addScaledVector(dir, distance);
         controls.update();
       }
