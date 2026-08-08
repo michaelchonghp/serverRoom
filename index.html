@@ -2698,9 +2698,14 @@
     }
 
     /** Small field-tech adhesive label (readable when zoomed, faint from full rack) */
-    function makeFieldLabel(text) {
-      const pw = 768;
-      const ph = 160;
+    function makeFieldLabel(text, { fit = false, widthCm = null } = {}) {
+      const long = text.length > 14;
+      const mid = !long && text.length > 8;
+      const labelW = widthCm ?? (fit ? 8.8 : long ? 7.8 : mid ? 7.15 : 6.44);
+      const labelH = fit ? 1.35 : 1.085;
+      // Canvas aspect matches the physical plate so glyphs aren't letterboxed.
+      const pw = fit ? 880 : 768;
+      const ph = fit ? Math.max(96, Math.round(pw * (labelH / labelW))) : 160;
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
@@ -2709,18 +2714,36 @@
       ctx.fillStyle = "#f4f1ea";
       ctx.fillRect(0, 0, pw, ph);
       ctx.strokeStyle = "rgba(20, 24, 30, 0.35)";
-      ctx.lineWidth = 6;
-      ctx.strokeRect(3, 3, pw - 6, ph - 6);
+      ctx.lineWidth = Math.max(4, Math.round(ph * 0.045));
+      ctx.strokeRect(2, 2, pw - 4, ph - 4);
       // Soft edge wear
       ctx.fillStyle = "rgba(0,0,0,0.04)";
-      ctx.fillRect(0, ph - 18, pw, 18);
-      ctx.fillStyle = "#12161c";
+      ctx.fillRect(0, ph - Math.max(10, ph * 0.12), pw, Math.max(10, ph * 0.12));
+      ctx.fillStyle = "#0a0d12";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const long = text.length > 14;
-      const mid = !long && text.length > 8;
-      ctx.font = `800 ${Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48))}px "IBM Plex Mono", ui-monospace, monospace`;
-      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      if (fit) {
+        // Bold condensed — binary-search the largest size that fills the plate.
+        const padX = pw * 0.04;
+        const padY = ph * 0.08;
+        let lo = 10, hi = Math.floor(ph * 1.35), best = 24;
+        while (lo <= hi) {
+          const midSz = (lo + hi) >> 1;
+          ctx.font = `900 ${midSz}px "Archivo Black", "Arial Black", sans-serif`;
+          const m = ctx.measureText(text);
+          const asc = m.actualBoundingBoxAscent || midSz * 0.78;
+          const desc = m.actualBoundingBoxDescent || midSz * 0.18;
+          const ok = m.width <= pw - padX * 2 && asc + desc <= ph - padY * 2;
+          if (ok) { best = midSz; lo = midSz + 1; }
+          else hi = midSz - 1;
+        }
+        ctx.font = `900 ${best}px "Archivo Black", "Arial Black", sans-serif`;
+        ctx.fillText(text, pw / 2, ph / 2);
+      } else {
+        const fontSize = Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48));
+        ctx.font = `800 ${fontSize}px "IBM Plex Mono", ui-monospace, monospace`;
+        ctx.fillText(text, pw / 2, ph / 2 + 2);
+      }
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
@@ -2730,9 +2753,6 @@
         metalness: 0.02,
         side: THREE.DoubleSide,
       });
-      // Slightly wider when code suffix is present
-      const labelW = long ? 7.8 : mid ? 7.15 : 6.44;
-      const labelH = 1.085;
       const label = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
       label.rotation.y = Math.PI; // face rack front (−Z)
       label.userData.labelW = labelW;
@@ -5247,65 +5267,62 @@
       }
 
       // Black powder-coat panel
-      ctx.fillStyle = "#1c1f24";
+      ctx.fillStyle = "#0e1014";
       ctx.fillRect(0, 0, pw, ph);
-      ctx.fillStyle = "#14171c";
-      ctx.fillRect(8, 8, pw - 16, ph - 16);
+      ctx.fillStyle = "#161a20";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
 
-      // Mounting ears hint
-      ctx.fillStyle = "#2a3038";
-      ctx.fillRect(0, 16, 28, ph - 32);
-      ctx.fillRect(pw - 28, 16, 28, ph - 32);
+      // Mounting ears
+      ctx.fillStyle = "#222830";
+      ctx.fillRect(0, 14, 22, ph - 28);
+      ctx.fillRect(pw - 22, 14, 22, ph - 28);
 
-      // 24× RJ45 in 2 rows × 12
-      const cols = 12;
-      const rows = 2;
-      const areaX = 56;
-      const areaY = 28;
-      const areaW = pw - 112;
-      const areaH = ph - 56;
-      const gapX = 6;
-      const gapY = 10;
+      // 24× RJ45 in a single row — bright jack bodies so they read on black metal
+      const cols = 24;
+      const areaX = 48;
+      const areaY = ph * 0.2;
+      const areaW = pw - 96;
+      const areaH = ph * 0.58;
+      const gapX = 2.5;
       const pW = (areaW - gapX * (cols - 1)) / cols;
-      const pH = (areaH - gapY) / rows;
+      const pH = areaH;
 
-      for (let r = 0; r < rows; r++) {
-        for (let col = 0; col < cols; col++) {
-          const px = areaX + col * (pW + gapX);
-          const py = areaY + r * (pH + gapY);
-          // Port bezel
-          roundRect(px, py, pW, pH, 3);
-          ctx.fillStyle = "#0e1116";
-          ctx.fill();
-          ctx.strokeStyle = "#3a424c";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-          // RJ45 keyed opening
-          const ix = px + pW * 0.12;
-          const iy = py + pH * 0.22;
-          const iw = pW * 0.76;
-          const ih = pH * 0.56;
-          ctx.fillStyle = "#1a2330";
-          ctx.fillRect(ix, iy, iw, ih);
-          // Latch notch at bottom of jack
-          ctx.fillStyle = "#0a0c10";
-          ctx.fillRect(ix + iw * 0.32, iy + ih * 0.72, iw * 0.36, ih * 0.28);
-          // Port number
-          const n = r * cols + col + 1;
-          ctx.fillStyle = "#8a929c";
-          ctx.font = `600 ${Math.floor(ph * 0.09)}px "IBM Plex Mono", monospace`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          ctx.fillText(String(n), px + pW / 2, py + 2);
-        }
+      for (let col = 0; col < cols; col++) {
+        const px = areaX + col * (pW + gapX);
+        const py = areaY;
+        // High-contrast off-white RJ45 jack housing
+        roundRect(px, py, pW, pH, 2.5);
+        const jackGrad = ctx.createLinearGradient(px, py, px, py + pH);
+        jackGrad.addColorStop(0, "#fffdf8");
+        jackGrad.addColorStop(0.4, "#f0ebe0");
+        jackGrad.addColorStop(1, "#d4cdc0");
+        ctx.fillStyle = jackGrad;
+        ctx.fill();
+        ctx.strokeStyle = "#a89f90";
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        // Dark keyed RJ45 aperture
+        const ix = px + pW * 0.12;
+        const iy = py + pH * 0.16;
+        const iw = pW * 0.76;
+        const ih = pH * 0.54;
+        ctx.fillStyle = "#12100e";
+        ctx.fillRect(ix, iy, iw, ih);
+        // Latch notch
+        ctx.fillStyle = "#050403";
+        ctx.fillRect(ix + iw * 0.3, iy + ih * 0.68, iw * 0.4, ih * 0.32);
+        // Gold contact strip — reads as copper pins
+        ctx.fillStyle = "#e0b84a";
+        ctx.fillRect(ix + iw * 0.16, iy + 1, iw * 0.68, Math.max(2, ih * 0.14));
+
+        // Port number above jack
+        ctx.fillStyle = "#eef2f7";
+        ctx.font = `700 ${Math.floor(ph * 0.11)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(String(col + 1), px + pW / 2, py - 2);
       }
-
-      // Panduit wordmark
-      ctx.fillStyle = "#c5ccd6";
-      ctx.font = `700 ${Math.floor(ph * 0.11)}px "IBM Plex Mono", monospace`;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("PANDUIT", 36, ph * 0.5);
 
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -5314,7 +5331,7 @@
       return tex;
     }
 
-    function makePanduitPp24({ rackName = "Rack3", code = "PP1" } = {}) {
+    function makePanduitPp24({ rackName = "Rack3", code = "PATCH 1" } = {}) {
       const heightU = 1;
       const h = heightU * U - 0.18;
       const w = 44.0;
@@ -5322,18 +5339,18 @@
       const g = new THREE.Group();
 
       const matBody = new THREE.MeshStandardMaterial({
-        color: 0x1a1e24, metalness: 0.4, roughness: 0.55,
+        color: 0x0e1014, metalness: 0.35, roughness: 0.6,
       });
       g.add(box(w - 0.4, h - 0.12, d, matBody, 0, 0, 0));
       g.add(box(w + 0.15, h + 0.08, 0.22, matBody, 0, 0, -d / 2 - 0.28));
 
       const frontMat = new THREE.MeshStandardMaterial({
         map: makePanduitPp24FrontTexture(),
-        metalness: 0.28,
-        roughness: 0.58,
+        metalness: 0.22,
+        roughness: 0.62,
         side: THREE.DoubleSide,
-        emissive: 0x10141a,
-        emissiveIntensity: 0.1,
+        emissive: 0x080a0e,
+        emissiveIntensity: 0.08,
       });
       const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.12, h - 0.1), frontMat);
       face.position.set(0, 0, -d / 2 - 0.48);
@@ -5344,8 +5361,8 @@
       g.add(box(1.7, h * 0.92, 1.0, matChrome, -w / 2 - 0.45, 0, -d / 2 - 0.3));
       g.add(box(1.7, h * 0.92, 1.0, matChrome, w / 2 + 0.45, 0, -d / 2 - 0.3));
 
-      const fieldTag = makeFieldLabel(code || "PP");
-      const tagW = fieldTag.userData.labelW || 6.44;
+      const fieldTag = makeFieldLabel(code || "PATCH", { fit: true, widthCm: 8.8 });
+      const tagW = fieldTag.userData.labelW || 8.8;
       fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.62);
       fieldTag.rotation.z = -0.03;
       g.add(fieldTag);
@@ -5355,9 +5372,7 @@
       g.userData.interactive = false;
       g.userData.kind = "patch-panel";
       g.userData.code = code;
-      g.userData.label = code
-        ? `Panduit 24-port patch panel (${code})`
-        : "Panduit 24-port patch panel";
+      g.userData.label = `Panduit 24-port patch panel (${code})`;
       return g;
     }
 
@@ -6622,14 +6637,14 @@
           { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 }, // RU 22
           { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 }, // RU 24
           // 8× Panduit 1U 24-port PP — centered in free RU 25–42 (18U → start at RU 30)
-          { type: "pp-panduit-24", startU: 29, code: "PP1" },
-          { type: "pp-panduit-24", startU: 30, code: "PP2" },
-          { type: "pp-panduit-24", startU: 31, code: "PP3" },
-          { type: "pp-panduit-24", startU: 32, code: "PP4" },
-          { type: "pp-panduit-24", startU: 33, code: "PP5" },
-          { type: "pp-panduit-24", startU: 34, code: "PP6" },
-          { type: "pp-panduit-24", startU: 35, code: "PP7" },
-          { type: "pp-panduit-24", startU: 36, code: "PP8" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 8" },
         ],
       }
     );
