@@ -6680,8 +6680,44 @@
       }
     );
 
-    // 26F — three empty cabinets in one row parallel to the windows (plan 26-F10)
-    placeRow26AlongWindows(["26F-1", "26F-2", "26F-3"]);
+    // 26F — cabinets parallel to the windows (plan 26-F10).
+    // 26F-1 / 26F-2 mirror 25F Rack3 / Rack4 (access + patching); 26F-3 stays empty.
+    placeRow26AlongWindows(
+      ["26F-1", "26F-2", "26F-3"],
+      { "26F-1": ["ACCESS"], "26F-2": ["ACCESS"] },
+      {
+        "26F-1": [
+          // Same stack as 25F Rack3
+          { type: "sw-ruijie-s5760", startU: 17, code: "A7", transceivers: ACCESS_XCVRS_A7 },
+          { type: "sw-ruijie-s5760", startU: 19, code: "A5", transceivers: ACCESS_XCVRS_A5 },
+          { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 },
+          { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 },
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+        ],
+        "26F-2": [
+          // Same stack as 25F Rack4
+          { type: "sw-ruijie-s5760", startU: 17, code: "A8", transceivers: ACCESS_XCVRS_A8 },
+          { type: "sw-ruijie-s5760", startU: 19, code: "A6", transceivers: ACCESS_XCVRS_A6 },
+          { type: "sw-ruijie-s5760", startU: 21, code: "A4", transceivers: ACCESS_XCVRS_A4 },
+          { type: "sw-ruijie-s5760", startU: 23, code: "A2", transceivers: ACCESS_XCVRS_A2 },
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+        ],
+      }
+    );
 
     // -------------------------------------------------------------------------
     // Core links — virtual LC–LC indicators (straight; no physical routing)
