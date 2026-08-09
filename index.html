@@ -913,11 +913,11 @@
            zero-height horizontal paths and hide green/blue links in WebKit. -->
       <svg viewBox="0 0 340 126" role="img" aria-label="Power path: MCB to Bypass and UPS, then DB to PDU1; MCB also feeds PDU2">
         <defs>
-          <marker id="pl-arr-g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#3dff9a" />
+          <marker id="pl-arr-g" markerWidth="3.5" markerHeight="3.5" refX="3" refY="1.75" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0.25 L3.25,1.75 L0,3.25 Z" fill="#3dff9a" />
           </marker>
-          <marker id="pl-arr-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#4da3ff" />
+          <marker id="pl-arr-b" markerWidth="3.5" markerHeight="3.5" refX="3" refY="1.75" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0.25 L3.25,1.75 L0,3.25 Z" fill="#4da3ff" />
           </marker>
           <marker id="pl-arr-r" markerWidth="3.5" markerHeight="3.5" refX="3" refY="1.75" orient="auto" markerUnits="userSpaceOnUse">
             <path d="M0,0.25 L3.25,1.75 L0,3.25 Z" fill="#ff5c5c" />
@@ -937,20 +937,20 @@
         </defs>
 
         <!-- Soft under-glow strokes (no filter) -->
-        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
-        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
-        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
-        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
-        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
+        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
+        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
+        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
+        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
         <path d="M28 46 V22 H266" stroke="#ff5c5c" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
 
-        <!-- Links -->
-        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
-        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
-        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-b)" stroke-linecap="round" />
+        <!-- Links — all match thin red stroke + small heads -->
+        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-b)" stroke-linecap="round" />
         <!-- Bypass ↔ UPS (parallel) -->
-        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
-        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
         <!-- MCB ↝ PDU2 -->
         <path d="M28 46 V22 H266" stroke="#ff5c5c" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-r)" stroke-linecap="round" />
 
