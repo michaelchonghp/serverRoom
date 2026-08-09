@@ -2143,10 +2143,10 @@
       const panelW = bodyW - meshW - 8;
       const panelX = bodyX + meshW + 8;
 
-      // Honeycomb mesh field — large, high-contrast cells so they read at rack distance
-      ctx.fillStyle = "#2a313a";
+      // Honeycomb mesh — light plate with punched dark holes (reads at rack distance)
+      ctx.fillStyle = "#4a5562";
       ctx.fillRect(bodyX, bodyY, meshW, bodyH);
-      const hexR = 26;
+      const hexR = 16;
       const dx = hexR * Math.sqrt(3);
       const dy = hexR * 1.5;
       ctx.save();
@@ -2156,27 +2156,39 @@
       for (let row = 0, y = bodyY + hexR; y < bodyY + bodyH + hexR; row++, y += dy) {
         const xOff = (row % 2) * (dx * 0.5);
         for (let x = bodyX + hexR + xOff; x < bodyX + meshW + hexR; x += dx) {
+          // Outer cell rim (metal web)
           ctx.beginPath();
           for (let i = 0; i < 6; i++) {
             const a = (Math.PI / 3) * i - Math.PI / 6;
-            const px = x + hexR * 0.86 * Math.cos(a);
-            const py = y + hexR * 0.86 * Math.sin(a);
+            const px = x + hexR * 0.92 * Math.cos(a);
+            const py = y + hexR * 0.92 * Math.sin(a);
             if (i === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           }
           ctx.closePath();
-          // Dark hole vs lighter web
-          ctx.fillStyle = "#080a0e";
+          ctx.fillStyle = "#5c6774";
           ctx.fill();
-          ctx.strokeStyle = "#9aa4b0";
-          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = "#d0d6de";
+          ctx.lineWidth = 2.2;
           ctx.stroke();
+          // Inner punched hole
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            const px = x + hexR * 0.62 * Math.cos(a);
+            const py = y + hexR * 0.62 * Math.sin(a);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "#0a0c10";
+          ctx.fill();
         }
       }
       const sheen = ctx.createLinearGradient(bodyX, bodyY, bodyX, bodyY + bodyH);
-      sheen.addColorStop(0, "rgba(255,255,255,0.1)");
+      sheen.addColorStop(0, "rgba(255,255,255,0.14)");
       sheen.addColorStop(0.55, "rgba(255,255,255,0)");
-      sheen.addColorStop(1, "rgba(0,0,0,0.28)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.2)");
       ctx.fillStyle = sheen;
       ctx.fillRect(bodyX, bodyY, meshW, bodyH);
       ctx.restore();
