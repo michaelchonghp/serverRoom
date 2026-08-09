@@ -8269,15 +8269,12 @@
     {
       const CAT6_W = 40; // 400 mm
       const CAT6_H = 20; // 200 mm
-      const clearOfPower = 15; // ~6″ clear of power trunk at periX
+      const clearOfPower = 22.62; // +3" more (total ~9") clear of power trunk at periX
       // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
       const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
       // Power Z-run crosses the aisle at x=periX — keep the +X / Rack1 side only
       const cat6XMin = periX + TRUNK / 2 + clearOfPower;
-      const cat6XMax = Math.min(
-        floorXMax - 15,
-        RACK_PITCH + OUTER_W / 2 + TILE * 0.5
-      );
+      const cat6XMax = floorXMax + 10; // poke ~4" past raised-floor edge
       const cat6Len = Math.max(40, cat6XMax - cat6XMin);
       const cat6Trunk = new THREE.Mesh(
         new THREE.BoxGeometry(cat6Len, CAT6_H, CAT6_W),
