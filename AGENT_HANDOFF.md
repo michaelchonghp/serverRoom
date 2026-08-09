@@ -117,3 +117,68 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 3. Branch `cursor/42u-rack-3d-2483` (Pages); feature work on `cursor/<name>-4d50` then merge into Pages branch
 4. Do **not** casually rewrite PR titles
 5. Update **this file** when decisions change
+
+## Conversation decisions to carry forward (2026-08-09)
+
+### Patch panels and access/fiber layout
+
+- Patch panel labels standardized to `PATCH 1`…`PATCH 8` (bold, high-visibility), ordered **top to bottom** (PATCH 1 at highest RU).
+- 24-port patch panel front uses **single-row** RJ-45 layout (not 2x12), black panel with high-contrast ports.
+- Patch label placement moved to panel **bottom-left** from aisle view; font resized/tuned for readability while preserving label footprint.
+- Rack3 and Rack4 are the patching racks; Rack4 patch panel stack mirrors Rack3.
+- 26F Rack1 and Rack2 inherited patching pattern from 25F Rack3/4 respectively.
+- 26F Rack1 includes fiber panel matching 25F Rack1 style.
+
+### 26F UPS + battery additions
+
+- Added 26F Rack2 6kVA UPS model (`APC SRT6KRMXLI`) at 4U.
+- Final accepted look is reuse of 25F 7U UPS front mesh style, scaled for 4U (after earlier rejected mesh attempts).
+- Added one external battery pack for that UPS: `APC SRT192RMBP` at 3U.
+- Battery front mesh style matches 25F batteries, scaled for 3U.
+
+### UPS legend redesign (25F)
+
+- Legend content converted from text list into compact **flowchart-style** diagram while keeping glow color language:
+  - green = 32A TPN path
+  - blue = UPS feed
+  - red = MCB/building feed
+- `32A TPN`, `UPS feed`, `MCB feed` labels remain left-aligned.
+- Arrow/line styling tuned to be slim and consistent; red line specifically reduced and then global line style matched to it.
+- Arrowheads increased ~20% from tiny state after line slimming.
+- Overall legend height compressed for sleeker profile.
+- PDU2 moved closer to PDU1 and Bypass closer to UPS to shorten connection strokes.
+- Diagram text inside boxes increased (~20%) without enlarging boxes.
+- Important rendering fix: avoid filter clipping on thin SVG paths (WebKit issue); path glow treatment adjusted so non-red paths remain visible.
+
+### Power highlighting behavior
+
+- Under `Show Power`:
+  - MCB highlighted glowing **red**
+  - UPS + Bypass highlighted glowing **green**
+  - DB highlighted glowing **blue**
+- UPS highlight includes x-ray-through visibility (glow shell behavior) so it reads through occluding geometry.
+- Power flow visuals (glow/cable look) made ~30% more solid (less transparent/dull).
+
+### 25F underfloor Cat6 trunk and dimensions
+
+- Added underfloor Cat6 cabling trunk in cold aisle: **400mm W x 200mm H**.
+- Trunk material is silver/metallic (same family as power trunk); "copper" refers to cable type, not trunk material.
+- Routing adjustments applied to avoid conflicts:
+  - shortened near power crossing for clearance
+  - shifted laterally to avoid pedestal/column intersections
+  - moved to Rack1/+X side per user correction
+  - added extra clearance and slight extension beyond raised-floor edge
+- Trunk converted from solid to **hollow** with realistic wall thickness (~2.5mm).
+- Dimension callouts:
+  - explicit 400mm (width) and 200mm (height)
+  - geometry corrected so width and vertical dimensions are true dimensions
+  - labels billboard to face camera
+  - dimensions/labels now respect occlusion (no x-ray requirement)
+
+### Cat6 cabling inside trunk (latest state)
+
+- Initial single cable implementation replaced with bundled implementation.
+- Current logical bundle is **24 cables** in row profile **4/5/6/5/4** (top to bottom), matching CBOT24K-inspired packing intent.
+- Added tie-band rings along run so it reads as a bundled loom.
+- Because true 6.6mm OD is barely visible at normal scene camera scale, a temporary **visibility scale** is applied to cable draw diameter so bundle structure is perceptible in view.
+- If strict physical realism is required later, reduce/remove `bundleVizScale` and rely on close-up/cutaway views for inspection.
