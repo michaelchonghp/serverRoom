@@ -2143,10 +2143,10 @@
       const panelW = bodyW - meshW - 8;
       const panelX = bodyX + meshW + 8;
 
-      // Honeycomb mesh field
-      ctx.fillStyle = "#12161c";
+      // Honeycomb mesh field — large, high-contrast cells so they read at rack distance
+      ctx.fillStyle = "#2a313a";
       ctx.fillRect(bodyX, bodyY, meshW, bodyH);
-      const hexR = 9;
+      const hexR = 26;
       const dx = hexR * Math.sqrt(3);
       const dy = hexR * 1.5;
       ctx.save();
@@ -2159,23 +2159,24 @@
           ctx.beginPath();
           for (let i = 0; i < 6; i++) {
             const a = (Math.PI / 3) * i - Math.PI / 6;
-            const px = x + hexR * 0.8 * Math.cos(a);
-            const py = y + hexR * 0.8 * Math.sin(a);
+            const px = x + hexR * 0.86 * Math.cos(a);
+            const py = y + hexR * 0.86 * Math.sin(a);
             if (i === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           }
           ctx.closePath();
-          ctx.fillStyle = "#0a0c10";
+          // Dark hole vs lighter web
+          ctx.fillStyle = "#080a0e";
           ctx.fill();
-          ctx.strokeStyle = "rgba(70, 78, 88, 0.65)";
-          ctx.lineWidth = 1.15;
+          ctx.strokeStyle = "#9aa4b0";
+          ctx.lineWidth = 2.8;
           ctx.stroke();
         }
       }
       const sheen = ctx.createLinearGradient(bodyX, bodyY, bodyX, bodyY + bodyH);
-      sheen.addColorStop(0, "rgba(255,255,255,0.05)");
+      sheen.addColorStop(0, "rgba(255,255,255,0.1)");
       sheen.addColorStop(0.55, "rgba(255,255,255,0)");
-      sheen.addColorStop(1, "rgba(0,0,0,0.22)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.28)");
       ctx.fillStyle = sheen;
       ctx.fillRect(bodyX, bodyY, meshW, bodyH);
       ctx.restore();
