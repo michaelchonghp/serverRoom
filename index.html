@@ -8310,51 +8310,78 @@
 
     // Equipment glow shells — legend colors (MCB red · Bypass/UPS green · DB blue)
     const powerGlowPulseMats = [];
-    function makePowerGlowShell(colorHex, w, h, d) {
+    function makePowerGlowShell(colorHex, w, h, d, opts = {}) {
+      const xray = !!opts.xray; // draw through occluders (doors / rails / textures)
       const g = new THREE.Group();
       g.name = "PowerGlow";
+      const coreOp = xray ? 0.42 : 0.28;
+      const softOp = xray ? 0.2 : 0.12;
       const coreMat = new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
-        opacity: 0.28,
+        opacity: coreOp,
         depthWrite: false,
-        depthTest: true,
+        depthTest: !xray,
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
       });
       const softMat = new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
-        opacity: 0.12,
+        opacity: softOp,
         depthWrite: false,
-        depthTest: true,
+        depthTest: !xray,
         blending: THREE.AdditiveBlending,
         side: THREE.DoubleSide,
       });
-      coreMat.userData.baseOpacity = 0.28;
-      softMat.userData.baseOpacity = 0.12;
+      coreMat.userData.baseOpacity = coreOp;
+      softMat.userData.baseOpacity = softOp;
+      const pad = xray ? 5.5 : 3.2;
+      const softPad = xray ? 14 : 8.5;
       const core = new THREE.Mesh(
-        new THREE.BoxGeometry(w + 3.2, h + 3.2, d + 3.2),
+        new THREE.BoxGeometry(w + pad, h + pad, d + pad),
         coreMat
       );
       const soft = new THREE.Mesh(
-        new THREE.BoxGeometry(w + 8.5, h + 8.5, d + 8.5),
+        new THREE.BoxGeometry(w + softPad, h + softPad, d + softPad),
         softMat
       );
-      core.renderOrder = 19;
-      soft.renderOrder = 18;
+      core.renderOrder = xray ? 28 : 19;
+      soft.renderOrder = xray ? 27 : 18;
       g.add(soft);
       g.add(core);
+      // Front billboard plane — reads through rack faceplates / doors
+      if (xray) {
+        const faceMat = new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.35,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        });
+        faceMat.userData.baseOpacity = 0.35;
+        const faceGlow = new THREE.Mesh(
+          new THREE.PlaneGeometry(w + 6, h + 4),
+          faceMat
+        );
+        faceGlow.position.z = -d / 2 - 2.5;
+        faceGlow.rotation.y = Math.PI;
+        faceGlow.renderOrder = 29;
+        g.add(faceGlow);
+        powerGlowPulseMats.push(faceMat);
+      }
       g.visible = false;
       g.userData.noPick = true;
       powerGlowPulseMats.push(coreMat, softMat);
       return g;
     }
 
-    function attachPowerGlow(target, colorHex) {
+    function attachPowerGlow(target, colorHex, opts = {}) {
       if (!target) return null;
       const sz = target.userData.size || { w: 44, h: 30, d: 70 };
-      const glow = makePowerGlowShell(colorHex, sz.w, sz.h, sz.d);
+      const glow = makePowerGlowShell(colorHex, sz.w, sz.h, sz.d, opts);
       target.add(glow);
       powerHighlights.push(glow);
       return glow;
@@ -8363,7 +8390,7 @@
     attachPowerGlow(mcb, 0xff5c5c);     // MCB feed — red
     attachPowerGlow(bypass, 0x3dff9a);  // 32A TPN — green
     attachPowerGlow(dist, 0x4da3ff);    // UPS feed / DB — blue
-    // 25F Rack6 UPS (green with Bypass)
+    // 25F Rack6 UPS (green with Bypass) — x-ray so glow cuts through doors/textures
     let powerUpsUnit = null;
     for (const { group: rack } of racks25F()) {
       for (const child of rack.children) {
@@ -8374,7 +8401,19 @@
       }
       if (powerUpsUnit) break;
     }
-    attachPowerGlow(powerUpsUnit, 0x3dff9a);
+    attachPowerGlow(powerUpsUnit, 0x3dff9a, { xray: true });
+
+    // Also tint the UPS face/rear emissive green while Power is shown
+    const powerUpsFaceMats = [];
+    if (powerUpsUnit) {
+      for (const key of ["frontMat", "rearMat"]) {
+        const mat = powerUpsUnit.userData[key];
+        if (!mat?.emissive) continue;
+        mat.userData.baseEmissive = mat.emissive.getHex();
+        mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
+        powerUpsFaceMats.push(mat);
+      }
+    }
 
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
@@ -9475,6 +9514,15 @@
       if (on && currentFloor !== 25) return;
       showPower = on;
       powerHighlights.forEach((m) => { m.visible = on; });
+      for (const mat of powerUpsFaceMats) {
+        if (on) {
+          mat.emissive.setHex(0x3dff9a);
+          mat.emissiveIntensity = 0.85;
+        } else {
+          mat.emissive.setHex(mat.userData.baseEmissive);
+          mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
+        }
+      }
       syncPowerButton();
       if (on) {
         // Pull fog back so the wide power overview stays readable
