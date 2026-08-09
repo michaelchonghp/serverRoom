@@ -204,6 +204,51 @@
       font-weight: 500;
     }
 
+    /* UPS power legend — keys left, flow diagram right */
+    .power-legend.power-legend--flow {
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.85rem 1.1rem;
+      padding: 0.65rem 0.85rem;
+      max-width: min(96vw, 34rem);
+    }
+
+    .power-legend--flow .power-keys {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 0.45rem;
+      flex-shrink: 0;
+    }
+
+    .power-legend--flow .power-keys .item {
+      gap: 0.45rem;
+    }
+
+    .power-legend--flow .power-flow {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .power-legend--flow .power-flow svg {
+      width: 100%;
+      height: auto;
+      max-height: 7.5rem;
+      display: block;
+      overflow: visible;
+    }
+
+    .power-legend--flow .flow-node {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
     .hint {
       position: fixed;
       right: clamp(1rem, 3vw, 2.5rem);
@@ -768,6 +813,14 @@
         font-size: 0.62rem;
         padding: 0.45rem 0.7rem;
       }
+      .power-legend.power-legend--flow {
+        gap: 0.55rem 0.7rem;
+        padding: 0.5rem 0.65rem;
+        max-width: none;
+      }
+      .power-legend--flow .power-flow svg {
+        max-height: 5.8rem;
+      }
       .door-controls {
         left: clamp(0.35rem, 1.5vw, 0.75rem);
         right: clamp(0.35rem, 1.5vw, 0.75rem);
@@ -839,24 +892,78 @@
     </footer>
   </div>
   <div class="hint">Orbit · Zoom · Pan</div>
-  <div class="power-legend" id="power-legend" hidden aria-live="polite">
-    <span class="item">
-      <span class="swatch green" aria-hidden="true"></span>
-      <span class="title green">32A TPN</span>
-      <span class="sub">MCB → Bypass → UPS → Dist</span>
-    </span>
-    <span class="sep" aria-hidden="true">·</span>
-    <span class="item">
-      <span class="swatch blue" aria-hidden="true"></span>
-      <span class="title blue">UPS feed</span>
-      <span class="sub">Dist → trunk → splits → PDU1</span>
-    </span>
-    <span class="sep" aria-hidden="true">·</span>
-    <span class="item">
-      <span class="swatch red" aria-hidden="true"></span>
-      <span class="title red">Building feed</span>
-      <span class="sub">MCB → trunk → splits → PDU2</span>
-    </span>
+  <div class="power-legend power-legend--flow" id="power-legend" hidden aria-live="polite">
+    <div class="power-keys">
+      <span class="item">
+        <span class="swatch green" aria-hidden="true"></span>
+        <span class="title green">32A TPN</span>
+      </span>
+      <span class="item">
+        <span class="swatch blue" aria-hidden="true"></span>
+        <span class="title blue">UPS feed</span>
+      </span>
+      <span class="item">
+        <span class="swatch red" aria-hidden="true"></span>
+        <span class="title red">MCB feed</span>
+      </span>
+    </div>
+    <div class="power-flow" aria-hidden="true">
+      <!-- MCB → Bypass ↔ UPS → DB → PDU1 · MCB ↝ PDU2 -->
+      <svg viewBox="0 0 320 118" role="img" aria-label="Power path: MCB to Bypass and UPS, then DB to PDU1; MCB also feeds PDU2">
+        <defs>
+          <marker id="pl-arr-g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#3dff9a" />
+          </marker>
+          <marker id="pl-arr-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#4da3ff" />
+          </marker>
+          <marker id="pl-arr-r" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#ff5c5c" />
+          </marker>
+          <filter id="pl-glow-g" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="1.4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="pl-glow-b" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="1.4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="pl-glow-r" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="1.4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Links -->
+        <path d="M52 58 H78" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
+        <path d="M148 58 H174" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
+        <path d="M224 58 H250" stroke="#4da3ff" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-b)" filter="url(#pl-glow-b)" />
+        <!-- Bypass ↔ UPS -->
+        <path d="M113 70 V86" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
+        <path d="M113 98 V82" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
+        <!-- MCB ↝ PDU2 -->
+        <path d="M26 46 V22 H250" stroke="#ff5c5c" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-r)" filter="url(#pl-glow-r)" />
+
+        <!-- Nodes -->
+        <rect x="4" y="46" width="48" height="24" rx="8" fill="#ff5c5c" filter="url(#pl-glow-r)" />
+        <text class="flow-node" x="28" y="62" text-anchor="middle" fill="#0e141a">MCB</text>
+
+        <rect x="82" y="46" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
+        <text class="flow-node" x="115" y="62" text-anchor="middle" fill="#0e141a">Bypass</text>
+
+        <rect x="82" y="98" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
+        <text class="flow-node" x="115" y="114" text-anchor="middle" fill="#0e141a">UPS</text>
+
+        <rect x="178" y="46" width="46" height="24" rx="8" fill="#4da3ff" filter="url(#pl-glow-b)" />
+        <text class="flow-node" x="201" y="62" text-anchor="middle" fill="#0e141a">DB</text>
+
+        <rect x="254" y="46" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
+        <text class="flow-node" x="283" y="62" text-anchor="middle" fill="#f2f4f7">PDU1</text>
+
+        <rect x="254" y="10" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
+        <text class="flow-node" x="283" y="26" text-anchor="middle" fill="#f2f4f7">PDU2</text>
+      </svg>
+    </div>
   </div>
   <div class="power-legend" id="dist-legend" hidden aria-live="polite">
     <span class="item">
