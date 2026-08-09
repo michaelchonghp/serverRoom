@@ -1207,6 +1207,7 @@
     renderer.localClippingEnabled = true;
 
     const scene = new THREE.Scene();
+    const hoverDimLabels = [];
     const FOG_NEAR = 1600;
     const FOG_FAR = 4400;
     const FOG_NEAR_POWER = 2800;
@@ -7052,6 +7053,7 @@
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, heightCm), mat);
       mesh.renderOrder = 40;
       mesh.userData.noPick = true;
+      hoverDimLabels.push(mesh);
       return mesh;
     }
 
@@ -8388,7 +8390,6 @@
       dimGroup.add(box(0.28, 3.2, 0.28, dimMat, dimX, dimTopY, -widthHalf));
       dimGroup.add(box(0.28, 3.2, 0.28, dimMat, dimX, dimTopY, widthHalf));
       const wLabel = makeHoverDimLabel("400mm", 22, 4.8);
-      wLabel.rotation.y = -Math.PI / 2;
       wLabel.position.set(dimX + 0.15, dimTopY + 2.65, 0);
       dimGroup.add(wLabel);
 
@@ -8402,7 +8403,6 @@
       dimGroup.add(box(0.28, 0.28, 3.2, dimMat, dimX, CAT6_H / 2, dimRightZ - 1.6));
       dimGroup.add(box(0.28, 0.28, 3.2, dimMat, dimX, -CAT6_H / 2, dimRightZ - 1.6));
       const hLabel = makeHoverDimLabel("200mm", 20, 4.8);
-      hLabel.rotation.y = -Math.PI / 2;
       hLabel.position.set(dimX + 0.15, 0, dimRightZ + 4.2);
       dimGroup.add(hLabel);
       cat6Trunk.add(dimGroup);
@@ -10576,6 +10576,11 @@
         for (const mat of powerGlowPulseMats) {
           mat.opacity = (mat.userData.baseOpacity ?? 0.2) * glowPulse;
         }
+      }
+
+      // Keep floating dimension text readable from any camera angle.
+      for (const label of hoverDimLabels) {
+        label.quaternion.copy(camera.quaternion);
       }
 
       controls.update();
