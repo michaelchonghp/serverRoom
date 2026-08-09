@@ -1287,14 +1287,6 @@
       roughness: 0.38,
       envMapIntensity: 0.6,
     });
-    // Copper data trunk (underfloor) — warm metal vs silver power trunking
-    const matCopperTrunk = new THREE.MeshStandardMaterial({
-      color: 0xb87333,
-      metalness: 0.72,
-      roughness: 0.36,
-      envMapIntensity: 0.55,
-    });
-
     // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
     function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
       const alpha = document.createElement("canvas");
@@ -7150,35 +7142,6 @@
       floorTag: "25F",
     });
 
-    // 25F underfloor copper cabling trunk — 400×200 mm, full cold-aisle span (along X at z≈0)
-    {
-      const COPPER_W = 40; // 400 mm across the aisle (Z)
-      const COPPER_H = 20; // 200 mm tall
-      // Whole cold aisle: past Rack6 (−X) through past Rack1 (+X)
-      const copperXMin = Math.max(
-        floorXMinAt(0) + 15,
-        -2 * RACK_PITCH - OUTER_W / 2 - TILE * 0.5
-      );
-      const copperXMax = Math.min(
-        floorXMax - 15,
-        RACK_PITCH + OUTER_W / 2 + TILE * 0.5
-      );
-      const copperLen = Math.max(40, copperXMax - copperXMin);
-      const copperTrunk = new THREE.Mesh(
-        new THREE.BoxGeometry(copperLen, COPPER_H, COPPER_W),
-        matCopperTrunk
-      );
-      copperTrunk.name = "UnderfloorCopperTrunk";
-      // Sit on the slab inside the raised-floor void (visible under perforated cold-aisle tiles)
-      copperTrunk.position.set(
-        (copperXMin + copperXMax) / 2,
-        COPPER_H / 2 + 2,
-        0
-      );
-      copperTrunk.castShadow = true;
-      copperTrunk.receiveShadow = true;
-      raisedFloor.add(copperTrunk);
-    }
     // 26F — full window-span (Z); depth stops at Rack4 interior face
     const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
       xMax: floorXMax26,
@@ -8300,6 +8263,40 @@
       }
     }
     roomPower.add(underfloorTrunking);
+
+    // 25F underfloor Cat6 (copper cabling) trunk — 400×200 mm, silver finish like power trunking.
+    // Runs along the cold aisle but offset off pedestal grid; stops short of the power underfloor run.
+    {
+      const CAT6_W = 40; // 400 mm
+      const CAT6_H = 20; // 200 mm
+      const clearOfPower = 15; // ~6″ clear of power trunk at periX
+      // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
+      const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
+      const cat6XMin = Math.max(
+        floorXMinAt(cat6Z) + 15,
+        -2 * RACK_PITCH - OUTER_W / 2
+      );
+      // Power Z-run crosses the aisle at x=periX — keep clear
+      const cat6XMax = Math.min(
+        periX - TRUNK / 2 - clearOfPower,
+        RACK_PITCH + OUTER_W / 2
+      );
+      const cat6Len = Math.max(40, cat6XMax - cat6XMin);
+      const cat6Trunk = new THREE.Mesh(
+        new THREE.BoxGeometry(cat6Len, CAT6_H, CAT6_W),
+        matTrunkSilver
+      );
+      cat6Trunk.name = "UnderfloorCat6Trunk";
+      // Scene/slab space (raisedFloor is at y=0); not in roomPower local coords
+      cat6Trunk.position.set(
+        (cat6XMin + cat6XMax) / 2,
+        CAT6_H / 2 + 2,
+        cat6Z
+      );
+      cat6Trunk.castShadow = true;
+      cat6Trunk.receiveShadow = true;
+      raisedFloor.add(cat6Trunk);
+    }
 
     const powerPath = buildPolyline(powerPathPoints);
 
