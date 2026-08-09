@@ -8206,6 +8206,34 @@
       return mesh;
     }
 
+    /** Hollow rectangular trunk segment, axis along +X (open ends for cable fill). */
+    function hollowTrunkX(length, outerH, outerW, wallT, mat) {
+      const g = new THREE.Group();
+      const innerH = Math.max(outerH - wallT * 2, wallT);
+      const innerW = Math.max(outerW - wallT * 2, wallT);
+      const yTop = (outerH - wallT) * 0.5;
+      const yBot = -yTop;
+      const zPos = (outerW - wallT) * 0.5;
+
+      const top = new THREE.Mesh(new THREE.BoxGeometry(length, wallT, outerW), mat);
+      top.position.set(0, yTop, 0);
+      const bot = new THREE.Mesh(new THREE.BoxGeometry(length, wallT, outerW), mat);
+      bot.position.set(0, yBot, 0);
+      const left = new THREE.Mesh(new THREE.BoxGeometry(length, innerH, wallT), mat);
+      left.position.set(0, 0, -zPos);
+      const right = new THREE.Mesh(new THREE.BoxGeometry(length, innerH, wallT), mat);
+      right.position.set(0, 0, zPos);
+
+      for (const m of [top, bot, left, right]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        g.add(m);
+      }
+
+      g.userData.inner = { h: innerH, w: innerW, len: length };
+      return g;
+    }
+
     const powerPathPoints = [
       // Outbound: MCB → Bypass → outbound trunk → underfloor → UPS 32A TPN INPUT
       new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
@@ -8269,6 +8297,7 @@
     {
       const CAT6_W = 40; // 400 mm
       const CAT6_H = 20; // 200 mm
+      const CAT6_WALL_T = 0.25; // 2.5 mm steel/aluminum wall thickness
       const clearOfPower = 22.62; // +3" more (total ~9") clear of power trunk at periX
       // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
       const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
@@ -8276,19 +8305,15 @@
       const cat6XMin = periX + TRUNK / 2 + clearOfPower;
       const cat6XMax = floorXMax + 10; // poke ~4" past raised-floor edge
       const cat6Len = Math.max(40, cat6XMax - cat6XMin);
-      const cat6Trunk = new THREE.Mesh(
-        new THREE.BoxGeometry(cat6Len, CAT6_H, CAT6_W),
-        matTrunkSilver
-      );
+      const cat6Trunk = hollowTrunkX(cat6Len, CAT6_H, CAT6_W, CAT6_WALL_T, matTrunkSilver);
       cat6Trunk.name = "UnderfloorCat6Trunk";
+      cat6Trunk.userData.kind = "cat6-trunk";
       // Scene/slab space (raisedFloor is at y=0); not in roomPower local coords
       cat6Trunk.position.set(
         (cat6XMin + cat6XMax) / 2,
         CAT6_H / 2 + 2,
         cat6Z
       );
-      cat6Trunk.castShadow = true;
-      cat6Trunk.receiveShadow = true;
       raisedFloor.add(cat6Trunk);
     }
 
