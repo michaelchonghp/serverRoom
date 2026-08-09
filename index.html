@@ -8269,7 +8269,7 @@
     const matPowerXray = new THREE.MeshBasicMaterial({
       color: 0x3dff9a,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.715,
       depthTest: false,
       depthWrite: false,
     });
@@ -8314,8 +8314,9 @@
       const xray = !!opts.xray; // draw through occluders (doors / rails / textures)
       const g = new THREE.Group();
       g.name = "PowerGlow";
-      const coreOp = xray ? 0.42 : 0.28;
-      const softOp = xray ? 0.2 : 0.12;
+      // +30% more solid vs prior glow opacities
+      const coreOp = xray ? 0.546 : 0.364;
+      const softOp = xray ? 0.26 : 0.156;
       const coreMat = new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
@@ -8355,13 +8356,13 @@
         const faceMat = new THREE.MeshBasicMaterial({
           color: colorHex,
           transparent: true,
-          opacity: 0.35,
+          opacity: 0.455,
           depthWrite: false,
           depthTest: false,
           blending: THREE.AdditiveBlending,
           side: THREE.DoubleSide,
         });
-        faceMat.userData.baseOpacity = 0.35;
+        faceMat.userData.baseOpacity = 0.455;
         const faceGlow = new THREE.Mesh(
           new THREE.PlaneGeometry(w + 6, h + 4),
           faceMat
@@ -8701,7 +8702,7 @@
     const matBlueXray = new THREE.MeshBasicMaterial({
       color: 0x4da3ff,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.715,
       depthTest: false,
       depthWrite: false,
     });
@@ -8929,7 +8930,7 @@
     const matRedXray = new THREE.MeshBasicMaterial({
       color: 0xff5c5c,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.715,
       depthTest: false,
       depthWrite: false,
     });
@@ -9517,7 +9518,7 @@
       for (const mat of powerUpsFaceMats) {
         if (on) {
           mat.emissive.setHex(0x3dff9a);
-          mat.emissiveIntensity = 0.85;
+          mat.emissiveIntensity = 1.1;
         } else {
           mat.emissive.setHex(mat.userData.baseEmissive);
           mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
@@ -10410,14 +10411,14 @@
             dir.normalize()
           );
         }
-        matPowerXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.4);
+        matPowerXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 2.4);
         matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
 
         // Blue: UPS Dist→PDU1 · Red: building MCB→PDU2 (both split at U corner)
         updateBluePulses(dt);
         updateRedPulses(dt);
-        matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
-        matRedXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 1.9);
+        matBlueXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 2.1);
+        matRedXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 1.9);
 
         // Pulse equipment glow shells with the cable x-ray
         const glowPulse = 0.72 + 0.28 * Math.sin(clock.elapsedTime * 2.3);
