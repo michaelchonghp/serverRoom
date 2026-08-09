@@ -908,60 +908,70 @@
       </span>
     </div>
     <div class="power-flow" aria-hidden="true">
-      <!-- MCB → Bypass ↔ UPS → DB → PDU1 · MCB ↝ PDU2 -->
-      <svg viewBox="0 0 320 126" role="img" aria-label="Power path: MCB to Bypass and UPS, then DB to PDU1; MCB also feeds PDU2">
+      <!-- MCB → Bypass ↔ UPS → DB → PDU1 · MCB ↝ PDU2
+           Note: no SVG filters on thin strokes — % filter regions collapse on
+           zero-height horizontal paths and hide green/blue links in WebKit. -->
+      <svg viewBox="0 0 340 126" role="img" aria-label="Power path: MCB to Bypass and UPS, then DB to PDU1; MCB also feeds PDU2">
         <defs>
-          <marker id="pl-arr-g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <marker id="pl-arr-g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
             <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#3dff9a" />
           </marker>
-          <marker id="pl-arr-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+          <marker id="pl-arr-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
             <path d="M0,0.5 L6.5,3.5 L0,6.5 Z" fill="#4da3ff" />
           </marker>
-          <marker id="pl-arr-r" markerWidth="3.5" markerHeight="3.5" refX="3" refY="1.75" orient="auto">
+          <marker id="pl-arr-r" markerWidth="3.5" markerHeight="3.5" refX="3" refY="1.75" orient="auto" markerUnits="userSpaceOnUse">
             <path d="M0,0.25 L3.25,1.75 L0,3.25 Z" fill="#ff5c5c" />
           </marker>
-          <filter id="pl-glow-g" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="1.4" result="b" />
+          <filter id="pl-glow-g" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" result="b" />
             <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
-          <filter id="pl-glow-b" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="1.4" result="b" />
+          <filter id="pl-glow-b" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" result="b" />
             <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
-          <filter id="pl-glow-r" x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="1.4" result="b" />
+          <filter id="pl-glow-r" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.6" result="b" />
             <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
 
-        <!-- Links -->
-        <path d="M52 58 H78" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
-        <path d="M148 58 H174" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
-        <path d="M224 58 H250" stroke="#4da3ff" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-b)" filter="url(#pl-glow-b)" />
-        <!-- Bypass ↔ UPS (parallel) -->
-        <path d="M108 70 V94" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
-        <path d="M122 98 V74" stroke="#3dff9a" stroke-width="2.2" fill="none" marker-end="url(#pl-arr-g)" filter="url(#pl-glow-g)" />
-        <!-- MCB ↝ PDU2 -->
-        <path d="M26 46 V22 H250" stroke="#ff5c5c" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-r)" filter="url(#pl-glow-r)" />
+        <!-- Soft under-glow strokes (no filter) -->
+        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="5" stroke-opacity="0.28" fill="none" stroke-linecap="round" />
+        <path d="M28 46 V22 H266" stroke="#ff5c5c" stroke-width="3" stroke-opacity="0.22" fill="none" stroke-linecap="round" />
 
-        <!-- Nodes -->
+        <!-- Links -->
+        <path d="M56 58 H84" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M158 58 H186" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M238 58 H266" stroke="#4da3ff" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-b)" stroke-linecap="round" />
+        <!-- Bypass ↔ UPS (parallel) -->
+        <path d="M108 70 V96" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <path d="M122 98 V72" stroke="#3dff9a" stroke-width="2.4" fill="none" marker-end="url(#pl-arr-g)" stroke-linecap="round" />
+        <!-- MCB ↝ PDU2 -->
+        <path d="M28 46 V22 H266" stroke="#ff5c5c" stroke-width="1.1" fill="none" marker-end="url(#pl-arr-r)" stroke-linecap="round" />
+
+        <!-- Nodes (glow ok — solid rects have real height) -->
         <rect x="4" y="46" width="48" height="24" rx="8" fill="#ff5c5c" filter="url(#pl-glow-r)" />
         <text class="flow-node" x="28" y="62" text-anchor="middle" fill="#0e141a">MCB</text>
 
-        <rect x="82" y="46" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
-        <text class="flow-node" x="115" y="62" text-anchor="middle" fill="#0e141a">Bypass</text>
+        <rect x="88" y="46" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
+        <text class="flow-node" x="121" y="62" text-anchor="middle" fill="#0e141a">Bypass</text>
 
-        <rect x="82" y="98" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
-        <text class="flow-node" x="115" y="114" text-anchor="middle" fill="#0e141a">UPS</text>
+        <rect x="88" y="98" width="66" height="24" rx="8" fill="#3dff9a" filter="url(#pl-glow-g)" />
+        <text class="flow-node" x="121" y="114" text-anchor="middle" fill="#0e141a">UPS</text>
 
-        <rect x="178" y="46" width="46" height="24" rx="8" fill="#4da3ff" filter="url(#pl-glow-b)" />
-        <text class="flow-node" x="201" y="62" text-anchor="middle" fill="#0e141a">DB</text>
+        <rect x="190" y="46" width="46" height="24" rx="8" fill="#4da3ff" filter="url(#pl-glow-b)" />
+        <text class="flow-node" x="213" y="62" text-anchor="middle" fill="#0e141a">DB</text>
 
-        <rect x="254" y="46" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
-        <text class="flow-node" x="283" y="62" text-anchor="middle" fill="#f2f4f7">PDU1</text>
+        <rect x="270" y="46" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
+        <text class="flow-node" x="299" y="62" text-anchor="middle" fill="#f2f4f7">PDU1</text>
 
-        <rect x="254" y="10" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
-        <text class="flow-node" x="283" y="26" text-anchor="middle" fill="#f2f4f7">PDU2</text>
+        <rect x="270" y="10" width="58" height="24" rx="8" fill="#1a1f26" stroke="#6a7380" stroke-width="1" />
+        <text class="flow-node" x="299" y="26" text-anchor="middle" fill="#f2f4f7">PDU2</text>
       </svg>
     </div>
   </div>
