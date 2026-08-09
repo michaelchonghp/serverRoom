@@ -8265,21 +8265,18 @@
     roomPower.add(underfloorTrunking);
 
     // 25F underfloor Cat6 (copper cabling) trunk — 400×200 mm, silver finish like power trunking.
-    // Runs along the cold aisle but offset off pedestal grid; stops short of the power underfloor run.
+    // Cold-aisle run on the Rack1 / +X side of the power underfloor crossing (not the diagonal/−X stub).
     {
       const CAT6_W = 40; // 400 mm
       const CAT6_H = 20; // 200 mm
       const clearOfPower = 15; // ~6″ clear of power trunk at periX
       // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
       const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
-      const cat6XMin = Math.max(
-        floorXMinAt(cat6Z) + 15,
-        -2 * RACK_PITCH - OUTER_W / 2
-      );
-      // Power Z-run crosses the aisle at x=periX — keep clear
+      // Power Z-run crosses the aisle at x=periX — keep the +X / Rack1 side only
+      const cat6XMin = periX + TRUNK / 2 + clearOfPower;
       const cat6XMax = Math.min(
-        periX - TRUNK / 2 - clearOfPower,
-        RACK_PITCH + OUTER_W / 2
+        floorXMax - 15,
+        RACK_PITCH + OUTER_W / 2 + TILE * 0.5
       );
       const cat6Len = Math.max(40, cat6XMax - cat6XMin);
       const cat6Trunk = new THREE.Mesh(
