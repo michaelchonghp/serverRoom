@@ -7021,6 +7021,40 @@
       return mesh;
     }
 
+    /** Floating dimension label (transparent plate) */
+    function makeHoverDimLabel(text, widthCm = 26, heightCm = 5.2) {
+      const pw = 512;
+      const ph = 128;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.58)}px "Archivo Black", "Arial Black", sans-serif`;
+      // Light halo so black text reads over scene clutter
+      ctx.strokeStyle = "rgba(255,255,255,0.92)";
+      ctx.lineWidth = 10;
+      ctx.strokeText(text, pw / 2, ph / 2 + 1);
+      ctx.fillStyle = "#0f141b";
+      ctx.fillText(text, pw / 2, ph / 2 + 1);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, heightCm), mat);
+      mesh.renderOrder = 40;
+      mesh.userData.noPick = true;
+      return mesh;
+    }
+
     /** Structural slab matching a room outline (has real underside). */
     const SLAB_T = 22; // cm — typical RC floor thickness so underside reads from below
     function makeRoomSlab(topY, outline, material, thickness = SLAB_T) {
@@ -8327,6 +8361,44 @@
       cat6Cable.castShadow = true;
       cat6Cable.receiveShadow = true;
       cat6Trunk.add(cat6Cable);
+
+      // Hovering size callouts (as requested): width 400 mm and height 200 mm
+      const dimMat = new THREE.MeshBasicMaterial({
+        color: 0x0f141b,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        depthTest: false,
+      });
+      const dimGroup = new THREE.Group();
+      dimGroup.name = "UnderfloorCat6TrunkDims";
+      dimGroup.renderOrder = 40;
+
+      // Place dimensions near the +X end cap of trunk, in the local YZ plane.
+      const dimX = cat6Len / 2 + 0.9;
+
+      // 400 mm width (across Z)
+      const dimTopY = CAT6_H / 2 + 3.5;
+      const dimW = CAT6_W + 6;
+      dimGroup.add(box(0.28, 0.28, dimW, dimMat, dimX, dimTopY, 0));
+      dimGroup.add(box(0.28, 3.4, 0.28, dimMat, dimX, dimTopY, -dimW / 2));
+      dimGroup.add(box(0.28, 3.4, 0.28, dimMat, dimX, dimTopY, dimW / 2));
+      const wLabel = makeHoverDimLabel("400mm", 22, 4.8);
+      wLabel.rotation.y = -Math.PI / 2;
+      wLabel.position.set(dimX + 0.15, dimTopY + 2.65, 0);
+      dimGroup.add(wLabel);
+
+      // 200 mm height (along Y)
+      const dimLeftZ = -CAT6_W / 2 - 5.2;
+      const dimH = CAT6_H + 4;
+      dimGroup.add(box(0.28, dimH, 0.28, dimMat, dimX, 0, dimLeftZ));
+      dimGroup.add(box(0.28, 0.28, 5.4, dimMat, dimX, dimH / 2, dimLeftZ + 2.7));
+      dimGroup.add(box(0.28, 0.28, 5.4, dimMat, dimX, -dimH / 2, dimLeftZ + 2.7));
+      const hLabel = makeHoverDimLabel("200mm", 20, 4.8);
+      hLabel.rotation.y = -Math.PI / 2;
+      hLabel.position.set(dimX + 0.15, 0, dimLeftZ - 4.2);
+      dimGroup.add(hLabel);
+      cat6Trunk.add(dimGroup);
       // Scene/slab space (raisedFloor is at y=0); not in roomPower local coords
       cat6Trunk.position.set(
         (cat6XMin + cat6XMax) / 2,
