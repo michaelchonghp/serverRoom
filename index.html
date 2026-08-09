@@ -8298,6 +8298,7 @@
       const CAT6_W = 40; // 400 mm
       const CAT6_H = 20; // 200 mm
       const CAT6_WALL_T = 0.25; // 2.5 mm steel/aluminum wall thickness
+      const CAT6_DIA = 0.66; // 6.6 mm OD
       const clearOfPower = 22.62; // +3" more (total ~9") clear of power trunk at periX
       // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
       const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
@@ -8308,6 +8309,24 @@
       const cat6Trunk = hollowTrunkX(cat6Len, CAT6_H, CAT6_W, CAT6_WALL_T, matTrunkSilver);
       cat6Trunk.name = "UnderfloorCat6Trunk";
       cat6Trunk.userData.kind = "cat6-trunk";
+      // One Cat6 laid through the full trunk length (blue, 6.6 mm dia)
+      const cat6Mat = new THREE.MeshStandardMaterial({
+        color: 0x2f7dff,
+        metalness: 0.08,
+        roughness: 0.52,
+      });
+      const cat6Cable = new THREE.Mesh(
+        new THREE.CylinderGeometry(CAT6_DIA / 2, CAT6_DIA / 2, cat6Len, 14),
+        cat6Mat
+      );
+      cat6Cable.name = "Cat6CableBlue";
+      // Cylinder axis is Y by default; rotate so it runs along trunk X.
+      cat6Cable.rotation.z = Math.PI / 2;
+      // Rest on the inner bottom skin with tiny clearance.
+      cat6Cable.position.set(0, -CAT6_H / 2 + CAT6_WALL_T + CAT6_DIA / 2 + 0.02, 0);
+      cat6Cable.castShadow = true;
+      cat6Cable.receiveShadow = true;
+      cat6Trunk.add(cat6Cable);
       // Scene/slab space (raisedFloor is at y=0); not in roomPower local coords
       cat6Trunk.position.set(
         (cat6XMin + cat6XMax) / 2,
