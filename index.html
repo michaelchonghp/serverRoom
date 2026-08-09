@@ -2094,12 +2094,12 @@
       return g;
     }
 
-    /** Front artwork — APC Smart-UPS On-Line SRT6KRMXLI (honeycomb left · LCD right) */
+    /** Front artwork — SRT6KRMXLI (same style as 7U SRTG15, scaled to 4U) */
     let srt6FrontTex = null;
     function makeApcSrt6FrontTexture() {
       if (srt6FrontTex) return srt6FrontTex;
       const pw = 1408;
-      const ph = 560; // ~4U aspect
+      const ph = 560; // 4U aspect (7U uses 976)
       const c = document.createElement("canvas");
       c.width = pw;
       c.height = ph;
@@ -2115,11 +2115,11 @@
         ctx.closePath();
       }
 
-      // Chassis + rack ears
-      ctx.fillStyle = "#0c0e12";
+      // Outer chassis + rack-ear strips (same language as SRTG15)
+      ctx.fillStyle = "#0e1116";
       ctx.fillRect(0, 0, pw, ph);
-      const earW = 64;
-      ctx.fillStyle = "#181c22";
+      const earW = 70;
+      ctx.fillStyle = "#1a1f26";
       ctx.fillRect(0, 0, earW, ph);
       ctx.fillRect(pw - earW, 0, earW, ph);
       [0.14, 0.38, 0.62, 0.86].forEach((fy) => {
@@ -2134,132 +2134,161 @@
         });
       });
 
-      const bodyX = earW + 6;
-      const bodyY = 10;
-      const bodyW = pw - earW * 2 - 12;
-      const bodyH = ph - 20;
-      // Split: ~65% honeycomb mesh · ~35% control bezel (matches product front)
-      const meshW = bodyW * 0.64;
-      const panelW = bodyW - meshW - 8;
-      const panelX = bodyX + meshW + 8;
+      const gap = 8;
+      const bodyX = earW + 8;
+      const bodyW = pw - earW * 2 - 16;
+      const topH = (ph - 20 - gap) * 0.54;
+      const botH = (ph - 20 - gap) * 0.46;
+      const top = { x: bodyX, y: 10, w: bodyW, h: topH };
+      const bot = { x: bodyX, y: 10 + topH + gap, w: bodyW, h: botH };
 
-      // Honeycomb mesh — light plate with punched dark holes (reads at rack distance)
-      ctx.fillStyle = "#4a5562";
-      ctx.fillRect(bodyX, bodyY, meshW, bodyH);
-      const hexR = 16;
-      const dx = hexR * Math.sqrt(3);
-      const dy = hexR * 1.5;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(bodyX + 2, bodyY + 2, meshW - 4, bodyH - 4);
-      ctx.clip();
-      for (let row = 0, y = bodyY + hexR; y < bodyY + bodyH + hexR; row++, y += dy) {
-        const xOff = (row % 2) * (dx * 0.5);
-        for (let x = bodyX + hexR + xOff; x < bodyX + meshW + hexR; x += dx) {
-          // Outer cell rim (metal web)
-          ctx.beginPath();
-          for (let i = 0; i < 6; i++) {
-            const a = (Math.PI / 3) * i - Math.PI / 6;
-            const px = x + hexR * 0.92 * Math.cos(a);
-            const py = y + hexR * 0.92 * Math.sin(a);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
-          ctx.fillStyle = "#5c6774";
-          ctx.fill();
-          ctx.strokeStyle = "#d0d6de";
-          ctx.lineWidth = 2.2;
-          ctx.stroke();
-          // Inner punched hole
-          ctx.beginPath();
-          for (let i = 0; i < 6; i++) {
-            const a = (Math.PI / 3) * i - Math.PI / 6;
-            const px = x + hexR * 0.62 * Math.cos(a);
-            const py = y + hexR * 0.62 * Math.sin(a);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
-          ctx.fillStyle = "#0a0c10";
-          ctx.fill();
-        }
-      }
-      const sheen = ctx.createLinearGradient(bodyX, bodyY, bodyX, bodyY + bodyH);
-      sheen.addColorStop(0, "rgba(255,255,255,0.14)");
-      sheen.addColorStop(0.55, "rgba(255,255,255,0)");
-      sheen.addColorStop(1, "rgba(0,0,0,0.2)");
-      ctx.fillStyle = sheen;
-      ctx.fillRect(bodyX, bodyY, meshW, bodyH);
-      ctx.restore();
-
-      // APC wordmark on mesh (left)
-      ctx.fillStyle = "#f2f4f7";
-      ctx.font = "800 56px 'Archivo Black', sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("APC", bodyX + 28, bodyY + bodyH * 0.42);
-      ctx.font = "500 15px 'IBM Plex Mono', monospace";
-      ctx.fillStyle = "#b8c0ca";
-      ctx.fillText("by Schneider Electric", bodyX + 28, bodyY + bodyH * 0.42 + 32);
-
-      // Right control bezel
-      ctx.fillStyle = "#0e1116";
-      ctx.fillRect(panelX, bodyY, panelW, bodyH);
-      ctx.strokeStyle = "#3a424c";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(panelX + 1, bodyY + 1, panelW - 2, bodyH - 2);
-
-      // LCD
-      const lcdW = panelW * 0.72;
-      const lcdH = bodyH * 0.38;
-      const lcdX = panelX + (panelW - lcdW) / 2;
-      const lcdY = bodyY + bodyH * 0.14;
-      roundRect(lcdX - 8, lcdY - 8, lcdW + 16, lcdH + 16, 6);
-      ctx.fillStyle = "#080a0e";
-      ctx.fill();
-      roundRect(lcdX, lcdY, lcdW, lcdH, 4);
-      ctx.fillStyle = "#101820";
-      ctx.fill();
-      ctx.strokeStyle = "#2a3830";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Status icons row
-      ctx.fillStyle = "#3dd68c";
-      for (let i = 0; i < 4; i++) {
+      function fillTriangleMesh(x, y, w, h, showFans) {
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(lcdX + 22 + i * 28, lcdY + 22, 5, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#15191f";
+        ctx.fillRect(x, y, w, h);
+
+        if (showFans) {
+          ctx.fillStyle = "rgba(50,58,68,0.55)";
+          [[0.28, 0.55], [0.52, 0.55]].forEach(([fx, fy]) => {
+            ctx.beginPath();
+            ctx.arc(x + w * fx, y + h * fy, Math.min(w, h) * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(90,100,112,0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+          });
+        }
+
+        const triW = 78;
+        const triH = 68;
+        for (let row = 0; row < 6; row++) {
+          for (let col = -1; col < 14; col++) {
+            const ox = x + col * triW + (row % 2) * (triW * 0.5);
+            const oy = y + row * (triH * 0.78);
+            ctx.beginPath();
+            ctx.moveTo(ox + triW * 0.5, oy + 4);
+            ctx.lineTo(ox + triW - 4, oy + triH - 4);
+            ctx.lineTo(ox + 4, oy + triH - 4);
+            ctx.closePath();
+            ctx.fillStyle = "#1c222a";
+            ctx.fill();
+            ctx.strokeStyle = "#3a4450";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = "#0a0c10";
+            for (let py = oy + triH * 0.35; py < oy + triH - 12; py += 7) {
+              const t = (py - oy) / triH;
+              const half = triW * 0.42 * t;
+              for (let px = ox + triW * 0.5 - half + 6; px < ox + triW * 0.5 + half - 6; px += 7) {
+                ctx.beginPath();
+                ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+          }
+        }
+        ctx.restore();
       }
-      ctx.fillStyle = "#e8f0ea";
-      ctx.font = "700 22px 'IBM Plex Mono', monospace";
+
+      function drawModule(mod, opts) {
+        roundRect(mod.x, mod.y, mod.w, mod.h, 8);
+        ctx.fillStyle = "#12161c";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        fillTriangleMesh(mod.x + 6, mod.y + 6, mod.w - 12, mod.h - 12, opts.fans);
+      }
+
+      drawModule(top, { fans: true });
+      drawModule(bot, { fans: false });
+
+      // APC logo — top module left
+      ctx.fillStyle = "#f5f7fa";
+      ctx.font = "800 40px 'Archivo Black', sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "alphabetic";
-      ctx.fillText("Output  230.0 V", lcdX + 16, lcdY + lcdH * 0.58);
-      ctx.fillStyle = "#9fd6b0";
-      ctx.font = "600 18px 'IBM Plex Mono', monospace";
-      ctx.fillText("Online", lcdX + 16, lcdY + lcdH * 0.82);
+      ctx.fillText("APC", top.x + 24, top.y + 48);
+      ctx.font = "500 14px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#c5ccd6";
+      ctx.fillText("by Schneider Electric", top.x + 24, top.y + 68);
 
-      // 2×2 nav buttons under LCD
-      const btnW = 36;
-      const btnH = 22;
-      const btnGapX = 18;
-      const btnGapY = 14;
-      const btnOriginX = panelX + panelW / 2 - (btnW + btnGapX / 2);
-      const btnOriginY = lcdY + lcdH + 36;
-      for (let row = 0; row < 2; row++) {
-        for (let col = 0; col < 2; col++) {
-          const bx = btnOriginX + col * (btnW + btnGapX);
-          const by = btnOriginY + row * (btnH + btnGapY);
-          roundRect(bx, by, btnW, btnH, 3);
-          ctx.fillStyle = "#222830";
-          ctx.fill();
-          ctx.strokeStyle = "#8a949e";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
+      // LCD control cluster — top module RIGHT
+      const lcdPanelW = 180;
+      const lcdPanelH = Math.min(190, top.h - 24);
+      const lcdPanelX = top.x + top.w - lcdPanelW - 28;
+      const lcdPanelY = top.y + (top.h - lcdPanelH) / 2;
+      roundRect(lcdPanelX, lcdPanelY, lcdPanelW, lcdPanelH, 8);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      roundRect(lcdPanelX + 14, lcdPanelY + 12, lcdPanelW - 28, 100, 5);
+      ctx.fillStyle = "#141c18";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4540";
+      ctx.stroke();
+      ctx.fillStyle = "#e8f0ea";
+      ctx.font = "700 16px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("ONLINE", lcdPanelX + lcdPanelW / 2, lcdPanelY + 36);
+      ctx.font = "600 13px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("230V", lcdPanelX + 24, lcdPanelY + 58);
+      ctx.textAlign = "right";
+      ctx.fillText("50.0Hz", lcdPanelX + lcdPanelW - 24, lcdPanelY + 58);
+      ctx.textAlign = "left";
+      ctx.font = "500 10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#9aa8a0";
+      ctx.fillText("LOAD", lcdPanelX + 24, lcdPanelY + 78);
+      ctx.fillText("BATT", lcdPanelX + 100, lcdPanelY + 78);
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = i < 2 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 24 + i * 11, lcdPanelY + 86, 9, 7);
+        ctx.fillStyle = i < 4 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 100 + i * 11, lcdPanelY + 86, 9, 7);
       }
+
+      for (let i = 0; i < 4; i++) {
+        const bx = lcdPanelX + 18 + i * 38;
+        const by = lcdPanelY + lcdPanelH - 36;
+        roundRect(bx, by, 32, 16, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      ctx.save();
+      ctx.translate(lcdPanelX + lcdPanelW + 14, lcdPanelY + 16);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = "#f2f4f7";
+      ctx.font = "600 16px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("Smart-UPS", 0, 0);
+      ctx.restore();
+
+      // Battery icon — bottom module
+      const bix = bot.x + 28;
+      const biy = bot.y + 18;
+      const biH = Math.min(64, bot.h - 28);
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 3;
+      ctx.fillStyle = "rgba(242,244,247,0.06)";
+      roundRect(bix, biy, 52, biH, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(bix + 16, biy - 8, 20, 10);
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("+", bix + 26, biy + biH * 0.58);
 
       const tex = new THREE.CanvasTexture(c);
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -2397,15 +2426,13 @@
       g.add(box(w, h, d, matUps, 0, 0, 0));
       g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
 
-      const srt6FrontMap = makeApcSrt6FrontTexture();
       const frontMat = new THREE.MeshStandardMaterial({
-        map: srt6FrontMap,
-        metalness: 0.08,
-        roughness: 0.72,
+        map: makeApcSrt6FrontTexture(),
+        metalness: 0.2,
+        roughness: 0.55,
         side: THREE.DoubleSide,
-        emissive: 0xffffff,
-        emissiveMap: srt6FrontMap,
-        emissiveIntensity: 0.22,
+        emissive: 0x111318,
+        emissiveIntensity: 0.35,
       });
       const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
       face.position.set(0, 0, -d / 2 - 0.9);
