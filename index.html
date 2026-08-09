@@ -2921,6 +2921,210 @@
       return g;
     }
 
+    /** Front — SRT192RMBP 3U (same honeycomb + X brace as 4U SRTG packs) */
+    let srt192RmBattFrontTex = null;
+    function makeApcSrt192RmBattFrontTexture() {
+      if (srt192RmBattFrontTex) return srt192RmBattFrontTex;
+      const pw = 1024;
+      const ph = 315; // 3U aspect (4U pack uses 420)
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+
+      const inset = 22;
+      const fx = inset;
+      const fy = inset;
+      const fw = pw - inset * 2;
+      const fh = ph - inset * 2;
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(fx - 6, fy - 6, fw + 12, fh + 12);
+      ctx.fillStyle = "#151920";
+      ctx.fillRect(fx, fy, fw, fh);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(55, 62, 72, 0.95)";
+      ctx.lineWidth = 9;
+      const cols = 6;
+      const rows = 2;
+      const cellW = fw / cols;
+      const cellH = fh / rows;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x0 = fx + col * cellW;
+          const y0 = fy + row * cellH;
+          ctx.beginPath();
+          ctx.moveTo(x0 + 8, y0 + 8);
+          ctx.lineTo(x0 + cellW - 8, y0 + cellH - 8);
+          ctx.moveTo(x0 + cellW - 8, y0 + 8);
+          ctx.lineTo(x0 + 8, y0 + cellH - 8);
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = "rgba(40, 46, 54, 0.9)";
+      ctx.lineWidth = 12;
+      for (let col = 1; col < cols; col++) {
+        ctx.beginPath();
+        ctx.moveTo(fx + col * cellW, fy);
+        ctx.lineTo(fx + col * cellW, fy + fh);
+        ctx.stroke();
+      }
+      for (let row = 1; row < rows; row++) {
+        ctx.beginPath();
+        ctx.moveTo(fx, fy + row * cellH);
+        ctx.lineTo(fx + fw, fy + row * cellH);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      const hexR = 7;
+      const dx = hexR * Math.sqrt(3);
+      const dy = hexR * 1.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      for (let row = 0, y = fy + hexR; y < fy + fh + hexR; row++, y += dy) {
+        const xOff = (row % 2) * (dx * 0.5);
+        for (let x = fx + hexR + xOff; x < fx + fw + hexR; x += dx) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            const px = x + hexR * 0.82 * Math.cos(a);
+            const py = y + hexR * 0.82 * Math.sin(a);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(12, 14, 18, 0.55)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(70, 78, 88, 0.55)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+      const sheen = ctx.createLinearGradient(fx, fy, fx, fy + fh);
+      sheen.addColorStop(0, "rgba(255,255,255,0.06)");
+      sheen.addColorStop(0.5, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.18)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(fx, fy, fw, fh);
+      ctx.restore();
+
+      // Battery badge — scaled for 3U
+      const bx = fx + 18;
+      const by = fy + 12;
+      const bw = 64;
+      const bh = Math.min(78, fh - 20);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#2a3038";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 3.5;
+      const batX = bx + 12;
+      const batY = by + 18;
+      const batW = 40;
+      const batH = bh - 30;
+      ctx.beginPath();
+      const br = 4;
+      ctx.moveTo(batX + br, batY);
+      ctx.arcTo(batX + batW, batY, batX + batW, batY + batH, br);
+      ctx.arcTo(batX + batW, batY + batH, batX, batY + batH, br);
+      ctx.arcTo(batX, batY + batH, batX, batY, br);
+      ctx.arcTo(batX, batY, batX + batW, batY, br);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(batX + 12, batY - 8, 16, 9);
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("+", batX + batW / 2, batY + batH / 2 + 1);
+
+      srt192RmBattFrontTex = new THREE.CanvasTexture(c);
+      srt192RmBattFrontTex.colorSpace = THREE.SRGBColorSpace;
+      srt192RmBattFrontTex.anisotropy = 8;
+      return srt192RmBattFrontTex;
+    }
+
+    /** APC SRT192RMBP — 192V external battery pack for SRT 5/6 kVA, 3U, 432×683×130 mm */
+    function makeApcSrt192RmBatt() {
+      const heightU = 3;
+      const h = heightU * U - 0.2;
+      const w = 43.2;
+      const d = 68.3;
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrt192RmBattFrontTexture(),
+        metalness: 0.18,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.9);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
+
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcBattRearTexture(),
+        metalness: 0.2,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "battery";
+      g.userData.label = "APC SRT192RMBP";
+      g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
+      g.userData.info = {
+        eyebrow: "Battery · 26F Rack 2",
+        title: "APC Smart-UPS On-Line Battery Pack",
+        model: "SRT192RMBP",
+        rating: "192 Vdc · 3U · for SRT 5/6 kVA",
+        blocks: [
+          {
+            label: "Battery",
+            text: "External 192 Vdc pack for SRT6KRMXLI · Extended runtime · Up to 10 packs supported",
+          },
+          {
+            label: "Physical",
+            text: "3U rackmount · 432 × 683 × 130 mm · Rail kit · Matches SRT Online family",
+          },
+        ],
+      };
+      return g;
+    }
+
     /** H3C LS-9850-4C-H1 front — 2×2 modular line cards; optional plugged SFPs on slot-1 */
     const h3c9850FrontTexCache = new Map();
     function makeH3c9850FrontTexture(transceivers = []) {
@@ -6367,6 +6571,7 @@
         if (type === "ups-srtg15") unit = makeApcSrtg15();
         if (type === "ups-srt6k") unit = makeApcSrt6();
         if (type === "batt-srtg192") unit = makeApcSrtgBatt();
+        if (type === "batt-srt192rm") unit = makeApcSrt192RmBatt();
         if (type === "sw-h3c-9850") {
           unit = makeH3c9850({ rackName: name, code, transceivers: transceivers || [] });
         }
@@ -7095,8 +7300,9 @@
           { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 (same as 25F Rack1)
         ],
         "26F-2": [
-          // APC Smart-UPS On-Line SRT6KRMXLI 6kVA — 4U at bottom (like 25F Rack6’s 15kVA)
+          // APC Smart-UPS On-Line SRT6KRMXLI 6kVA — 4U at bottom + 1× SRT192RMBP 3U
           { type: "ups-srt6k", startU: 0 },
+          { type: "batt-srt192rm", startU: 4 }, // RU 5–7 above the UPS
           // Same access + patch stack as 25F Rack4
           { type: "sw-ruijie-s5760", startU: 17, code: "A8", transceivers: ACCESS_XCVRS_A8 },
           { type: "sw-ruijie-s5760", startU: 19, code: "A6", transceivers: ACCESS_XCVRS_A6 },
