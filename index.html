@@ -2397,13 +2397,15 @@
       g.add(box(w, h, d, matUps, 0, 0, 0));
       g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
 
+      const srt6FrontMap = makeApcSrt6FrontTexture();
       const frontMat = new THREE.MeshStandardMaterial({
-        map: makeApcSrt6FrontTexture(),
-        metalness: 0.2,
-        roughness: 0.55,
+        map: srt6FrontMap,
+        metalness: 0.08,
+        roughness: 0.72,
         side: THREE.DoubleSide,
-        emissive: 0x111318,
-        emissiveIntensity: 0.35,
+        emissive: 0xffffff,
+        emissiveMap: srt6FrontMap,
+        emissiveIntensity: 0.22,
       });
       const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
       face.position.set(0, 0, -d / 2 - 0.9);
