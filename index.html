@@ -1287,6 +1287,13 @@
       roughness: 0.38,
       envMapIntensity: 0.6,
     });
+    // Copper data trunk (underfloor) — warm metal vs silver power trunking
+    const matCopperTrunk = new THREE.MeshStandardMaterial({
+      color: 0xb87333,
+      metalness: 0.72,
+      roughness: 0.36,
+      envMapIntensity: 0.55,
+    });
 
     // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
     function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
@@ -7142,6 +7149,36 @@
       aisleMarks: true,
       floorTag: "25F",
     });
+
+    // 25F underfloor copper cabling trunk — 400×200 mm, full cold-aisle span (along X at z≈0)
+    {
+      const COPPER_W = 40; // 400 mm across the aisle (Z)
+      const COPPER_H = 20; // 200 mm tall
+      // Whole cold aisle: past Rack6 (−X) through past Rack1 (+X)
+      const copperXMin = Math.max(
+        floorXMinAt(0) + 15,
+        -2 * RACK_PITCH - OUTER_W / 2 - TILE * 0.5
+      );
+      const copperXMax = Math.min(
+        floorXMax - 15,
+        RACK_PITCH + OUTER_W / 2 + TILE * 0.5
+      );
+      const copperLen = Math.max(40, copperXMax - copperXMin);
+      const copperTrunk = new THREE.Mesh(
+        new THREE.BoxGeometry(copperLen, COPPER_H, COPPER_W),
+        matCopperTrunk
+      );
+      copperTrunk.name = "UnderfloorCopperTrunk";
+      // Sit on the slab inside the raised-floor void (visible under perforated cold-aisle tiles)
+      copperTrunk.position.set(
+        (copperXMin + copperXMax) / 2,
+        COPPER_H / 2 + 2,
+        0
+      );
+      copperTrunk.castShadow = true;
+      copperTrunk.receiveShadow = true;
+      raisedFloor.add(copperTrunk);
+    }
     // 26F — full window-span (Z); depth stops at Rack4 interior face
     const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
       xMax: floorXMax26,
