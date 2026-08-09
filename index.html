@@ -2189,6 +2189,7 @@
       g.add(box(5.5, 5.5, 0.4, matAccent, powerOutputLocal.x, powerOutputLocal.y - 0.3, powerOutputLocal.z + 1.0));
 
       g.userData.heightU = heightU;
+      g.userData.size = { w, h, d };
       g.userData.mountZ = face.position.z; // flush to 19″ rail plane
       g.userData.powerInputLocal = powerInputLocal;
       g.userData.powerOutputLocal = powerOutputLocal;
@@ -8307,6 +8308,74 @@
     const powerHighlights = [powerCableGroup, powerPulse];
     const POWER_PULSE_SPEED = 0.18; // slightly slower — path is longer (UPS return + Dist)
 
+    // Equipment glow shells — legend colors (MCB red · Bypass/UPS green · DB blue)
+    const powerGlowPulseMats = [];
+    function makePowerGlowShell(colorHex, w, h, d) {
+      const g = new THREE.Group();
+      g.name = "PowerGlow";
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      });
+      const softMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.12,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      });
+      coreMat.userData.baseOpacity = 0.28;
+      softMat.userData.baseOpacity = 0.12;
+      const core = new THREE.Mesh(
+        new THREE.BoxGeometry(w + 3.2, h + 3.2, d + 3.2),
+        coreMat
+      );
+      const soft = new THREE.Mesh(
+        new THREE.BoxGeometry(w + 8.5, h + 8.5, d + 8.5),
+        softMat
+      );
+      core.renderOrder = 19;
+      soft.renderOrder = 18;
+      g.add(soft);
+      g.add(core);
+      g.visible = false;
+      g.userData.noPick = true;
+      powerGlowPulseMats.push(coreMat, softMat);
+      return g;
+    }
+
+    function attachPowerGlow(target, colorHex) {
+      if (!target) return null;
+      const sz = target.userData.size || { w: 44, h: 30, d: 70 };
+      const glow = makePowerGlowShell(colorHex, sz.w, sz.h, sz.d);
+      target.add(glow);
+      powerHighlights.push(glow);
+      return glow;
+    }
+
+    attachPowerGlow(mcb, 0xff5c5c);     // MCB feed — red
+    attachPowerGlow(bypass, 0x3dff9a);  // 32A TPN — green
+    attachPowerGlow(dist, 0x4da3ff);    // UPS feed / DB — blue
+    // 25F Rack6 UPS (green with Bypass)
+    let powerUpsUnit = null;
+    for (const { group: rack } of racks25F()) {
+      for (const child of rack.children) {
+        if (child.userData?.kind === "ups") {
+          powerUpsUnit = child;
+          break;
+        }
+      }
+      if (powerUpsUnit) break;
+    }
+    attachPowerGlow(powerUpsUnit, 0x3dff9a);
+
     // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
     // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
     const WG_W = 45; // ~18″ pathway
@@ -10301,6 +10370,12 @@
         updateRedPulses(dt);
         matBlueXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 2.1);
         matRedXray.opacity = 0.4 + 0.18 * Math.sin(clock.elapsedTime * 1.9);
+
+        // Pulse equipment glow shells with the cable x-ray
+        const glowPulse = 0.72 + 0.28 * Math.sin(clock.elapsedTime * 2.3);
+        for (const mat of powerGlowPulseMats) {
+          mat.opacity = (mat.userData.baseOpacity ?? 0.2) * glowPulse;
+        }
       }
 
       controls.update();
