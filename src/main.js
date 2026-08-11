@@ -7837,11 +7837,23 @@
     // 25F shows bay + raisedFloor + roomPower, while 26F shows bay26 + raisedFloor26.
     function applyFloorVisibility() {
       const on25 = currentFloor === 25;
-      bay.visible = on25;
-      raisedFloor.visible = on25;
-      roomPower.visible = on25;
-      bay26.visible = !on25;
-      raisedFloor26.visible = !on25;
+      const mountInScene = (obj, on) => {
+        if (on) {
+          if (obj.parent !== scene) scene.add(obj);
+          obj.visible = true;
+        } else {
+          obj.visible = false;
+          if (obj.parent === scene) scene.remove(obj);
+        }
+      };
+
+      // Hard-cull inactive floor groups by detaching them from scene graph.
+      // This guarantees they cannot render when orbiting/panning away.
+      mountInScene(bay, on25);
+      mountInScene(raisedFloor, on25);
+      mountInScene(roomPower, on25);
+      mountInScene(bay26, !on25);
+      mountInScene(raisedFloor26, !on25);
 
       // 26F performance mode: keep cabinet shells visible, hide mounted rack gear/details.
       // Equipment units and vertical PDUs are flagged interactive under each rack group.
