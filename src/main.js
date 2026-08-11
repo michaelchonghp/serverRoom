@@ -1,0 +1,9010 @@
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+    import { getUiElements } from "./modules/ui-elements.js";
+    import { initBlueRedPowerSystem } from "./modules/power-blue-red.js";
+    import { attachPointerInteractions } from "./modules/interaction.js";
+
+    // Proportions ≈ Austin Hughes SR-8042 (800W × 1072D × 42U), cm
+    const U = 4.445;
+    const UNITS = 42;
+    const RAIL_WIDTH = 48.26;
+    const OUTER_W = 80;
+    const OUTER_D = 107.2;
+    const FRAME_T = 2.4;
+    const INNER_H = UNITS * U;
+    const BASE_H = 7;
+    const TOP_H = 5;
+    const TOTAL_H = BASE_H + INNER_H + TOP_H;
+    const RACK_PITCH = OUTER_W + 12;
+
+    const FRONT_CLOSED = 0;
+    const FRONT_OPEN = 1.35;
+    const REAR_L_CLOSED = 0;
+    const REAR_L_OPEN = -1.35;
+    const REAR_R_CLOSED = 0;
+    const REAR_R_OPEN = 1.35;
+
+    const canvas = document.getElementById("stage");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.localClippingEnabled = true;
+
+    const scene = new THREE.Scene();
+    const hoverDimLabels = [];
+    const FOG_NEAR = 1600;
+    const FOG_FAR = 4400;
+    const FOG_NEAR_POWER = 2800;
+    const FOG_FAR_POWER = 7200;
+    scene.fog = new THREE.Fog(0xe8eef4, FOG_NEAR, FOG_FAR);
+
+    const isMobile = () => window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 1, 3000);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 32; // 20% closer than previous 40
+    controls.maxDistance = 1400;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.minPolarAngle = 0.08;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.175; // 50% slower than previous 0.35
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+
+    const IDLE_AUTOSPIN_MS = 9000; // twice the previous 4.5s delay
+    let idleTimer;
+    controls.addEventListener("start", () => {
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { controls.autoRotate = true; }, IDLE_AUTOSPIN_MS);
+    });
+
+    // Distinct finishes so frame / doors / rails / gear don't read as one black mass
+    const matFrame = new THREE.MeshStandardMaterial({ color: 0x14171c, metalness: 0.75, roughness: 0.28 });
+    const matDoor = new THREE.MeshStandardMaterial({ color: 0x2a313a, metalness: 0.6, roughness: 0.36 });
+    const matRail = new THREE.MeshStandardMaterial({ color: 0xc5ced8, metalness: 0.85, roughness: 0.28 });
+    const matPanel = new THREE.MeshStandardMaterial({ color: 0x4a5562, metalness: 0.35, roughness: 0.55 });
+    const matAccent = new THREE.MeshStandardMaterial({ color: 0x6b7785, metalness: 0.45, roughness: 0.42 });
+    const matInterior = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.15, roughness: 0.75 });
+    const matCaster = new THREE.MeshStandardMaterial({ color: 0x3a4048, metalness: 0.4, roughness: 0.6 });
+    const matChrome = new THREE.MeshStandardMaterial({ color: 0xd7dde4, metalness: 0.95, roughness: 0.18 });
+    const matHandle = new THREE.MeshStandardMaterial({ color: 0xe8a54b, metalness: 0.7, roughness: 0.32 });
+    // UPS — cooler charcoal + lighter face so it separates from the rack shell
+    const matUps = new THREE.MeshStandardMaterial({ color: 0x2b3340, metalness: 0.4, roughness: 0.5 });
+    const matUpsFace = new THREE.MeshStandardMaterial({ color: 0x5c6a7a, metalness: 0.3, roughness: 0.48 });
+    const matUpsLcd = new THREE.MeshStandardMaterial({
+      color: 0x1a3a2a, emissive: 0x2dcc70, emissiveIntensity: 0.9, metalness: 0.2, roughness: 0.35,
+    });
+    const matUpsLed = new THREE.MeshStandardMaterial({
+      color: 0x3dd68c, emissive: 0x3dd68c, emissiveIntensity: 1.6, metalness: 0.2, roughness: 0.35,
+    });
+    const matUpsBadge = new THREE.MeshStandardMaterial({ color: 0xfff7e8, metalness: 0.08, roughness: 0.4 });
+    const matUpsVent = new THREE.MeshStandardMaterial({ color: 0x1e2530, metalness: 0.5, roughness: 0.45 });
+    const matSubfloor = new THREE.MeshStandardMaterial({ color: 0xb8c0c8, metalness: 0.05, roughness: 0.96 });
+    const matFloorTile = new THREE.MeshStandardMaterial({ color: 0xd8dee6, metalness: 0.18, roughness: 0.72 });
+    const matFloorTileAlt = new THREE.MeshStandardMaterial({ color: 0xcfd6df, metalness: 0.18, roughness: 0.74 });
+    const matFloorEdge = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.4, roughness: 0.55 });
+    const matPedestal = new THREE.MeshStandardMaterial({ color: 0x6a737c, metalness: 0.55, roughness: 0.45 });
+    // Room wall indicator + MCB cabinet
+    const matWall = new THREE.MeshStandardMaterial({
+      color: 0xc8d0da,
+      metalness: 0.02,
+      roughness: 0.88,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const matMcbShell = new THREE.MeshStandardMaterial({ color: 0x8a949e, metalness: 0.35, roughness: 0.55 });
+    const matMcbCover = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.28, roughness: 0.58 });
+    // Panduit Wyr-Grid indicator — zinc wire basket
+    const matWyrGrid = new THREE.MeshStandardMaterial({ color: 0xb0b8c0, metalness: 0.82, roughness: 0.32 });
+    // Panduit WGSWF4BL side waterfall — black plastic
+    const matWyrGridWaterfall = new THREE.MeshStandardMaterial({
+      color: 0x1a1c1f, metalness: 0.12, roughness: 0.78,
+    });
+    // Brushed silver trunk — lower metalness so it stays bright without an env map
+    const matTrunkSilver = new THREE.MeshStandardMaterial({
+      color: 0xd8dee6,
+      metalness: 0.45,
+      roughness: 0.38,
+      envMapIntensity: 0.6,
+    });
+    // Honeycomb door: steel mesh color + punched holes (alpha) so pattern stays readable
+    function makeHexDoorMaps(w = 512, h = 1024, hexR = 8) {
+      const alpha = document.createElement("canvas");
+      const color = document.createElement("canvas");
+      alpha.width = color.width = w;
+      alpha.height = color.height = h;
+      const actx = alpha.getContext("2d");
+      const cctx = color.getContext("2d");
+      // Opaque steel field
+      actx.fillStyle = "#fff";
+      actx.fillRect(0, 0, w, h);
+      cctx.fillStyle = "#7a8794";
+      cctx.fillRect(0, 0, w, h);
+      const dx = hexR * Math.sqrt(3);
+      const dy = hexR * 1.5;
+      for (let row = 0, y = hexR; y < h + hexR; row++, y += dy) {
+        const xOff = (row % 2) * (dx * 0.5);
+        for (let x = hexR + xOff; x < w + hexR; x += dx) {
+          // Alpha punch
+          actx.fillStyle = "#000";
+          actx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const ang = Math.PI / 6 + (i * Math.PI) / 3;
+            const px = x + hexR * 0.86 * Math.cos(ang);
+            const py = y + hexR * 0.86 * Math.sin(ang);
+            if (i === 0) actx.moveTo(px, py);
+            else actx.lineTo(px, py);
+          }
+          actx.closePath();
+          actx.fill();
+          // Dark hole ring on color map for edge definition
+          cctx.fillStyle = "#3a4450";
+          cctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const ang = Math.PI / 6 + (i * Math.PI) / 3;
+            const px = x + hexR * 0.95 * Math.cos(ang);
+            const py = y + hexR * 0.95 * Math.sin(ang);
+            if (i === 0) cctx.moveTo(px, py);
+            else cctx.lineTo(px, py);
+          }
+          cctx.closePath();
+          cctx.fill();
+        }
+      }
+      const border = Math.max(14, Math.round(w * 0.045));
+      actx.fillStyle = "#fff";
+      actx.fillRect(0, 0, w, border);
+      actx.fillRect(0, h - border, w, border);
+      actx.fillRect(0, 0, border, h);
+      actx.fillRect(w - border, 0, border, h);
+      cctx.fillStyle = "#5c6772";
+      cctx.fillRect(0, 0, w, border);
+      cctx.fillRect(0, h - border, w, border);
+      cctx.fillRect(0, 0, border, h);
+      cctx.fillRect(w - border, 0, border, h);
+      const alphaTex = new THREE.CanvasTexture(alpha);
+      alphaTex.colorSpace = THREE.NoColorSpace;
+      alphaTex.anisotropy = 8;
+      const colorTex = new THREE.CanvasTexture(color);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+      colorTex.anisotropy = 8;
+      return { alphaTex, colorTex };
+    }
+
+    const doorMaps = makeHexDoorMaps();
+    const matPerf = new THREE.MeshStandardMaterial({
+      map: doorMaps.colorTex,
+      alphaMap: doorMaps.alphaTex,
+      metalness: 0.7,
+      roughness: 0.32,
+      transparent: true,
+      alphaTest: 0.4,
+      side: THREE.DoubleSide,
+      depthWrite: true,
+    });
+
+    function box(w, h, d, mat, x, y, z) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function rounded(w, h, d, r, mat, x, y, z) {
+      const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, r), mat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    function makeSwingHandle(length = 14) {
+      const g = new THREE.Group();
+      g.add(box(3.2, length + 2, 0.6, matHandle, 0, 0, 0));
+      g.add(box(1.6, length * 0.55, 1.4, matChrome, 0.2, length * 0.08, 0.9));
+      const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.8, 16), matChrome);
+      knob.rotation.x = Math.PI / 2;
+      knob.position.set(0.2, -length * 0.22, 0.9);
+      knob.castShadow = true;
+      g.add(knob);
+      return g;
+    }
+
+    function makePerforatedDoorLeaf(width, height, { makerMark = false } = {}) {
+      const g = new THREE.Group();
+      const t = 1.4;
+      g.add(box(width, t, 1.0, matDoor, 0, height / 2 - t / 2, 0));
+      g.add(box(width, t, 1.0, matDoor, 0, -height / 2 + t / 2, 0));
+      g.add(box(t, height - t * 2, 1.0, matDoor, -width / 2 + t / 2, 0, 0));
+      g.add(box(t, height - t * 2, 1.0, matDoor, width / 2 - t / 2, 0, 0));
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6), matPerf);
+      panel.position.z = 0.05;
+      panel.castShadow = true;
+      panel.receiveShadow = true;
+      g.add(panel);
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(width - t * 1.6, height - t * 1.6), matPerf);
+      back.rotation.y = Math.PI;
+      back.position.z = -0.05;
+      g.add(back);
+
+      // Subtle credit on the interior face of front doors
+      if (makerMark) {
+        const mark = makeDoorMakerMark();
+        mark.position.set(0, -height * 0.38, -0.12);
+        g.add(mark);
+      }
+      return g;
+    }
+
+    function makeDoorMakerMark() {
+      const pw = 256;
+      const ph = 48;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.fillStyle = "rgba(200, 208, 218, 0.28)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `500 ${Math.floor(ph * 0.42)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.fillText("Michael C.", pw / 2, ph / 2 + 1);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      // Small plate on the door leaf (~6 cm × 1.1 cm)
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 1.15), mat);
+      mesh.renderOrder = 1;
+      return mesh;
+    }
+
+    /** Shared front-rail RU strip: 1 at bottom … 42 at top (EIA bottom-up).
+     *  Keep ≤ rail extrusion width (1.5) so labels don’t overhang into gear. */
+    const RU_STRIP_W = 1.35;
+    let ruRailTex = null;
+    function getRuRailTexture() {
+      if (ruRailTex) return ruRailTex;
+      // Match canvas cell aspect to world strip cell (U tall × RU_STRIP_W wide)
+      // so glyphs are not vertically stretched when mapped onto the plane.
+      const pw = 128;
+      const pxPerU = Math.max(64, Math.round(pw * (U / RU_STRIP_W)));
+      const ph = UNITS * pxPerU;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let u = 0; u < UNITS; u++) {
+        const ru = u + 1; // bottom = 1
+        const y = ph - (u + 0.5) * pxPerU;
+        // Larger plate + type so RU numbers stay readable when zoomed on a rack
+        const plateW = pw * 0.9;
+        const plateH = Math.min(pxPerU * 0.58, pw * 0.78);
+        const px = (pw - plateW) / 2;
+        const py = y - plateH / 2;
+        ctx.fillStyle = "rgba(248, 250, 252, 0.95)";
+        ctx.beginPath();
+        const r = Math.min(7, plateH * 0.22);
+        ctx.moveTo(px + r, py);
+        ctx.arcTo(px + plateW, py, px + plateW, py + plateH, r);
+        ctx.arcTo(px + plateW, py + plateH, px, py + plateH, r);
+        ctx.arcTo(px, py + plateH, px, py, r);
+        ctx.arcTo(px, py, px + plateW, py, r);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(30, 38, 48, 0.22)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.fillStyle = "#12181f";
+        const fs = Math.floor(plateH * (ru >= 10 ? 0.78 : 0.86));
+        ctx.font = `800 ${fs}px "IBM Plex Mono", ui-monospace, monospace`;
+        ctx.fillText(String(ru), pw * 0.5, y + 0.5);
+      }
+      ruRailTex = new THREE.CanvasTexture(c);
+      ruRailTex.colorSpace = THREE.SRGBColorSpace;
+      ruRailTex.anisotropy = 8;
+      ruRailTex.generateMipmaps = true;
+      ruRailTex.minFilter = THREE.LinearMipmapLinearFilter;
+      ruRailTex.magFilter = THREE.LinearFilter;
+      ruRailTex.needsUpdate = true;
+      return ruRailTex;
+    }
+
+    function makeRuRailLabel() {
+      const mat = new THREE.MeshBasicMaterial({
+        map: getRuRailTexture(),
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(RU_STRIP_W, INNER_H), mat);
+      // PlaneGeometry faces +Z; rack front is −Z
+      mesh.rotation.y = Math.PI;
+      return mesh;
+    }
+
+    function makeBrotherLabel(text, widthCm, depthCm) {
+      const pw = 1024;
+      const ph = 320;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff8e8";
+      ctx.fillRect(0, 0, pw, ph);
+      const sheen = ctx.createLinearGradient(0, 0, 0, ph);
+      sheen.addColorStop(0, "rgba(255,255,255,0.55)");
+      sheen.addColorStop(0.4, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.07)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.strokeStyle = "rgba(20,24,30,0.22)";
+      ctx.lineWidth = 10;
+      ctx.strokeRect(5, 5, pw - 10, ph - 10);
+      ctx.fillStyle = "#0a0c10";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.7)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText(text, pw / 2, ph / 2 + 4);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.32,
+        metalness: 0.04,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = Math.PI;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    const holeGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 8);
+    const holeMat = new THREE.MeshStandardMaterial({ color: 0x050506, metalness: 0.2, roughness: 0.85 });
+
+    /** Rack-mount front artwork for APC Smart-UPS On-Line SRTG15KXLI */
+    function makeApcSrtgFrontTexture() {
+      const pw = 1408;
+      const ph = 976;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Outer chassis + rack-ear strips
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 70;
+      ctx.fillStyle = "#1a1f26";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      // Ear screw holes
+      [0.12, 0.32, 0.68, 0.88].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 8, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const gap = 10;
+      const bodyX = earW + 8;
+      const bodyW = pw - earW * 2 - 16;
+      const topH = (ph - 24 - gap) * 0.52;
+      const botH = (ph - 24 - gap) * 0.48;
+      const top = { x: bodyX, y: 12, w: bodyW, h: topH };
+      const bot = { x: bodyX, y: 12 + topH + gap, w: bodyW, h: botH };
+
+      function fillTriangleMesh(x, y, w, h, showFans) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#15191f";
+        ctx.fillRect(x, y, w, h);
+
+        if (showFans) {
+          ctx.fillStyle = "rgba(50,58,68,0.55)";
+          [[0.28, 0.55], [0.52, 0.55]].forEach(([fx, fy]) => {
+            ctx.beginPath();
+            ctx.arc(x + w * fx, y + h * fy, Math.min(w, h) * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(90,100,112,0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+          });
+        }
+
+        // Large upright triangles with fine circular perforations
+        const triW = 78;
+        const triH = 68;
+        for (let row = 0; row < 8; row++) {
+          for (let col = -1; col < 14; col++) {
+            const ox = x + col * triW + (row % 2) * (triW * 0.5);
+            const oy = y + row * (triH * 0.78);
+            ctx.beginPath();
+            ctx.moveTo(ox + triW * 0.5, oy + 4);
+            ctx.lineTo(ox + triW - 4, oy + triH - 4);
+            ctx.lineTo(ox + 4, oy + triH - 4);
+            ctx.closePath();
+            ctx.fillStyle = "#1c222a";
+            ctx.fill();
+            ctx.strokeStyle = "#3a4450";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // circular perforations inside triangle
+            ctx.fillStyle = "#0a0c10";
+            for (let py = oy + triH * 0.35; py < oy + triH - 12; py += 7) {
+              const t = (py - oy) / triH;
+              const half = triW * 0.42 * t;
+              for (let px = ox + triW * 0.5 - half + 6; px < ox + triW * 0.5 + half - 6; px += 7) {
+                ctx.beginPath();
+                ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+          }
+        }
+        ctx.restore();
+      }
+
+      function drawModule(mod, opts) {
+        roundRect(mod.x, mod.y, mod.w, mod.h, 8);
+        ctx.fillStyle = "#12161c";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        fillTriangleMesh(mod.x + 6, mod.y + 6, mod.w - 12, mod.h - 12, opts.fans);
+      }
+
+      drawModule(top, { fans: true });
+      drawModule(bot, { fans: false });
+
+      // APC logo — top module left
+      ctx.fillStyle = "#f5f7fa";
+      ctx.font = "800 48px 'Archivo Black', sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText("APC", top.x + 28, top.y + 64);
+      ctx.font = "500 16px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#c5ccd6";
+      ctx.fillText("by Schneider Electric", top.x + 28, top.y + 88);
+
+      // LCD control cluster — top module RIGHT
+      const lcdPanelW = 210;
+      const lcdPanelH = 210;
+      const lcdPanelX = top.x + top.w - lcdPanelW - 36;
+      const lcdPanelY = top.y + 28;
+      roundRect(lcdPanelX, lcdPanelY, lcdPanelW, lcdPanelH, 8);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // LCD screen
+      roundRect(lcdPanelX + 16, lcdPanelY + 16, lcdPanelW - 32, 118, 5);
+      ctx.fillStyle = "#141c18";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4540";
+      ctx.stroke();
+      ctx.fillStyle = "#e8f0ea";
+      ctx.font = "700 18px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("ONLINE", lcdPanelX + lcdPanelW / 2, lcdPanelY + 42);
+      ctx.font = "600 14px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("230V", lcdPanelX + 28, lcdPanelY + 68);
+      ctx.textAlign = "right";
+      ctx.fillText("50.0Hz", lcdPanelX + lcdPanelW - 28, lcdPanelY + 68);
+      ctx.textAlign = "left";
+      ctx.font = "500 11px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#9aa8a0";
+      ctx.fillText("LOAD", lcdPanelX + 28, lcdPanelY + 92);
+      ctx.fillText("BATT", lcdPanelX + 118, lcdPanelY + 92);
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = i < 2 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 28 + i * 12, lcdPanelY + 100, 10, 8);
+        ctx.fillStyle = i < 4 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 118 + i * 12, lcdPanelY + 100, 10, 8);
+      }
+
+      // Four buttons under LCD
+      for (let i = 0; i < 4; i++) {
+        const bx = lcdPanelX + 22 + i * 44;
+        const by = lcdPanelY + 148;
+        roundRect(bx, by, 36, 18, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Vertical Smart-UPS text beside LCD
+      ctx.save();
+      ctx.translate(lcdPanelX + lcdPanelW + 18, lcdPanelY + 20);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = "#f2f4f7";
+      ctx.font = "600 20px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("Smart-UPS", 0, 0);
+      ctx.restore();
+
+      // Battery icon — bottom module upper-left
+      const bix = bot.x + 36;
+      const biy = bot.y + 28;
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 4;
+      ctx.fillStyle = "rgba(242,244,247,0.06)";
+      roundRect(bix, biy, 64, 84, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(bix + 20, biy - 10, 24, 12);
+      ctx.font = "800 34px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("+", bix + 32, biy + 52);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    /** Rear face — APC Smart-UPS On-Line (ports, OUTPUT, ±192 VDC, NMC, honeycomb) */
+    let upsRearTex = null;
+    function makeApcSrtgRearTexture() {
+      if (upsRearTex) return upsRearTex;
+      const pw = 1408;
+      const ph = 976;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawHexMesh(x, y, w, h, hexR) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#12161c";
+        ctx.fillRect(x, y, w, h);
+        const dx = hexR * Math.sqrt(3);
+        const dy = hexR * 1.5;
+        for (let row = 0, yy = y + hexR; yy < y + h + hexR; row++, yy += dy) {
+          const xOff = (row % 2) * (dx * 0.5);
+          for (let xx = x + hexR + xOff; xx < x + w + hexR; xx += dx) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = (Math.PI / 3) * i - Math.PI / 6;
+              const px = xx + hexR * 0.78 * Math.cos(a);
+              const py = yy + hexR * 0.78 * Math.sin(a);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = "#0a0c10";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(70,78,88,0.55)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+
+      function dsub(x, y, label) {
+        roundRect(x, y, 78, 42, 3);
+        ctx.fillStyle = "#1a1f26";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Trapezoid connector face
+        ctx.beginPath();
+        ctx.moveTo(x + 14, y + 10);
+        ctx.lineTo(x + 64, y + 10);
+        ctx.lineTo(x + 58, y + 32);
+        ctx.lineTo(x + 20, y + 32);
+        ctx.closePath();
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.stroke();
+        for (let row = 0; row < 2; row++) {
+          for (let col = 0; col < 8; col++) {
+            ctx.beginPath();
+            ctx.arc(x + 24 + col * 5, y + 16 + row * 10, 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = "#c5ccd6";
+            ctx.fill();
+          }
+        }
+        ctx.fillStyle = "#d0d6de";
+        ctx.font = "600 11px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 39, y + 56);
+      }
+
+      function rjPort(x, y, label) {
+        roundRect(x, y, 36, 28, 2);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1e2530";
+        ctx.fillRect(x + 6, y + 6, 24, 14);
+        ctx.fillStyle = "#d0d6de";
+        ctx.font = "600 10px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 18, y + 42);
+      }
+
+      // Chassis + ears
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 70;
+      ctx.fillStyle = "#242a32";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      [0.12, 0.32, 0.68, 0.88].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 8, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const bodyX = earW + 10;
+      const bodyW = pw - earW * 2 - 20;
+      const bodyY = 14;
+      const bodyH = ph - 28;
+      roundRect(bodyX, bodyY, bodyW, bodyH, 6);
+      ctx.fillStyle = "#15191f";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4450";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // —— Left: communication ports ——
+      const lx = bodyX + 28;
+      const ly = bodyY + 36;
+      dsub(lx, ly, "PARALLEL PORT 1");
+      dsub(lx + 96, ly, "PARALLEL PORT 2");
+
+      // EPO green terminal
+      roundRect(lx + 210, ly + 4, 52, 36, 3);
+      ctx.fillStyle = "#1a4a28";
+      ctx.fill();
+      ctx.strokeStyle = "#3dd68c";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(lx + 224 + i * 12, ly + 22, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#c5e8c8";
+        ctx.fill();
+      }
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "700 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("EPO", lx + 236, ly + 56);
+
+      rjPort(lx, ly + 90, "BAT_TEMP");
+      rjPort(lx + 56, ly + 90, "RS232");
+      // USB type-B style
+      roundRect(lx + 112, ly + 90, 36, 28, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.stroke();
+      ctx.fillStyle = "#2a313a";
+      ctx.fillRect(lx + 120, ly + 98, 20, 12);
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("USB", lx + 130, ly + 132);
+
+      // Ground screw
+      ctx.beginPath();
+      ctx.arc(lx + 190, ly + 104, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      ctx.font = "700 14px sans-serif";
+      ctx.fillText("⏚", lx + 190, ly + 109);
+
+      // —— Center: OUTPUT + DC covers + honeycomb ——
+      const cx = bodyX + bodyW * 0.38;
+      // C19 outlet
+      roundRect(cx, bodyY + 40, 90, 110, 6);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // C19 receptacle silhouette
+      roundRect(cx + 18, bodyY + 58, 54, 58, 4);
+      ctx.fillStyle = "#1a1f26";
+      ctx.fill();
+      ctx.strokeStyle = "#c5ccd6";
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      [[0.28, 0.35], [0.72, 0.35], [0.5, 0.7]].forEach(([fx, fy]) => {
+        roundRect(cx + 18 + 54 * fx - 7, bodyY + 58 + 58 * fy - 8, 14, 16, 2);
+        ctx.fill();
+      });
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 12px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("OUTPUT", cx + 45, bodyY + 138);
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.fillText("16A MAX", cx + 45, bodyY + 154);
+
+      // ±192 VDC covers
+      function dcCover(x, y, label) {
+        roundRect(x, y, 100, 36, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // screw heads
+        [8, 92].forEach((sx) => {
+          ctx.beginPath();
+          ctx.arc(x + sx, y + 18, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#8a949e";
+          ctx.fill();
+        });
+        ctx.fillStyle = "#f0c040";
+        ctx.font = "700 12px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + 50, y + 22);
+      }
+      dcCover(cx + 120, bodyY + 48, "+192 VDC");
+      dcCover(cx + 120, bodyY + 96, "−192 VDC");
+
+      // Honeycomb vent — lower left (leaves room for hardwire input)
+      drawHexMesh(bodyX + 24, bodyY + bodyH * 0.42, bodyW * 0.28, bodyH * 0.52, 9);
+
+      // —— Center-lower: 3φ hardwire INPUT terminal (AC mains entry) ——
+      const hx = bodyX + bodyW * 0.34;
+      const hy = bodyY + bodyH * 0.52;
+      const hw = 210;
+      const hh = 175;
+      roundRect(hx, hy, hw, hh, 4);
+      ctx.fillStyle = "#1e2530";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      [[10, 10], [hw - 10, 10], [10, hh - 10], [hw - 10, hh - 10]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(hx + sx, hy + sy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#a0a8b0";
+        ctx.fill();
+      });
+      ctx.fillStyle = "#f0c040";
+      ctx.font = "800 14px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("⚠ INPUT / OUTPUT HARDWIRE", hx + hw / 2, hy + 28);
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 12px 'IBM Plex Mono', monospace";
+      ctx.fillText("32A TPN IN  ·  32A TPN OUT", hx + hw / 2, hy + 50);
+      // Terminal screws row — L1 L2 L3 N PE (shared hardwire block)
+      const terms = ["L1", "L2", "L3", "N", "PE"];
+      terms.forEach((t, i) => {
+        const tx = hx + 28 + i * 36;
+        const ty = hy + 78;
+        roundRect(tx, ty, 28, 52, 3);
+        ctx.fillStyle = t === "PE" ? "#3a6b3a" : t === "N" ? "#2a4058" : "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#c5ccd6";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(tx + 14, ty + 22, 7, 0, Math.PI * 2);
+        ctx.fillStyle = "#8a949e";
+        ctx.fill();
+        ctx.strokeStyle = "#e8ecf0";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#e8ecf0";
+        ctx.font = "700 11px 'IBM Plex Mono', monospace";
+        ctx.fillText(t, tx + 14, ty + 46);
+      });
+      ctx.fillStyle = "#9aa3ad";
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.fillText("380/400/415 V  3P+N+E", hx + hw / 2, hy + hh - 14);
+
+      // —— Right: AP9641 NMC + fan openings ——
+      const nx = bodyX + bodyW - 280;
+      const ny = bodyY + 36;
+      roundRect(nx, ny, 248, 200, 4);
+      ctx.fillStyle = "#0e1116";
+      ctx.fill();
+      ctx.strokeStyle = "#5a6570";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Card face
+      roundRect(nx + 10, ny + 28, 228, 160, 3);
+      ctx.fillStyle = "#1a2230";
+      ctx.fill();
+      // Label strip
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 13px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("AP9641  Network Management Card 3", nx + 14, ny + 20);
+      // Ports on NMC
+      function nmcPort(x, y, w, h, label, led) {
+        roundRect(x, y, w, h, 2);
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        if (led) {
+          ctx.beginPath();
+          ctx.arc(x + w + 8, y + h / 2, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#3dd68c";
+          ctx.fill();
+        }
+        ctx.fillStyle = "#c5ccd6";
+        ctx.font = "500 9px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(label, x + w / 2, y + h + 12);
+      }
+      nmcPort(nx + 24, ny + 48, 28, 22, "USB", false);
+      nmcPort(nx + 64, ny + 48, 28, 22, "USB", false);
+      nmcPort(nx + 24, ny + 96, 42, 28, "Univ. I/O", false);
+      nmcPort(nx + 80, ny + 96, 42, 28, "Univ. I/O", false);
+      nmcPort(nx + 140, ny + 100, 28, 18, "Console", false);
+      nmcPort(nx + 180, ny + 96, 42, 28, "Network", true);
+
+      // Schneider mark
+      ctx.fillStyle = "#3dd68c";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "right";
+      ctx.fillText("Schneider Electric", nx + 238, ny + 180);
+
+      // Fan openings — top right
+      for (let i = 0; i < 4; i++) {
+        const fx = nx + 20 + i * 56;
+        const fy = bodyY + bodyH - 90;
+        ctx.beginPath();
+        ctx.arc(fx + 22, fy + 22, 20, 0, Math.PI * 2);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // fan blades hint
+        ctx.strokeStyle = "rgba(90,100,112,0.7)";
+        ctx.lineWidth = 1.5;
+        for (let b = 0; b < 3; b++) {
+          const a = (b / 3) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(fx + 22, fy + 22);
+          ctx.lineTo(fx + 22 + Math.cos(a) * 16, fy + 22 + Math.sin(a) * 16);
+          ctx.stroke();
+        }
+      }
+
+      upsRearTex = new THREE.CanvasTexture(c);
+      upsRearTex.colorSpace = THREE.SRGBColorSpace;
+      upsRearTex.anisotropy = 8;
+      upsRearTex.needsUpdate = true;
+      return upsRearTex;
+    }
+
+    /** APC Smart-UPS On-Line SRTG15KXLI — 15kVA/15kW, 7U, 440×700×306 mm */
+    function makeApcSrtg15() {
+      const heightU = 7;
+      const h = heightU * U - 0.2;
+      const w = 44;   // 440 mm EIA width
+      const d = 70;   // 700 mm depth
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+
+      // Thin black rim around the textured face (must not cover the artwork)
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
+
+      // Product front face — plane faces -Z (toward camera / rack front)
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrtgFrontTexture(),
+        metalness: 0.2,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x111318,
+        emissiveIntensity: 0.35,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.9);
+      face.rotation.y = Math.PI; // face outward (-Z)
+      face.castShadow = true;
+      g.add(face);
+
+      // Rack ears (visible mounting flanges)
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
+
+      // Rear face — ports, OUTPUT, NMC, honeycomb (matches product rear)
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrtgRearTexture(),
+        metalness: 0.22,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.3,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
+
+      // 3φ hardwire I/O — 32A TPN in (left) / 32A TPN out (right) on rear face
+      const powerInputLocal = { x: -5, y: -h * 0.12, z: d / 2 + 1.35 };
+      const powerOutputLocal = { x: 5, y: -h * 0.12, z: d / 2 + 1.35 };
+      g.add(box(14, 9, 1.8, matUpsFace, 0, powerInputLocal.y, powerInputLocal.z));
+      g.add(box(5.5, 5.5, 0.4, matAccent, powerInputLocal.x, powerInputLocal.y - 0.3, powerInputLocal.z + 1.0));
+      g.add(box(5.5, 5.5, 0.4, matAccent, powerOutputLocal.x, powerOutputLocal.y - 0.3, powerOutputLocal.z + 1.0));
+
+      g.userData.heightU = heightU;
+      g.userData.size = { w, h, d };
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
+      g.userData.powerInputLocal = powerInputLocal;
+      g.userData.powerOutputLocal = powerOutputLocal;
+      g.userData.interactive = true;
+      g.userData.kind = "ups";
+      g.userData.label = "APC SRTG15KXLI";
+      g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
+      g.userData.info = {
+        eyebrow: "UPS · Rack6",
+        title: "APC Smart-UPS On-Line",
+        model: "SRTG15KXLI",
+        rating: "15 kVA / 15 kW · 32A TPN I/O",
+        blocks: [
+          {
+            label: "Input",
+            text: "32A TPN hardwire · 380/400/415 V 3φ · From UPS Bypass via underfloor trunk",
+          },
+          {
+            label: "Output",
+            text: "32A TPN hardwire · Returns to UPS Bypass, then onward to the room distribution panel",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Front artwork — SRT6KRMXLI (same style as 7U SRTG15, scaled to 4U) */
+    let srt6FrontTex = null;
+    function makeApcSrt6FrontTexture() {
+      if (srt6FrontTex) return srt6FrontTex;
+      const pw = 1408;
+      const ph = 560; // 4U aspect (7U uses 976)
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Outer chassis + rack-ear strips (same language as SRTG15)
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 70;
+      ctx.fillStyle = "#1a1f26";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      [0.14, 0.38, 0.62, 0.86].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 7, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const gap = 8;
+      const bodyX = earW + 8;
+      const bodyW = pw - earW * 2 - 16;
+      const topH = (ph - 20 - gap) * 0.54;
+      const botH = (ph - 20 - gap) * 0.46;
+      const top = { x: bodyX, y: 10, w: bodyW, h: topH };
+      const bot = { x: bodyX, y: 10 + topH + gap, w: bodyW, h: botH };
+
+      function fillTriangleMesh(x, y, w, h, showFans) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#15191f";
+        ctx.fillRect(x, y, w, h);
+
+        if (showFans) {
+          ctx.fillStyle = "rgba(50,58,68,0.55)";
+          [[0.28, 0.55], [0.52, 0.55]].forEach(([fx, fy]) => {
+            ctx.beginPath();
+            ctx.arc(x + w * fx, y + h * fy, Math.min(w, h) * 0.22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(90,100,112,0.5)";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+          });
+        }
+
+        const triW = 78;
+        const triH = 68;
+        for (let row = 0; row < 6; row++) {
+          for (let col = -1; col < 14; col++) {
+            const ox = x + col * triW + (row % 2) * (triW * 0.5);
+            const oy = y + row * (triH * 0.78);
+            ctx.beginPath();
+            ctx.moveTo(ox + triW * 0.5, oy + 4);
+            ctx.lineTo(ox + triW - 4, oy + triH - 4);
+            ctx.lineTo(ox + 4, oy + triH - 4);
+            ctx.closePath();
+            ctx.fillStyle = "#1c222a";
+            ctx.fill();
+            ctx.strokeStyle = "#3a4450";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = "#0a0c10";
+            for (let py = oy + triH * 0.35; py < oy + triH - 12; py += 7) {
+              const t = (py - oy) / triH;
+              const half = triW * 0.42 * t;
+              for (let px = ox + triW * 0.5 - half + 6; px < ox + triW * 0.5 + half - 6; px += 7) {
+                ctx.beginPath();
+                ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+          }
+        }
+        ctx.restore();
+      }
+
+      function drawModule(mod, opts) {
+        roundRect(mod.x, mod.y, mod.w, mod.h, 8);
+        ctx.fillStyle = "#12161c";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        fillTriangleMesh(mod.x + 6, mod.y + 6, mod.w - 12, mod.h - 12, opts.fans);
+      }
+
+      drawModule(top, { fans: true });
+      drawModule(bot, { fans: false });
+
+      // APC logo — top module left
+      ctx.fillStyle = "#f5f7fa";
+      ctx.font = "800 40px 'Archivo Black', sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText("APC", top.x + 24, top.y + 48);
+      ctx.font = "500 14px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#c5ccd6";
+      ctx.fillText("by Schneider Electric", top.x + 24, top.y + 68);
+
+      // LCD control cluster — top module RIGHT
+      const lcdPanelW = 180;
+      const lcdPanelH = Math.min(190, top.h - 24);
+      const lcdPanelX = top.x + top.w - lcdPanelW - 28;
+      const lcdPanelY = top.y + (top.h - lcdPanelH) / 2;
+      roundRect(lcdPanelX, lcdPanelY, lcdPanelW, lcdPanelH, 8);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      roundRect(lcdPanelX + 14, lcdPanelY + 12, lcdPanelW - 28, 100, 5);
+      ctx.fillStyle = "#141c18";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4540";
+      ctx.stroke();
+      ctx.fillStyle = "#e8f0ea";
+      ctx.font = "700 16px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("ONLINE", lcdPanelX + lcdPanelW / 2, lcdPanelY + 36);
+      ctx.font = "600 13px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("230V", lcdPanelX + 24, lcdPanelY + 58);
+      ctx.textAlign = "right";
+      ctx.fillText("50.0Hz", lcdPanelX + lcdPanelW - 24, lcdPanelY + 58);
+      ctx.textAlign = "left";
+      ctx.font = "500 10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#9aa8a0";
+      ctx.fillText("LOAD", lcdPanelX + 24, lcdPanelY + 78);
+      ctx.fillText("BATT", lcdPanelX + 100, lcdPanelY + 78);
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = i < 2 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 24 + i * 11, lcdPanelY + 86, 9, 7);
+        ctx.fillStyle = i < 4 ? "#3dd68c" : "#243028";
+        ctx.fillRect(lcdPanelX + 100 + i * 11, lcdPanelY + 86, 9, 7);
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const bx = lcdPanelX + 18 + i * 38;
+        const by = lcdPanelY + lcdPanelH - 36;
+        roundRect(bx, by, 32, 16, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      ctx.save();
+      ctx.translate(lcdPanelX + lcdPanelW + 14, lcdPanelY + 16);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = "#f2f4f7";
+      ctx.font = "600 16px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("Smart-UPS", 0, 0);
+      ctx.restore();
+
+      // Battery icon — bottom module
+      const bix = bot.x + 28;
+      const biy = bot.y + 18;
+      const biH = Math.min(64, bot.h - 28);
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 3;
+      ctx.fillStyle = "rgba(242,244,247,0.06)";
+      roundRect(bix, biy, 52, biH, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(bix + 16, biy - 8, 20, 10);
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("+", bix + 26, biy + biH * 0.58);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      srt6FrontTex = tex;
+      return tex;
+    }
+
+    /** Rear — SRT6KRMXLI IEC outlets (6× C13 + 4× C19) + NMC */
+    let srt6RearTex = null;
+    function makeApcSrt6RearTexture() {
+      if (srt6RearTex) return srt6RearTex;
+      const pw = 1408;
+      const ph = 560;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      ctx.fillStyle = "#12161c";
+      ctx.fillRect(0, 0, pw, ph);
+      // Honeycomb vent band
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(40, 24, pw * 0.28, ph - 48);
+      const hexR = 7;
+      const dx = hexR * Math.sqrt(3);
+      const dy = hexR * 1.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(44, 28, pw * 0.28 - 8, ph - 56);
+      ctx.clip();
+      for (let row = 0, y = 36; y < ph; row++, y += dy) {
+        const xOff = (row % 2) * (dx * 0.5);
+        for (let x = 52 + xOff; x < 40 + pw * 0.28; x += dx) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            if (i === 0) ctx.moveTo(x + hexR * 0.75 * Math.cos(a), y + hexR * 0.75 * Math.sin(a));
+            else ctx.lineTo(x + hexR * 0.75 * Math.cos(a), y + hexR * 0.75 * Math.sin(a));
+          }
+          ctx.closePath();
+          ctx.fillStyle = "#080a0e";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(60,68,78,0.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "#d8dee6";
+      ctx.font = "700 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("OUTPUT", 40 + pw * 0.32, 56);
+
+      // 6× IEC C13
+      const c13X0 = 40 + pw * 0.32;
+      const c13Y0 = 84;
+      for (let i = 0; i < 6; i++) {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const ox = c13X0 + col * 70;
+        const oy = c13Y0 + row * 70;
+        roundRect(ox, oy, 54, 42, 4);
+        ctx.fillStyle = "#1a1f26";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(ox + 12, oy + 10, 30, 18);
+      }
+      ctx.fillStyle = "#9aa4b0";
+      ctx.font = "600 16px 'IBM Plex Mono', monospace";
+      ctx.fillText("6× IEC C13", c13X0, c13Y0 + 160);
+
+      // 4× IEC C19
+      const c19X0 = c13X0 + 260;
+      for (let i = 0; i < 4; i++) {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const ox = c19X0 + col * 90;
+        const oy = c13Y0 + row * 90;
+        roundRect(ox, oy, 72, 56, 5);
+        ctx.fillStyle = "#1a1f26";
+        ctx.fill();
+        ctx.strokeStyle = "#8a949e";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(ox + 16, oy + 14, 40, 24);
+      }
+      ctx.fillStyle = "#9aa4b0";
+      ctx.font = "600 16px 'IBM Plex Mono', monospace";
+      ctx.fillText("4× IEC C19", c19X0, c13Y0 + 200);
+
+      // NMC / SmartSlot
+      roundRect(pw - 280, 80, 220, 140, 6);
+      ctx.fillStyle = "#181c22";
+      ctx.fill();
+      ctx.strokeStyle = "#5a6570";
+      ctx.stroke();
+      ctx.fillStyle = "#c5ccd6";
+      ctx.font = "700 18px 'IBM Plex Mono', monospace";
+      ctx.fillText("Network Card", pw - 260, 14 + 110);
+      ctx.font = "500 14px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#8a949e";
+      ctx.fillText("SmartSlot", pw - 260, 140);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      srt6RearTex = tex;
+      return tex;
+    }
+
+    /** APC Smart-UPS On-Line SRT6KRMXLI — 6kVA/6kW, 4U, 432×719×174 mm */
+    function makeApcSrt6() {
+      const heightU = 4;
+      const h = heightU * U - 0.2;
+      const w = 43.2;
+      const d = 71.9;
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrt6FrontTexture(),
+        metalness: 0.2,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x111318,
+        emissiveIntensity: 0.35,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.9);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
+
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrt6RearTexture(),
+        metalness: 0.22,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.3,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "ups";
+      g.userData.label = "APC SRT6KRMXLI";
+      g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
+      g.userData.info = {
+        eyebrow: "UPS · 26F Rack 2",
+        title: "APC Smart-UPS On-Line",
+        model: "SRT6KRMXLI",
+        rating: "6 kVA / 6 kW · 4U rackmount · 230 V",
+        blocks: [
+          {
+            label: "Output",
+            text: "6× IEC C13 + 4× IEC C19 · Network Card + SmartSlot · Extended runtime ready",
+          },
+          {
+            label: "Form",
+            text: "432 × 719 × 174 mm · Rail kit included · Double-conversion on-line",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** APC Smart-UPS RT battery pack front — honeycomb + X brace + battery badge */
+    let battFrontTex = null;
+    function makeApcBattFrontTexture() {
+      if (battFrontTex) return battFrontTex;
+      const pw = 1024;
+      const ph = 420;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Chassis face
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+
+      // Bezel
+      const inset = 28;
+      const fx = inset;
+      const fy = inset;
+      const fw = pw - inset * 2;
+      const fh = ph - inset * 2;
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(fx - 6, fy - 6, fw + 12, fh + 12);
+      ctx.fillStyle = "#151920";
+      ctx.fillRect(fx, fy, fw, fh);
+
+      // X bracing behind mesh (visible through honeycomb)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(55, 62, 72, 0.95)";
+      ctx.lineWidth = 10;
+      const cols = 6;
+      const rows = 2;
+      const cellW = fw / cols;
+      const cellH = fh / rows;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x0 = fx + col * cellW;
+          const y0 = fy + row * cellH;
+          ctx.beginPath();
+          ctx.moveTo(x0 + 8, y0 + 8);
+          ctx.lineTo(x0 + cellW - 8, y0 + cellH - 8);
+          ctx.moveTo(x0 + cellW - 8, y0 + 8);
+          ctx.lineTo(x0 + 8, y0 + cellH - 8);
+          ctx.stroke();
+        }
+      }
+      // Vertical / horizontal brace bars
+      ctx.strokeStyle = "rgba(40, 46, 54, 0.9)";
+      ctx.lineWidth = 14;
+      for (let col = 1; col < cols; col++) {
+        ctx.beginPath();
+        ctx.moveTo(fx + col * cellW, fy);
+        ctx.lineTo(fx + col * cellW, fy + fh);
+        ctx.stroke();
+      }
+      for (let row = 1; row < rows; row++) {
+        ctx.beginPath();
+        ctx.moveTo(fx, fy + row * cellH);
+        ctx.lineTo(fx + fw, fy + row * cellH);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Honeycomb mesh overlay
+      const hexR = 7;
+      const dx = hexR * Math.sqrt(3);
+      const dy = hexR * 1.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      for (let row = 0, y = fy + hexR; y < fy + fh + hexR; row++, y += dy) {
+        const xOff = (row % 2) * (dx * 0.5);
+        for (let x = fx + hexR + xOff; x < fx + fw + hexR; x += dx) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            const px = x + hexR * 0.82 * Math.cos(a);
+            const py = y + hexR * 0.82 * Math.sin(a);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(12, 14, 18, 0.55)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(70, 78, 88, 0.55)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+      // Soft mesh sheen
+      const sheen = ctx.createLinearGradient(fx, fy, fx, fy + fh);
+      sheen.addColorStop(0, "rgba(255,255,255,0.06)");
+      sheen.addColorStop(0.5, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.18)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(fx, fy, fw, fh);
+      ctx.restore();
+
+      // Battery badge — top-left (matches product front)
+      const bx = fx + 22;
+      const by = fy + 18;
+      const bw = 78;
+      const bh = 92;
+      ctx.fillStyle = "#0a0c10";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#2a3038";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      // Battery body
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 4;
+      const batX = bx + 16;
+      const batY = by + 22;
+      const batW = 46;
+      const batH = 52;
+      ctx.beginPath();
+      const br = 5;
+      ctx.moveTo(batX + br, batY);
+      ctx.arcTo(batX + batW, batY, batX + batW, batY + batH, br);
+      ctx.arcTo(batX + batW, batY + batH, batX, batY + batH, br);
+      ctx.arcTo(batX, batY + batH, batX, batY, br);
+      ctx.arcTo(batX, batY, batX + batW, batY, br);
+      ctx.closePath();
+      ctx.stroke();
+      // Terminal nub
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(batX + 14, batY - 9, 18, 10);
+      // Plus
+      ctx.font = "800 36px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("+", batX + batW / 2, batY + batH / 2 + 2);
+
+      battFrontTex = new THREE.CanvasTexture(c);
+      battFrontTex.colorSpace = THREE.SRGBColorSpace;
+      battFrontTex.anisotropy = 8;
+      battFrontTex.needsUpdate = true;
+      return battFrontTex;
+    }
+
+    /** Rear face — APC SRTG battery pack (breaker, ±192 VDC, vents, MOD S/N) */
+    let battRearTex = null;
+    function makeApcBattRearTexture() {
+      if (battRearTex) return battRearTex;
+      const pw = 1024;
+      const ph = 420;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Chassis + ears
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+      const earW = 52;
+      ctx.fillStyle = "#242a32";
+      ctx.fillRect(0, 0, earW, ph);
+      ctx.fillRect(pw - earW, 0, earW, ph);
+      [0.22, 0.78].forEach((fy) => {
+        [earW * 0.5, pw - earW * 0.5].forEach((fx) => {
+          ctx.beginPath();
+          ctx.arc(fx, ph * fy, 7, 0, Math.PI * 2);
+          ctx.fillStyle = "#050608";
+          ctx.fill();
+          ctx.strokeStyle = "#5a6570";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+      });
+
+      const bodyX = earW + 8;
+      const bodyW = pw - earW * 2 - 16;
+      const bodyY = 12;
+      const bodyH = ph - 24;
+      roundRect(bodyX, bodyY, bodyW, bodyH, 4);
+      ctx.fillStyle = "#15191f";
+      ctx.fill();
+      ctx.strokeStyle = "#3a4450";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // —— Left: BATTERY BREAKER 63A + BAT_TEMP ——
+      const bx = bodyX + 22;
+      const by = bodyY + 40;
+      // BAT_TEMP port
+      roundRect(bx, by - 8, 34, 26, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = "#1e2530";
+      ctx.fillRect(bx + 6, by - 2, 22, 12);
+      ctx.fillStyle = "#d0d6de";
+      ctx.font = "600 9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("BAT_TEMP", bx + 17, by + 32);
+
+      // Breaker body
+      roundRect(bx + 52, by - 16, 110, 130, 5);
+      ctx.fillStyle = "#2a313a";
+      ctx.fill();
+      ctx.strokeStyle = "#8a949e";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("BATTERY", bx + 107, by + 8);
+      ctx.fillText("BREAKER", bx + 107, by + 24);
+      ctx.font = "800 18px 'IBM Plex Mono', monospace";
+      ctx.fillText("63 A", bx + 107, by + 48);
+      // Blue toggle
+      roundRect(bx + 88, by + 62, 38, 40, 4);
+      ctx.fillStyle = "#2a6fd4";
+      ctx.fill();
+      ctx.strokeStyle = "#8ab4f0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "#e8ecf0";
+      ctx.font = "700 10px 'IBM Plex Mono', monospace";
+      ctx.fillText("I", bx + 107, by + 78);
+      ctx.fillText("O", bx + 107, by + 96);
+
+      // —— Center: ±192 VDC access covers + ground ——
+      function dcPanel(x, y, label) {
+        roundRect(x, y, 130, 70, 3);
+        ctx.fillStyle = "#2a313a";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // warning triangle
+        ctx.beginPath();
+        ctx.moveTo(x + 28, y + 18);
+        ctx.lineTo(x + 42, y + 42);
+        ctx.lineTo(x + 14, y + 42);
+        ctx.closePath();
+        ctx.fillStyle = "#f0c040";
+        ctx.fill();
+        ctx.fillStyle = "#050608";
+        ctx.font = "800 12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("!", x + 28, y + 38);
+        // screws
+        [[10, 10], [120, 10], [10, 60], [120, 60]].forEach(([sx, sy]) => {
+          ctx.beginPath();
+          ctx.arc(x + sx, y + sy, 4, 0, Math.PI * 2);
+          ctx.fillStyle = "#8a949e";
+          ctx.fill();
+        });
+        ctx.fillStyle = "#f0c040";
+        ctx.font = "700 14px 'IBM Plex Mono', monospace";
+        ctx.fillText(label, x + 78, y + 40);
+      }
+      const cx = bodyX + bodyW * 0.34;
+      dcPanel(cx, bodyY + 50, "+192 VDC");
+      dcPanel(cx + 150, bodyY + 50, "−192 VDC");
+
+      // Ground between panels
+      const gx = cx + 138;
+      const gy = bodyY + 160;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 9, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#050608";
+      ctx.font = "700 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("⏚", gx, gy + 5);
+
+      // —— Right: solid plate + honeycomb vents + MOD S/N ——
+      const rx = bodyX + bodyW - 250;
+      roundRect(rx, bodyY + 28, 120, 160, 3);
+      ctx.fillStyle = "#1e2530";
+      ctx.fill();
+      ctx.strokeStyle = "#5a6570";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      [[10, 10], [110, 10], [10, 150], [110, 150]].forEach(([sx, sy]) => {
+        ctx.beginPath();
+        ctx.arc(rx + sx, bodyY + 28 + sy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#8a949e";
+        ctx.fill();
+      });
+
+      // Honeycomb vents
+      function hexBlock(x, y, w, h) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = "#0e1116";
+        ctx.fillRect(x, y, w, h);
+        const hexR = 6;
+        const dx = hexR * Math.sqrt(3);
+        const dy = hexR * 1.5;
+        for (let row = 0, yy = y + hexR; yy < y + h + hexR; row++, yy += dy) {
+          const xOff = (row % 2) * (dx * 0.5);
+          for (let xx = x + hexR + xOff; xx < x + w + hexR; xx += dx) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+              const a = (Math.PI / 3) * i - Math.PI / 6;
+              const px = xx + hexR * 0.78 * Math.cos(a);
+              const py = yy + hexR * 0.78 * Math.sin(a);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = "#050608";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(70,78,88,0.5)";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+      hexBlock(rx + 132, bodyY + 28, 90, 70);
+      hexBlock(rx + 132, bodyY + 110, 90, 70);
+
+      // Ground between vents
+      ctx.beginPath();
+      ctx.arc(rx + 177, bodyY + 108, 7, 0, Math.PI * 2);
+      ctx.fillStyle = "#8a949e";
+      ctx.fill();
+      ctx.strokeStyle = "#e8ecf0";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // MOD S/N bracket
+      roundRect(rx + 132, bodyY + bodyH - 36, 90, 24, 2);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.stroke();
+      ctx.fillStyle = "#c5ccd6";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("MOD S/N", rx + 177, bodyY + bodyH - 20);
+
+      battRearTex = new THREE.CanvasTexture(c);
+      battRearTex.colorSpace = THREE.SRGBColorSpace;
+      battRearTex.anisotropy = 8;
+      battRearTex.needsUpdate = true;
+      return battRearTex;
+    }
+
+    /** APC SRTG192XLBP2 — 192V external battery pack, 4U, 440×700×175 mm */
+    function makeApcSrtgBatt() {
+      const heightU = 4;
+      const h = heightU * U - 0.25;
+      const w = 44;
+      const d = 70;
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeApcBattFrontTexture(),
+        metalness: 0.18,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.9);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
+
+      // Rear face — breaker, ±192 VDC, vents (matches product rear)
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcBattRearTexture(),
+        metalness: 0.2,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
+      g.userData.interactive = true;
+      g.userData.kind = "battery";
+      g.userData.label = "APC SRTG192XLBP2";
+      g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
+      g.userData.info = {
+        eyebrow: "Battery · Rack6",
+        title: "APC Smart-UPS RT Battery Pack",
+        model: "SRTG192XLBP2",
+        rating: "192 V · 4U",
+        blocks: [
+          {
+            label: "Battery",
+            text: "192 V lead-acid · External pack for SRTG 15/20 kVA · Up to 4 packs for extended runtime",
+          },
+          {
+            label: "Physical",
+            text: "4U rackmount · 440 × 700 × 175 mm · 116 kg · Rack/tower convertible · 2-year battery warranty",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Front — SRT192RMBP 3U (same honeycomb + X brace as 4U SRTG packs) */
+    let srt192RmBattFrontTex = null;
+    function makeApcSrt192RmBattFrontTexture() {
+      if (srt192RmBattFrontTex) return srt192RmBattFrontTex;
+      const pw = 1024;
+      const ph = 315; // 3U aspect (4U pack uses 420)
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      ctx.fillStyle = "#1a1e24";
+      ctx.fillRect(0, 0, pw, ph);
+
+      const inset = 22;
+      const fx = inset;
+      const fy = inset;
+      const fw = pw - inset * 2;
+      const fh = ph - inset * 2;
+      ctx.fillStyle = "#0e1116";
+      ctx.fillRect(fx - 6, fy - 6, fw + 12, fh + 12);
+      ctx.fillStyle = "#151920";
+      ctx.fillRect(fx, fy, fw, fh);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      ctx.strokeStyle = "rgba(55, 62, 72, 0.95)";
+      ctx.lineWidth = 9;
+      const cols = 6;
+      const rows = 2;
+      const cellW = fw / cols;
+      const cellH = fh / rows;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x0 = fx + col * cellW;
+          const y0 = fy + row * cellH;
+          ctx.beginPath();
+          ctx.moveTo(x0 + 8, y0 + 8);
+          ctx.lineTo(x0 + cellW - 8, y0 + cellH - 8);
+          ctx.moveTo(x0 + cellW - 8, y0 + 8);
+          ctx.lineTo(x0 + 8, y0 + cellH - 8);
+          ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = "rgba(40, 46, 54, 0.9)";
+      ctx.lineWidth = 12;
+      for (let col = 1; col < cols; col++) {
+        ctx.beginPath();
+        ctx.moveTo(fx + col * cellW, fy);
+        ctx.lineTo(fx + col * cellW, fy + fh);
+        ctx.stroke();
+      }
+      for (let row = 1; row < rows; row++) {
+        ctx.beginPath();
+        ctx.moveTo(fx, fy + row * cellH);
+        ctx.lineTo(fx + fw, fy + row * cellH);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      const hexR = 7;
+      const dx = hexR * Math.sqrt(3);
+      const dy = hexR * 1.5;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      for (let row = 0, y = fy + hexR; y < fy + fh + hexR; row++, y += dy) {
+        const xOff = (row % 2) * (dx * 0.5);
+        for (let x = fx + hexR + xOff; x < fx + fw + hexR; x += dx) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i - Math.PI / 6;
+            const px = x + hexR * 0.82 * Math.cos(a);
+            const py = y + hexR * 0.82 * Math.sin(a);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(12, 14, 18, 0.55)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(70, 78, 88, 0.55)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+      }
+      const sheen = ctx.createLinearGradient(fx, fy, fx, fy + fh);
+      sheen.addColorStop(0, "rgba(255,255,255,0.06)");
+      sheen.addColorStop(0.5, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.18)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(fx, fy, fw, fh);
+      ctx.restore();
+
+      // Battery badge — scaled for 3U
+      const bx = fx + 18;
+      const by = fy + 12;
+      const bw = 64;
+      const bh = Math.min(78, fh - 20);
+      ctx.fillStyle = "#0a0c10";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#2a3038";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.strokeStyle = "#f2f4f7";
+      ctx.lineWidth = 3.5;
+      const batX = bx + 12;
+      const batY = by + 18;
+      const batW = 40;
+      const batH = bh - 30;
+      ctx.beginPath();
+      const br = 4;
+      ctx.moveTo(batX + br, batY);
+      ctx.arcTo(batX + batW, batY, batX + batW, batY + batH, br);
+      ctx.arcTo(batX + batW, batY + batH, batX, batY + batH, br);
+      ctx.arcTo(batX, batY + batH, batX, batY, br);
+      ctx.arcTo(batX, batY, batX + batW, batY, br);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f4f7";
+      ctx.fillRect(batX + 12, batY - 8, 16, 9);
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("+", batX + batW / 2, batY + batH / 2 + 1);
+
+      srt192RmBattFrontTex = new THREE.CanvasTexture(c);
+      srt192RmBattFrontTex.colorSpace = THREE.SRGBColorSpace;
+      srt192RmBattFrontTex.anisotropy = 8;
+      return srt192RmBattFrontTex;
+    }
+
+    /** APC SRT192RMBP — 192V external battery pack for SRT 5/6 kVA, 3U, 432×683×130 mm */
+    function makeApcSrt192RmBatt() {
+      const heightU = 3;
+      const h = heightU * U - 0.2;
+      const w = 43.2;
+      const d = 68.3;
+      const g = new THREE.Group();
+
+      g.add(box(w, h, d, matUps, 0, 0, 0));
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, -d / 2 - 0.35));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeApcSrt192RmBattFrontTexture(),
+        metalness: 0.18,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.9);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.4));
+
+      g.add(box(w + 0.3, h + 0.3, 0.35, matUpsFace, 0, 0, d / 2 + 0.35));
+      const rearMat = new THREE.MeshStandardMaterial({
+        map: makeApcBattRearTexture(),
+        metalness: 0.2,
+        roughness: 0.58,
+        side: THREE.DoubleSide,
+        emissive: 0x101318,
+        emissiveIntensity: 0.28,
+      });
+      const rear = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.15, h - 0.2), rearMat);
+      rear.position.set(0, 0, d / 2 + 0.9);
+      rear.castShadow = true;
+      g.add(rear);
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, -w / 2 - 0.5, 0, d / 2 + 0.4));
+      g.add(box(1.8, h * 0.98, 1.2, matChrome, w / 2 + 0.5, 0, d / 2 + 0.4));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "battery";
+      g.userData.label = "APC SRT192RMBP";
+      g.userData.frontMat = frontMat;
+      g.userData.rearMat = rearMat;
+      g.userData.info = {
+        eyebrow: "Battery · 26F Rack 2",
+        title: "APC Smart-UPS On-Line Battery Pack",
+        model: "SRT192RMBP",
+        rating: "192 Vdc · 3U · for SRT 5/6 kVA",
+        blocks: [
+          {
+            label: "Battery",
+            text: "External 192 Vdc pack for SRT6KRMXLI · Extended runtime · Up to 10 packs supported",
+          },
+          {
+            label: "Physical",
+            text: "3U rackmount · 432 × 683 × 130 mm · Rail kit · Matches SRT Online family",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** H3C LS-9850-4C-H1 front — 2×2 modular line cards; optional plugged SFPs on slot-1 */
+    const h3c9850FrontTexCache = new Map();
+    function makeH3c9850FrontTexture(transceivers = []) {
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
+      const key = [...byPort.keys()].sort((a, b) => a - b)
+        .map((p) => {
+          const t = byPort.get(p);
+          return `${p}:${t.model}:${t.linked ? 1 : 0}`;
+        }).join("|") || "empty";
+      if (h3c9850FrontTexCache.has(key)) return h3c9850FrontTexCache.get(key);
+
+      const pw = 1400;
+      const ph = 560;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Dark chassis bezel
+      ctx.fillStyle = "#1a1d22";
+      ctx.fillRect(0, 0, pw, ph);
+      const inset = 18;
+      ctx.fillStyle = "#0f1216";
+      ctx.fillRect(inset, inset, pw - inset * 2, ph - inset * 2);
+
+      const gap = 10;
+      const gridX = inset + 8;
+      const gridY = inset + 8;
+      const gridW = pw - inset * 2 - 16;
+      const gridH = ph - inset * 2 - 16;
+      const modW = (gridW - gap) / 2;
+      const modH = (gridH - gap) / 2;
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawSfp(px, py, pW, pH, xcvr) {
+        // Industry tab colors: SM/LR = yellow, MM/SR = aqua
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked; // green when linked; red when seated only
+        // Silver module body — reads clearly vs empty black cages
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Dark optic face / LC bore
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        // Pull-tab
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        // Link LED — red idle / green when linked
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawModule(mx, my, portOffset = 0) {
+        // Silver faceplate
+        const g = ctx.createLinearGradient(mx, my, mx, my + modH);
+        g.addColorStop(0, "#d8dde4");
+        g.addColorStop(0.45, "#c5ccd6");
+        g.addColorStop(1, "#aeb6c2");
+        ctx.fillStyle = g;
+        roundRect(mx, my, modW, modH, 4);
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Blue H3C latch bar (top center)
+        const latchW = modW * 0.42;
+        const latchH = modH * 0.13;
+        const lx = mx + (modW - latchW) / 2;
+        const ly = my + modH * 0.05;
+        const blue = ctx.createLinearGradient(lx, ly, lx, ly + latchH);
+        blue.addColorStop(0, "#3a7bd5");
+        blue.addColorStop(0.5, "#1f5fb8");
+        blue.addColorStop(1, "#164a96");
+        ctx.fillStyle = blue;
+        roundRect(lx, ly, latchW, latchH, 3);
+        ctx.fill();
+        ctx.fillStyle = "#eef3fa";
+        ctx.font = `800 ${Math.floor(latchH * 0.55)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("H3C", lx + latchW / 2, ly + latchH / 2 + 1);
+
+        // Port field — two rows of dense cages (port 1 = top-left of first module)
+        const portAreaX = mx + modW * 0.06;
+        const portAreaY = my + modH * 0.26;
+        const portAreaW = modW * 0.88;
+        const portAreaH = modH * 0.66;
+        ctx.fillStyle = "#2a3038";
+        roundRect(portAreaX, portAreaY, portAreaW, portAreaH, 3);
+        ctx.fill();
+
+        const rows = 2;
+        const cols = 9;
+        const pGapX = 4;
+        const pGapY = 6;
+        const pW = (portAreaW - pGapX * (cols + 1)) / cols;
+        const pH = (portAreaH - pGapY * (rows + 1)) / rows;
+        // Switch numbering is column-major: top then bottom per column, L→R
+        // (1 above 2, 3 above 4, …)
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            const portNum = portOffset + col * rows + r + 1;
+            const px = portAreaX + pGapX + col * (pW + pGapX);
+            const py = portAreaY + pGapY + r * (pH + pGapY);
+            ctx.fillStyle = "#12151a";
+            roundRect(px, py, pW, pH, 2);
+            ctx.fill();
+            ctx.strokeStyle = "#5a6572";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            const xcvr = byPort.get(portNum);
+            if (xcvr) {
+              drawSfp(px, py, pW, pH, xcvr);
+            } else {
+              ctx.fillStyle = "#0a0c10";
+              ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
+              ctx.fillStyle = "#2a3540";
+              ctx.beginPath();
+              ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+      }
+
+      // Port map across 4 modules (9 cols × 2 rows, column-major): 1–18, 19–36, 37–54, 55–72
+      drawModule(gridX, gridY, 0);
+      drawModule(gridX + modW + gap, gridY, 18);
+      drawModule(gridX, gridY + modH + gap, 36);
+      drawModule(gridX + modW + gap, gridY + modH + gap, 54);
+
+      ctx.fillStyle = "#2b313a";
+      ctx.fillRect(4, inset, 10, ph - inset * 2);
+      ctx.fillRect(pw - 14, inset, 10, ph - inset * 2);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      h3c9850FrontTexCache.set(key, tex);
+      return tex;
+    }
+
+    /** Small field-tech adhesive label (readable when zoomed, faint from full rack) */
+    function makeFieldLabel(text, { fit = false, widthCm = null } = {}) {
+      const long = text.length > 14;
+      const mid = !long && text.length > 8;
+      const labelW = widthCm ?? (fit ? 4.4 : long ? 7.8 : mid ? 7.15 : 6.44);
+      const labelH = fit ? 0.68 : 1.085;
+      const pw = 768;
+      const ph = 160;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      // Matte white tape / laminated label
+      ctx.fillStyle = "#f4f1ea";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.strokeStyle = "rgba(20, 24, 30, 0.35)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, pw - 6, ph - 6);
+      // Soft edge wear
+      ctx.fillStyle = "rgba(0,0,0,0.04)";
+      ctx.fillRect(0, ph - 18, pw, 18);
+      ctx.fillStyle = "#12161c";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if (fit) {
+        // Bold type sized to fill the plate (plate size stays small)
+        let fontSize = Math.floor(ph * 0.72);
+        const maxW = pw * 0.92;
+        do {
+          ctx.font = `800 ${fontSize}px "Archivo Black", "Arial Black", sans-serif`;
+          if (ctx.measureText(text).width <= maxW) break;
+          fontSize -= 2;
+        } while (fontSize > 28);
+        ctx.fillText(text, pw / 2, ph / 2 + 2);
+      } else {
+        const fontSize = Math.floor(ph * (long ? 0.4 : mid ? 0.44 : 0.48));
+        ctx.font = `800 ${fontSize}px "IBM Plex Mono", ui-monospace, monospace`;
+        ctx.fillText(text, pw / 2, ph / 2 + 2);
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.72,
+        metalness: 0.02,
+        side: THREE.DoubleSide,
+      });
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
+      label.rotation.y = Math.PI; // face rack front (−Z)
+      label.userData.labelW = labelW;
+      label.userData.labelH = labelH;
+      return label;
+    }
+
+    /** H3C LS-9850-4C-H1 — modular data-center switch, 2U, 440×660×88 mm */
+    function makeH3c9850({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
+      const heightU = 2;
+      const h = heightU * U - 0.2;
+      const w = 44;
+      const d = 66;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0x1c2128, metalness: 0.45, roughness: 0.48,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.25, h + 0.25, 0.3, matUpsFace, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeH3c9850FrontTexture(transceivers),
+        metalness: 0.25,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x10141a,
+        emissiveIntensity: 0.3,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.12, h - 0.15), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      // Engineer field label — top-left as seen from aisle
+      const tagText = code ? `CORE SWITCH ${code}` : "CORE SWITCH";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.85, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.035;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.88, h * 0.7, 0.5, matUpsVent, 0, 0, d / 2 + 0.2));
+
+      const blocks = [
+        {
+          label: "Modules",
+          text: "4× interface module slots · Modular line cards · 2× 1G SFP · OOB mgmt (copper + fiber) · Console / USB",
+        },
+        {
+          label: "Physical",
+          text: "2U rackmount · 440 × 660 × 88.1 mm · ≤ 27 kg · Up to 4× power modules · Front-to-rear / rear-to-front airflow",
+        },
+      ];
+      if (transceivers.length) {
+        const sm = transceivers.filter((t) => /single/i.test(t.kind)).map((t) => t.port);
+        const mm = transceivers.filter((t) => /multi/i.test(t.kind)).map((t) => t.port);
+        const parts = [];
+        if (sm.length) {
+          parts.push(`Ports ${sm.join(", ")}: XG-SFP-LR-SM1310 (single-mode)`);
+        }
+        if (mm.length) {
+          parts.push(`Ports ${mm.join(", ")}: XG-SFP-SR-MM850 (multimode)`);
+        }
+        blocks.push({
+          label: "Transceivers",
+          text: parts.join(" · ") || transceivers.map((t) => `Port ${t.port}: ${t.model}`).join(" · "),
+        });
+      }
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
+      g.userData.interactive = true;
+      g.userData.kind = "switch";
+      g.userData.code = code;
+      g.userData.label = code ? `H3C LS-9850-4C-H1 (${code})` : "H3C LS-9850-4C-H1";
+      g.userData.frontMat = frontMat;
+
+      // Front-face port anchors (switch-local cm) — for virtual link indicators
+      {
+        const faceW = w - 0.12;
+        const faceH = h - 0.15;
+        const faceZ = face.position.z - 0.35;
+        const pw = 1400;
+        const ph = 560;
+        const inset = 18;
+        const gap = 10;
+        const gridX = inset + 8;
+        const gridY = inset + 8;
+        const gridW = pw - inset * 2 - 16;
+        const gridH = ph - inset * 2 - 16;
+        const modW = (gridW - gap) / 2;
+        const modH = (gridH - gap) / 2;
+        const modules = [
+          { mx: gridX, my: gridY, portOffset: 0 },
+          { mx: gridX + modW + gap, my: gridY, portOffset: 18 },
+          { mx: gridX, my: gridY + modH + gap, portOffset: 36 },
+          { mx: gridX + modW + gap, my: gridY + modH + gap, portOffset: 54 },
+        ];
+        const portAnchors = {};
+        modules.forEach(({ mx, my, portOffset }) => {
+          const portAreaX = mx + modW * 0.06;
+          const portAreaY = my + modH * 0.26;
+          const portAreaW = modW * 0.88;
+          const portAreaH = modH * 0.66;
+          const rows = 2;
+          const cols = 9;
+          const pGapX = 4;
+          const pGapY = 6;
+          const pW = (portAreaW - pGapX * (cols + 1)) / cols;
+          const pH = (portAreaH - pGapY * (rows + 1)) / rows;
+          for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+              const portNum = portOffset + col * rows + r + 1;
+              const px = portAreaX + pGapX + col * (pW + pGapX) + pW * 0.5;
+              const py = portAreaY + pGapY + r * (pH + pGapY) + pH * 0.5;
+              const u = px / pw;
+              const v = py / ph;
+              portAnchors[portNum] = new THREE.Vector3(
+                (0.5 - u) * faceW,
+                (0.5 - v) * faceH,
+                faceZ
+              );
+            }
+          }
+        });
+        g.userData.portAnchors = portAnchors;
+      }
+
+      g.userData.info = {
+        eyebrow: code ? `Core Switch ${code} · ${rackName}` : `Core Switch · ${rackName}`,
+        title: "H3C S9850 Data Center Switch",
+        model: "LS-9850-4C-H1",
+        rating: "2U · 6.4 Tbps",
+        blocks,
+      };
+      return g;
+    }
+
+    /** Hillstone SG-6000-A3800 front — white faceplate, expansion bay, copper + SFP blocks */
+    const hillstoneA3800TexCache = new Map();
+    function makeHillstoneA3800FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (hillstoneA3800TexCache.has(cacheKey)) return hillstoneA3800TexCache.get(cacheKey);
+
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
+      const pw = 2100;
+      const ph = 220;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      const portCenters = {}; // ge0/N → { u, v } face UV (0–1)
+
+      // Silver chassis edge
+      ctx.fillStyle = "#b4b8c0";
+      ctx.fillRect(0, 0, pw, ph);
+      // White faceplate
+      ctx.fillStyle = "#eef0f3";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // —— Expansion / SSD bay (far left) ——
+      const bayX = 18;
+      const bayY = 18;
+      const bayW = 210;
+      const bayH = ph - 36;
+      ctx.fillStyle = "#d8dce2";
+      roundRect(bayX, bayY, bayW, bayH, 4);
+      ctx.fill();
+      ctx.strokeStyle = "#9aa1ab";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#1a1d22";
+      roundRect(bayX + 10, bayY + 10, bayW - 20, bayH - 20, 3);
+      ctx.fill();
+      // Latch handle
+      ctx.fillStyle = "#2a3038";
+      roundRect(bayX + bayW * 0.22, bayY + bayH * 0.38, bayW * 0.56, bayH * 0.24, 3);
+      ctx.fill();
+      ctx.fillStyle = "#5a6570";
+      ctx.fillRect(bayX + bayW * 0.72, bayY + bayH * 0.42, 8, bayH * 0.16);
+
+      // —— Status LEDs ——
+      const ledX = bayX + bayW + 16;
+      const ledLabels = ["PWR", "ALM", "STS", "HA", "FAN", "HD"];
+      const ledColors = ["#2ecc71", "#e74c3c", "#2ecc71", "#555", "#2ecc71", "#555"];
+      ctx.font = `600 11px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ledLabels.forEach((lab, i) => {
+        const ly = 28 + i * ((ph - 40) / ledLabels.length);
+        ctx.fillStyle = ledColors[i];
+        ctx.beginPath();
+        ctx.arc(ledX + 6, ly, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#3a424c";
+        ctx.fillText(lab, ledX + 16, ly);
+      });
+
+      // —— Hillstone wordmark ——
+      const brandX = ledX + 78;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#1a5fb4";
+      ctx.font = `800 34px "Archivo Black", sans-serif`;
+      ctx.fillText("Hillstone", brandX, ph * 0.42);
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 12px "IBM Plex Mono", monospace`;
+      ctx.fillText("SG-6000-A3800", brandX, ph * 0.62);
+
+      // —— Management cluster: CON · USB×2 · MGT/HA ——
+      const mgmtX = brandX + 250;
+      const mgmtY = 36;
+      /** RJ-45 jack — rectangular shell with latch-side corners recessed */
+      function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
+        // Outer shell — silver bezel like SFP cages so jacks read at distance
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // Inner opening — classic keystone: latch edge has both corners cut in
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.14;
+        const iw = w * 0.76;
+        const ih = h * 0.72;
+        const cut = Math.min(iw, ih) * 0.22; // recessed corner size
+        ctx.beginPath();
+        if (!invert) {
+          // Latch at bottom → bottom-left & bottom-right recessed
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          // Inverted row — latch at top
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Shallow contact ledge inside the bore
+        ctx.fillStyle = "#1a222c";
+        const ledgeY = invert ? iy + ih * 0.55 : iy + ih * 0.12;
+        ctx.fillRect(ix + iw * 0.18, ledgeY, iw * 0.64, ih * 0.22);
+        // Tiny gold contact hint
+        ctx.fillStyle = "#c9a227";
+        const gY = invert ? iy + ih * 0.62 : iy + ih * 0.18;
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1, iw * 0.035), ih * 0.1);
+        }
+      }
+
+      function drawRj45(x, y, w, h, label) {
+        drawRj45Jack(x, y, w, h);
+        if (label) {
+          ctx.fillStyle = "#8a929c";
+          ctx.font = `600 ${Math.max(9, h * 0.28)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "center";
+          ctx.fillText(label, x + w / 2, y + h + 11);
+        }
+      }
+      function drawUsb(x, y, w, h) {
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(x + 3, y + 3, w - 6, h - 6);
+      }
+      drawRj45(mgmtX, mgmtY + 18, 36, 42, "CON");
+      drawUsb(mgmtX + 48, mgmtY + 8, 28, 22);
+      drawUsb(mgmtX + 48, mgmtY + 38, 28, 22);
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText("USB", mgmtX + 62, mgmtY + 72);
+      drawRj45(mgmtX + 92, mgmtY + 8, 34, 28, "");
+      drawRj45(mgmtX + 92, mgmtY + 42, 34, 28, "");
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 9px "IBM Plex Mono", monospace`;
+      ctx.fillText("MGT", mgmtX + 109, mgmtY + 88);
+      ctx.fillText("HA", mgmtX + 109, mgmtY + 100);
+
+      // —— Perforated I/O field ——
+      const ioX = mgmtX + 150;
+      const ioY = 14;
+      const ioW = pw - ioX - 18;
+      const ioH = ph - 28;
+      ctx.fillStyle = "#e4e7ec";
+      roundRect(ioX, ioY, ioW, ioH, 4);
+      ctx.fill();
+      // Hex / circular vent pattern
+      ctx.save();
+      ctx.beginPath();
+      roundRect(ioX, ioY, ioW, ioH, 4);
+      ctx.clip();
+      ctx.fillStyle = "rgba(160, 168, 178, 0.55)";
+      const hexR = 5;
+      for (let row = 0; row < 22; row++) {
+        for (let col = 0; col < 80; col++) {
+          const hx = ioX + 8 + col * (hexR * 1.75) + (row % 2 ? hexR * 0.9 : 0);
+          const hy = ioY + 8 + row * (hexR * 1.55);
+          ctx.beginPath();
+          ctx.arc(hx, hy, hexR * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      function drawSfpOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawPortBlock(x, y, w, h, cols, rows, kind, startIdx) {
+        ctx.fillStyle = "rgba(245,247,250,0.92)";
+        roundRect(x, y, w, h, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#c0c6ce";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const gapX = 5;
+        const gapY = 6;
+        const pad = 8;
+        const pW = (w - pad * 2 - gapX * (cols - 1)) / cols;
+        const pH = (h - pad * 2 - gapY * (rows - 1) - 14) / rows;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            // Row-major ge0/N: top L→R, then bottom L→R
+            const portNum = startIdx + r * cols + col;
+            const px = x + pad + col * (pW + gapX);
+            const py = y + pad + r * (pH + gapY);
+            portCenters[portNum] = {
+              u: (px + pW * 0.5) / pw,
+              v: (py + pH * 0.5) / ph,
+            };
+            if (kind === "copper") {
+              // Bottom row inverted so latches face the center (common 2×N GE block)
+              drawRj45Jack(px, py, pW, pH, { invert: r === 1 });
+            } else {
+              const xcvr = byPort.get(portNum);
+              if (xcvr) {
+                drawSfpOptic(px, py, pW, pH, xcvr);
+              } else {
+                // Empty SFP cage
+                ctx.fillStyle = "#1a1e24";
+                roundRect(px, py, pW, pH, 2);
+                ctx.fill();
+                ctx.strokeStyle = "#6a7380";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+                ctx.fillStyle = "#0a0c10";
+                ctx.fillRect(px + pW * 0.12, py + pH * 0.22, pW * 0.76, pH * 0.56);
+              }
+            }
+          }
+        }
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 10px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        const endIdx = startIdx + cols * rows - 1;
+        ctx.fillText(`ge0/${startIdx}–${endIdx}`, x + w / 2, y + h - 5);
+      }
+
+      const blockGap = 10;
+      const blockH = ioH - 16;
+      const blockY = ioY + 8;
+      // Width shares: 8+8 copper, 8 SFP, 4 SFP ≈ 8:8:8:4
+      const unit = (ioW - 24 - blockGap * 3) / 28;
+      const b1 = unit * 8;
+      const b2 = unit * 8;
+      const b3 = unit * 8;
+      const b4 = unit * 4;
+      let bx = ioX + 12;
+      drawPortBlock(bx, blockY, b1, blockH, 4, 2, "copper", 1);
+      bx += b1 + blockGap;
+      drawPortBlock(bx, blockY, b2, blockH, 4, 2, "copper", 9);
+      bx += b2 + blockGap;
+      drawPortBlock(bx, blockY, b3, blockH, 4, 2, "sfp", 17);
+      bx += b3 + blockGap;
+      drawPortBlock(bx, blockY, b4, blockH, 2, 2, "sfp", 25);
+
+      // Rack ears hint
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 6, ph - 16);
+      ctx.fillRect(pw - 6, 8, 6, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      tex.userData.portCenters = portCenters;
+      hillstoneA3800TexCache.set(cacheKey, tex);
+      return tex;
+    }
+
+    /** Hillstone SG-6000-A3800 — 1U NGFW, 436×437×44 mm */
+    function makeHillstoneA3800({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 43.6;
+      const d = 43.7;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xb8bcc4, metalness: 0.55, roughness: 0.38,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontTex = makeHillstoneA3800FrontTexture(transceivers);
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: frontTex,
+        metalness: 0.18,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.08,
+      });
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
+      // Same front-plane offsets as switches so ears/face share the rail mount plane
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const tagText = code ? `FIREWALL ${code}` : "FIREWALL";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      // Port anchors from faceplate UV centers (for virtual SM/MM link lines)
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "16× GE RJ45 (2 bypass pairs) · 8× GE SFP · 2× 10GE SFP+ · Console · 2× USB 3.0 · MGT · HA · 1× expansion slot",
+        },
+        {
+          label: "Performance",
+          text: "Firewall 20/30 Gbps · NGFW 12 Gbps · Threat protection 6 Gbps · IPS 16 Gbps · up to 8M concurrent sessions",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · 436 × 437 × 44 mm · 6.8 kg · Dual redundant PSU option · StoneOS",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        blocks.push({
+          label: "Transceivers",
+          text: `Ports ${ports.join(", ")}: XG-SFP-LR-SM1310 (single-mode)`,
+        });
+      }
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z; // flush to 19″ rail plane
+      g.userData.interactive = true;
+      g.userData.kind = "firewall";
+      g.userData.code = code;
+      g.userData.label = code ? `Hillstone SG-6000-A3800 (${code})` : "Hillstone SG-6000-A3800";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: code ? `Firewall ${code} · ${rackName}` : `Firewall · ${rackName}`,
+        title: "Hillstone Networks NGFW",
+        model: "SG-6000-A3800",
+        rating: "1U · 20/30 Gbps FW",
+        blocks,
+      };
+      return g;
+    }
+
+    /** Huawei NetEngine AR1600C front — full-width layout matching reference photo */
+    let huaweiAr1600cFrontTex = null;
+    function makeHuaweiAr1600cFrontTexture() {
+      if (huaweiAr1600cFrontTex) return huaweiAr1600cFrontTex;
+
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      const faceGrad = ctx.createLinearGradient(0, 0, 0, ph);
+      faceGrad.addColorStop(0, "#d8dde4");
+      faceGrad.addColorStop(0.5, "#c8ced6");
+      faceGrad.addColorStop(1, "#b4bac4");
+      ctx.fillStyle = faceGrad;
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#e8ebf0";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.12;
+        const iw = w * 0.76;
+        const ih = h * 0.76;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        const ledgeY = invert ? iy + ih * 0.55 : iy + ih * 0.12;
+        ctx.fillRect(ix + iw * 0.18, ledgeY, iw * 0.64, ih * 0.22);
+        ctx.fillStyle = "#c9a227";
+        const gY = invert ? iy + ih * 0.62 : iy + ih * 0.18;
+        for (let i = 0; i < 8; i++) {
+          ctx.fillRect(ix + iw * 0.22 + i * (iw * 0.07), gY, Math.max(1.2, iw * 0.035), ih * 0.1);
+        }
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawColorBar(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+      }
+
+      // Full-face horizontal bands (fractions of usable width) matching the photo
+      const margin = 14;
+      const usable = pw - margin * 2;
+      const zones = {
+        brand: 0.09,
+        ctrl: 0.08,
+        red: 0.11,
+        blue: 0.20,
+        yellow: 0.055,
+        sic: 0.265,
+        bays: 0.17,
+        vent: 0.03,
+      };
+      let x = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x, w: usable * f };
+        x += usable * f;
+      }
+
+      const contentTop = 18;
+      const contentH = ph - 36;
+
+      // —— Brand + LEDs ——
+      {
+        const { x: zx, w: zw } = Z.brand;
+        ctx.fillStyle = "#c7000b";
+        ctx.font = `800 ${Math.floor(ph * 0.14)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("HUAWEI", zx + 4, contentTop + contentH * 0.22);
+        ctx.fillStyle = "#2a3038";
+        ctx.font = `700 ${Math.floor(ph * 0.075)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("AR1600 Series", zx + 4, contentTop + contentH * 0.42);
+        const ledLabs = ["SYS", "PWR", "USB", "WLAN", "GE"];
+        const ledGap = zw / (ledLabs.length + 0.2);
+        ledLabs.forEach((lab, i) => {
+          const lx = zx + 10 + i * ledGap;
+          const ly = contentTop + contentH * 0.68;
+          ctx.fillStyle = "#3a454f";
+          ctx.beginPath();
+          ctx.arc(lx, ly, Math.max(4, ph * 0.028), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#5a6572";
+          ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "center";
+          ctx.fillText(lab, lx, ly + ph * 0.1);
+        });
+      }
+
+      // —— RST · USB×3 · DB9 ——
+      {
+        const { x: zx, w: zw } = Z.ctrl;
+        const midY = contentTop + contentH * 0.5;
+        // RST
+        ctx.fillStyle = "#4a5560";
+        ctx.beginPath();
+        ctx.arc(zx + zw * 0.18, midY, ph * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1e24";
+        ctx.beginPath();
+        ctx.arc(zx + zw * 0.18, midY, ph * 0.03, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("RST", zx + zw * 0.18, midY + ph * 0.14);
+        // USB stack
+        const usbX = zx + zw * 0.38;
+        const usbW = zw * 0.22;
+        const usbH = contentH * 0.22;
+        for (let i = 0; i < 3; i++) {
+          const uy = contentTop + contentH * 0.08 + i * (usbH + 6);
+          ctx.fillStyle = "#1a4a8a";
+          roundRect(usbX, uy, usbW, usbH, 2);
+          ctx.fill();
+          ctx.fillStyle = "#6a9ee0";
+          ctx.fillRect(usbX + 3, uy + 3, usbW - 6, usbH - 6);
+        }
+        // DB9
+        const dbX = zx + zw * 0.68;
+        const dbW = zw * 0.28;
+        const dbH = contentH * 0.7;
+        const dbY = contentTop + contentH * 0.08;
+        ctx.fillStyle = "#2a3038";
+        roundRect(dbX, dbY, dbW, dbH, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.fillStyle = "#c9a227";
+        for (let r = 0; r < 2; r++) {
+          for (let col = 0; col < 5; col++) {
+            if (r === 1 && (col === 0 || col === 4)) continue;
+            ctx.beginPath();
+            ctx.arc(dbX + dbW * (0.18 + col * 0.16), dbY + dbH * (0.3 + r * 0.35), 2.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // —— Color-coded RJ45 blocks (tall ports, fill zone height) ——
+      function drawRjBlock(zone, cols, barColor, barAlsoBottom = false) {
+        const { x: zx, w: zw } = zone;
+        const barH = Math.max(10, ph * 0.055);
+        const padX = zw * 0.04;
+        const padY = contentH * 0.08;
+        const blockTop = contentTop + padY + barH + 4;
+        const blockBot = contentTop + contentH - (barAlsoBottom ? barH + 8 : 6);
+        const blockH = blockBot - blockTop;
+        const gapX = 5;
+        const gapY = 7;
+        const pW = (zw - padX * 2 - gapX * (cols - 1)) / cols;
+        const pH = (blockH - gapY) / 2;
+        drawColorBar(zx + padX * 0.5, contentTop + padY * 0.4, zw - padX, barH, barColor);
+        if (barAlsoBottom) {
+          drawColorBar(zx + padX * 0.5, blockBot + 4, zw - padX, barH * 0.85, barColor);
+        }
+        for (let r = 0; r < 2; r++) {
+          for (let col = 0; col < cols; col++) {
+            drawRj45Jack(
+              zx + padX + col * (pW + gapX),
+              blockTop + r * (pH + gapY),
+              pW,
+              pH,
+              { invert: r === 1 }
+            );
+          }
+        }
+      }
+      drawRjBlock(Z.red, 2, "#c0392b", true);
+      drawRjBlock(Z.blue, 4, "#2980b9", false);
+      drawRjBlock(Z.yellow, 1, "#f1c40f", false);
+
+      // —— SIC blanking plate (upper) + GE9/GE10 SFP (lower) ——
+      {
+        const { x: zx, w: zw } = Z.sic;
+        const slotH = contentH * 0.52;
+        const slotY = contentTop + 4;
+        ctx.fillStyle = "#cfd4dc";
+        roundRect(zx + 4, slotY, zw - 8, slotH, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#9aa3ae";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        [0.08, 0.92].forEach((t) => {
+          const ox = zx + 4 + (zw - 8) * t;
+          ctx.fillStyle = "#8a929c";
+          ctx.beginPath();
+          ctx.arc(ox, slotY + slotH / 2, 9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#d8dde4";
+          ctx.beginPath();
+          ctx.arc(ox, slotY + slotH / 2, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.fillStyle = "#6a7380";
+        ctx.font = `600 ${Math.floor(ph * 0.07)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("SIC", zx + zw / 2, slotY + slotH / 2 + 1);
+
+        const sfpY = slotY + slotH + 10;
+        const sfpH = contentH * 0.28;
+        const sfpW = (zw - 28) * 0.28;
+        drawColorBar(zx + 8, sfpY - 12, sfpW * 2 + 14, 9, "#f1c40f");
+        drawSfpCage(zx + 8, sfpY, sfpW, sfpH);
+        drawSfpCage(zx + 16 + sfpW, sfpY, sfpW, sfpH);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("GE9", zx + 8 + sfpW / 2, sfpY + sfpH + 14);
+        ctx.fillText("GE10", zx + 16 + sfpW * 1.5, sfpY + sfpH + 14);
+        // Vent dots beside SFPs
+        ctx.fillStyle = "rgba(120,128,138,0.55)";
+        const vx0 = zx + 28 + sfpW * 2;
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 5; col++) {
+            ctx.beginPath();
+            ctx.arc(vx0 + col * 12, sfpY + 8 + row * 12, 2.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // —— Dual module bays ——
+      {
+        const { x: zx, w: zw } = Z.bays;
+        const gap = 10;
+        const bayH = (contentH - gap) / 2;
+        for (let i = 0; i < 2; i++) {
+          const by = contentTop + i * (bayH + gap);
+          ctx.fillStyle = "#1a1e24";
+          roundRect(zx + 4, by, zw - 8, bayH, 3);
+          ctx.fill();
+          ctx.fillStyle = "rgba(70, 78, 88, 0.95)";
+          const cols = Math.floor((zw - 40) / 14);
+          const rows = Math.floor((bayH - 16) / 11);
+          for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+              const hx = zx + 18 + col * 14 + (row % 2 ? 7 : 0);
+              const hy = by + 12 + row * 11;
+              ctx.beginPath();
+              ctx.arc(hx, hy, 3.6, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.fillStyle = "#f1c40f";
+          roundRect(zx + zw - 18, by + 10, 9, bayH - 20, 2);
+          ctx.fill();
+        }
+      }
+
+      // —— Far-right vent ——
+      {
+        const { x: zx, w: zw } = Z.vent;
+        ctx.fillStyle = "rgba(120,128,138,0.55)";
+        for (let row = 0; row < 10; row++) {
+          for (let col = 0; col < 2; col++) {
+            ctx.beginPath();
+            ctx.arc(zx + zw * 0.35 + col * 12, contentTop + 12 + row * (contentH / 10), 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 6, ph - 16);
+      ctx.fillRect(pw - 6, 8, 6, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      huaweiAr1600cFrontTex = tex;
+      return tex;
+    }
+
+    /** Huawei NetEngine AR1600C — 1U enterprise router, ≈442×320×44 mm */
+    function makeHuaweiAr1600c({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.2;
+      const d = 32.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xc4c8d0, metalness: 0.52, roughness: 0.4,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeHuaweiAr1600cFrontTexture(),
+        metalness: 0.22,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("SD-WAN");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "router";
+      g.userData.label = "Huawei NetEngine AR1600C";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `SD-WAN · ${rackName}`,
+        title: "Huawei NetEngine AR1600 Series",
+        model: "AR1600C",
+        rating: "1U · SD-WAN",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "Color-coded GE RJ45 blocks · 2× GE SFP (GE9/GE10) · Console (DB9) · 3× USB · RST · 1× SIC expansion slot",
+          },
+          {
+            label: "Modules",
+            text: "1× SIC slot (blanking plate fitted) · Dual front module bays with honeycomb vents",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · ≈ 442 × 320 × 44 mm · Silver front panel · NetEngine AR1600 Series",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Ruijie RG-S6510-48VX8CQ front — 48× SFP28 + 8× QSFP28, full-width silver face */
+    const ruijieS6510TexCache = new Map();
+    function makeRuijieS6510FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (ruijieS6510TexCache.has(cacheKey)) return ruijieS6510TexCache.get(cacheKey);
+
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      const portCenters = {}; // port N → { u, v }
+
+      // Light silver chassis
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#d5dae2");
+      gFace.addColorStop(0.45, "#c5ccd6");
+      gFace.addColorStop(1, "#b0b7c2");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#e4e8ee";
+      ctx.fillRect(5, 5, pw - 10, ph - 10);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function drawEmptyCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#c8ced8";
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.14, y + h * 0.22, w * 0.72, h * 0.56);
+        ctx.fillStyle = "#2a3038";
+        ctx.beginPath();
+        ctx.arc(x + w * 0.82, y + h * 0.18, Math.max(1.4, h * 0.07), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function placeCage(px, py, cageW, cageH, portNum) {
+        portCenters[portNum] = {
+          u: (px + cageW * 0.5) / pw,
+          v: (py + cageH * 0.5) / ph,
+        };
+        const xcvr = byPort.get(portNum);
+        if (xcvr) drawOptic(px, py, cageW, cageH, xcvr);
+        else drawEmptyCage(px, py, cageW, cageH);
+      }
+
+      // Top honeycomb vent strip
+      const ventH = ph * 0.14;
+      ctx.fillStyle = "#9aa3ae";
+      ctx.fillRect(8, 8, pw - 16, ventH);
+      ctx.fillStyle = "rgba(60, 68, 78, 0.55)";
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 110; col++) {
+          const hx = 16 + col * 21 + (row % 2 ? 10 : 0);
+          const hy = 14 + row * 10;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Port field — nearly full width under the vent
+      const fieldX = 18;
+      const fieldY = 8 + ventH + 6;
+      const fieldW = pw - 36;
+      const fieldH = ph - fieldY - 42; // leave brand strip at bottom
+      const groupGap = 14;
+      // 4 SFP groups (each 6 cols) + 1 QSFP group (4 cols)
+      const sfpColsPerGroup = 6;
+      const qsfpCols = 4;
+      const sfpGroups = 4;
+      const totalUnits = sfpGroups * sfpColsPerGroup + qsfpCols * 1.35;
+      const unitW = (fieldW - groupGap * sfpGroups) / totalUnits;
+      const sfpW = unitW;
+      const qsfpW = unitW * 1.35;
+      const rows = 2;
+      const pGapX = 3;
+      const pGapY = 6;
+      const pH = (fieldH - pGapY) / rows;
+
+      let cx = fieldX;
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "center";
+
+      for (let gIdx = 0; gIdx < sfpGroups; gIdx++) {
+        const gW = sfpColsPerGroup * sfpW + (sfpColsPerGroup - 1) * pGapX;
+        const cageW = (gW - pGapX * (sfpColsPerGroup - 1)) / sfpColsPerGroup;
+        const portBase = gIdx * 12 + 1;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < sfpColsPerGroup; col++) {
+            // Column-major: top/bottom pairs left→right (1/2, 3/4, …)
+            const portNum = portBase + col * rows + r;
+            const px = cx + col * (cageW + pGapX);
+            const py = fieldY + r * (pH + pGapY);
+            placeCage(px, py, cageW, pH, portNum);
+          }
+        }
+        ctx.fillStyle = "#6a7380";
+        ctx.fillText(`${portBase}`, cx + 8, fieldY - 2);
+        cx += gW + groupGap;
+      }
+
+      // QSFP block — ports 49–56 (column-major)
+      {
+        const gW = qsfpCols * qsfpW + (qsfpCols - 1) * pGapX;
+        const cageW = (gW - pGapX * (qsfpCols - 1)) / qsfpCols;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < qsfpCols; col++) {
+            const portNum = 49 + col * rows + r;
+            const px = cx + col * (cageW + pGapX);
+            const py = fieldY + r * (pH + pGapY);
+            placeCage(px, py, cageW, pH * 0.98, portNum);
+          }
+        }
+        ctx.fillStyle = "#6a7380";
+        ctx.fillText("QSFP", cx + gW * 0.5, fieldY - 2);
+      }
+
+      // Bottom brand strip — Status / ID / Ruijie / model
+      const brandY = ph - 34;
+      ctx.fillStyle = "#3a454f";
+      ctx.beginPath();
+      ctx.arc(28, brandY + 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(48, brandY + 8, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5a6572";
+      ctx.font = `600 ${Math.floor(ph * 0.045)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      ctx.fillText("Status", 58, brandY + 4);
+      ctx.fillText("ID", 58, brandY + 18);
+
+      ctx.fillStyle = "#1a5fb4";
+      ctx.font = `800 ${Math.floor(ph * 0.09)}px "Archivo Black", sans-serif`;
+      ctx.fillText("Ruijie", 130, brandY + 12);
+      ctx.fillStyle = "#2a3038";
+      ctx.font = `700 ${Math.floor(ph * 0.065)}px "IBM Plex Mono", monospace`;
+      ctx.fillText("RG-S6510-48VX8CQ", 250, brandY + 12);
+
+      // Ear hints
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      tex.userData.portCenters = portCenters;
+      ruijieS6510TexCache.set(cacheKey, tex);
+      return tex;
+    }
+
+    /** Ruijie RG-S6510-48VX8CQ — 1U distribution switch, 48×25G + 8×100G */
+    function makeRuijieS6510({ rackName = "Rack1", code = "", transceivers = [] } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 42.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xb8bec8, metalness: 0.5, roughness: 0.42,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontTex = makeRuijieS6510FrontTexture(transceivers);
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: frontTex,
+        metalness: 0.28,
+        roughness: 0.48,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.08,
+      });
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const tagText = code ? `Dist. ${code}` : "Dist.";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "48× 25GE SFP28 · 8× 100GE QSFP28 · Front-to-rear airflow · ToR / distribution",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · ≈ 440 × 420 × 44 mm · Silver front panel · Dual hot-swap PSU",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        const kind = /multi/i.test(transceivers[0].kind) ? "multimode" : "single-mode";
+        blocks.push({
+          label: "Transceivers",
+          text: `Port ${ports.join(", ")}: ${transceivers[0].model} (${kind})`,
+        });
+      }
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "dist-switch";
+      g.userData.code = code;
+      g.userData.label = code ? `Ruijie RG-S6510-48VX8CQ (${code})` : "Ruijie RG-S6510-48VX8CQ";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: code ? `Distribution ${code} · ${rackName}` : `Distribution · ${rackName}`,
+        title: "Ruijie Data Center Switch",
+        model: "RG-S6510-48VX8CQ",
+        rating: "1U · 48×25G + 8×100G",
+        blocks,
+      };
+      return g;
+    }
+
+    /** Ruijie RG-S5760C-48GT4XS-HP-X front — silver face, 48× GE RJ45 + 4× SFP+ */
+    const ruijieS5760TexCache = new Map();
+    function makeRuijieS5760FrontTexture(transceivers = []) {
+      const cacheKey = transceivers.length
+        ? transceivers.map((t) => `${t.port}:${t.model}:${!!t.linked}`).sort().join("|")
+        : "empty";
+      if (ruijieS5760TexCache.has(cacheKey)) return ruijieS5760TexCache.get(cacheKey);
+
+      const byPort = new Map(transceivers.map((t) => [t.port, t]));
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      const portCenters = {}; // uplink port N → { u, v }
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Dark chassis edge + silver/white faceplate
+      ctx.fillStyle = "#2a3038";
+      ctx.fillRect(0, 0, pw, ph);
+      const faceG = ctx.createLinearGradient(0, 0, 0, ph);
+      faceG.addColorStop(0, "#f2f4f7");
+      faceG.addColorStop(0.55, "#e4e8ee");
+      faceG.addColorStop(1, "#d0d6de");
+      ctx.fillStyle = faceG;
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      // Top honeycomb vent strip
+      const ventH = ph * 0.12;
+      ctx.fillStyle = "#9aa3ae";
+      ctx.fillRect(10, 8, pw - 20, ventH);
+      ctx.fillStyle = "rgba(50, 58, 68, 0.55)";
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 100; col++) {
+          ctx.beginPath();
+          ctx.arc(18 + col * 23 + (row % 2 ? 11 : 0), 12 + row * 9, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 1.5);
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.12;
+        const iw = w * 0.76;
+        const ih = h * 0.76;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawSfpOptic(px, py, pW, pH, xcvr) {
+        const isSM = /LR|SM|single/i.test(`${xcvr.model} ${xcvr.kind || ""}`);
+        const linked = !!xcvr.linked;
+        const body = ctx.createLinearGradient(px, py, px, py + pH);
+        body.addColorStop(0, "#e8edf3");
+        body.addColorStop(0.45, "#c9d0d8");
+        body.addColorStop(1, "#a8b2be");
+        ctx.fillStyle = body;
+        roundRect(px + pW * 0.08, py + pH * 0.14, pW * 0.84, pH * 0.72, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = "#1a222c";
+        ctx.fillRect(px + pW * 0.18, py + pH * 0.3, pW * 0.64, pH * 0.4);
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(px + pW * 0.24, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillRect(px + pW * 0.54, py + pH * 0.38, pW * 0.22, pH * 0.24);
+        ctx.fillStyle = isSM ? "#f0d000" : "#00b5c8";
+        roundRect(px + pW * 0.2, py + pH * 0.08, pW * 0.6, pH * 0.16, 1.5);
+        ctx.fill();
+        ctx.fillStyle = linked ? "#3dd68c" : "#e03a3a";
+        ctx.beginPath();
+        ctx.arc(px + pW * 0.82, py + pH * 0.18, Math.max(1.5, pH * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const contentTop = 8 + ventH + 6;
+      const contentH = ph - contentTop - 22;
+      const margin = 14;
+      const usable = pw - margin * 2;
+      const zones = { brand: 0.11, copper: 0.72, uplink: 0.17 };
+      let zx = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x: zx, w: usable * f };
+        zx += usable * f;
+      }
+
+      // —— Brand + status LEDs + USB + Console/MGMT ——
+      {
+        const { x, w } = Z.brand;
+        ctx.fillStyle = "#1a5fb4";
+        ctx.font = `800 ${Math.floor(ph * 0.09)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Ruijie", x + 4, contentTop + 16);
+
+        const leds = ["Status", "MGMT", "PWR1", "PWR2", "FAN", "Mode"];
+        leds.forEach((lab, i) => {
+          const ly = contentTop + 36 + i * (contentH - 40) / leds.length;
+          ctx.fillStyle = i === 0 ? "#2ecc71" : "#3a454f";
+          ctx.beginPath();
+          ctx.arc(x + 12, ly, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#5a6572";
+          ctx.font = `600 ${Math.floor(ph * 0.035)}px "IBM Plex Mono", monospace`;
+          ctx.fillText(lab, x + 22, ly);
+        });
+
+        // USB
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(x + w * 0.55, contentTop + contentH * 0.25, 22, 32, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(x + w * 0.55 + 3, contentTop + contentH * 0.25 + 4, 16, 24);
+
+        // Console + MGMT stacked
+        const rjW = Math.min(36, w * 0.32);
+        const rjH = contentH * 0.28;
+        drawRj45Jack(x + w * 0.62, contentTop + contentH * 0.42, rjW, rjH);
+        drawRj45Jack(x + w * 0.62, contentTop + contentH * 0.72, rjW, rjH);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("CON", x + w * 0.62 + rjW / 2, contentTop + contentH * 0.42 - 4);
+        ctx.fillText("MGMT", x + w * 0.62 + rjW / 2, contentTop + contentH * 0.72 - 4);
+      }
+
+      // —— 48 GE RJ45 in 4 blocks of 2×6 (column-major: 1 above 2) ——
+      {
+        const { x, w } = Z.copper;
+        const blocks = 4;
+        const blockGap = 10;
+        const blockW = (w - blockGap * (blocks - 1)) / blocks;
+        const cols = 6;
+        const rows = 2;
+        const pad = 6;
+        const gapX = 3;
+        const gapY = 5;
+        const pW = (blockW - pad * 2 - gapX * (cols - 1)) / cols;
+        const pH = (contentH - 18 - gapY) / rows;
+
+        for (let b = 0; b < blocks; b++) {
+          const bx = x + b * (blockW + blockGap);
+          ctx.fillStyle = "rgba(245,247,250,0.9)";
+          roundRect(bx, contentTop, blockW, contentH - 4, 3);
+          ctx.fill();
+          ctx.strokeStyle = "#c0c6ce";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          for (let r = 0; r < rows; r++) {
+            for (let col = 0; col < cols; col++) {
+              // Column-major numbering within block
+              const px = bx + pad + col * (pW + gapX);
+              const py = contentTop + 10 + r * (pH + gapY);
+              drawRj45Jack(px, py, pW, pH, { invert: r === 1 });
+            }
+          }
+          // Block start port hint
+          ctx.fillStyle = "#6a7380";
+          ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+          ctx.textAlign = "left";
+          ctx.fillText(String(b * 12 + 1), bx + 4, contentTop + 8);
+        }
+      }
+
+      // —— 4× SFP+ uplink 2×2 ——
+      {
+        const { x, w } = Z.uplink;
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `700 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("RG-S5760C-48GT4XS-HP-X", x + w / 2, contentTop + 10);
+
+        const cols = 2;
+        const rows = 2;
+        const pad = 10;
+        const gapX = 6;
+        const gapY = 6;
+        const areaY = contentTop + 22;
+        const areaH = contentH - 28;
+        const pW = (w - pad * 2 - gapX) / cols;
+        const pH = (areaH - gapY) / rows;
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            const px = x + pad + col * (pW + gapX);
+            const py = areaY + r * (pH + gapY);
+            const n = 49 + r * 2 + col;
+            portCenters[n] = {
+              u: (px + pW * 0.5) / pw,
+              v: (py + pH * 0.5) / ph,
+            };
+            const xcvr = byPort.get(n);
+            if (xcvr) drawSfpOptic(px, py, pW, pH, xcvr);
+            else drawSfpCage(px, py, pW, pH);
+            ctx.fillStyle = "#6a7380";
+            ctx.font = `600 ${Math.floor(ph * 0.03)}px "IBM Plex Mono", monospace`;
+            ctx.textAlign = "center";
+            ctx.fillText(`${n}F`, px + pW / 2, py - 2);
+          }
+        }
+      }
+
+      // Red accent line along bottom
+      ctx.fillStyle = "#c0392b";
+      ctx.fillRect(10, ph - 14, pw - 20, 3);
+      ctx.fillStyle = "#8a929c";
+      ctx.font = `600 ${Math.floor(ph * 0.032)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      ctx.fillText("On=Link  Flashing=ACT", 20, ph - 4);
+
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      tex.userData.portCenters = portCenters;
+      ruijieS5760TexCache.set(cacheKey, tex);
+      return tex;
+    }
+
+    /** Ruijie RG-S5760C-48GT4XS-HP-X — 1U access / PoE aggregation switch */
+    function makeRuijieS5760({ rackName = "Rack3", code = "", transceivers = [] } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 42.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0x2a3038, metalness: 0.45, roughness: 0.5,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontTex = makeRuijieS5760FrontTexture(transceivers);
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: frontTex,
+        metalness: 0.22,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const faceW = w - 0.1;
+      const faceH = h - 0.08;
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(faceW, faceH), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const tagText = code ? `Access ${code}` : "Access";
+      const fieldTag = makeFieldLabel(tagText);
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      {
+        const faceZ = face.position.z - 0.35;
+        const portAnchors = {};
+        const centers = frontTex.userData.portCenters || {};
+        for (const [portStr, uv] of Object.entries(centers)) {
+          portAnchors[Number(portStr)] = new THREE.Vector3(
+            (0.5 - uv.u) * faceW,
+            (0.5 - uv.v) * faceH,
+            faceZ
+          );
+        }
+        g.userData.portAnchors = portAnchors;
+      }
+
+      const blocks = [
+        {
+          label: "Interfaces",
+          text: "48× 10/100/1000BASE-T PoE/PoE+ · 4× 1G/10G SFP+ uplinks · Console · MGMT · USB",
+        },
+        {
+          label: "Role",
+          text: "Layer 3 campus access / aggregation · VSU · Hardware redundant boot & hot-swap PSU",
+        },
+        {
+          label: "Physical",
+          text: "1U rackmount · Silver front panel · Red accent · Dual PSU option",
+        },
+      ];
+      if (transceivers.length) {
+        const ports = transceivers.map((t) => t.port).sort((a, b) => a - b);
+        const kind = /multi/i.test(transceivers[0].kind) ? "multimode" : "single-mode";
+        blocks.push({
+          label: "Transceivers",
+          text: `Port ${ports.join(", ")}: ${transceivers[0].model} (${kind})`,
+        });
+      }
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "access-switch";
+      g.userData.code = code;
+      g.userData.label = code
+        ? `Ruijie RG-S5760C-48GT4XS-HP-X (${code})`
+        : "Ruijie RG-S5760C-48GT4XS-HP-X";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: code ? `Access ${code} · ${rackName}` : `Access · ${rackName}`,
+        title: "Ruijie Campus Access Switch",
+        model: "RG-S5760C-48GT4XS-HP-X",
+        rating: "1U · 48× GE PoE+ · 4× 10G",
+        blocks,
+      };
+      return g;
+    }
+
+    /** Cisco Catalyst C8300-1N1S front — hex vent face, GE/SFP cluster, NIM + SM blanks */
+    let ciscoC8300FrontTex = null;
+    function makeCiscoC8300FrontTexture() {
+      if (ciscoC8300FrontTex) return ciscoC8300FrontTex;
+
+      const pw = 2400;
+      const ph = 260;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      // Light metallic face
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#d8dde4");
+      gFace.addColorStop(0.5, "#c8ced6");
+      gFace.addColorStop(1, "#b4bac4");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Dense hexagonal ventilation across the whole face
+      ctx.fillStyle = "rgba(70, 78, 90, 0.55)";
+      const hexR = 5.5;
+      for (let row = 0; row < 28; row++) {
+        for (let col = 0; col < 160; col++) {
+          const hx = 10 + col * (hexR * 1.7) + (row % 2 ? hexR * 0.85 : 0);
+          const hy = 10 + row * (hexR * 1.5);
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i + Math.PI / 6;
+            const px = hx + Math.cos(a) * hexR * 0.55;
+            const py = hy + Math.sin(a) * hexR * 0.55;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      function clearPanel(x, y, w, h) {
+        ctx.fillStyle = "#cfd4dc";
+        roundRect(x, y, w, h, 3);
+        ctx.fill();
+      }
+
+      function drawRj45Jack(x, y, w, h, { invert = false, border = null } = {}) {
+        ctx.fillStyle = "#2a3038";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = border || "#a8b0ba";
+        ctx.lineWidth = border ? 2.4 : 1.8;
+        ctx.stroke();
+        const ix = x + w * 0.12;
+        const iy = y + h * 0.12;
+        const iw = w * 0.76;
+        const ih = h * 0.76;
+        const cut = Math.min(iw, ih) * 0.22;
+        ctx.beginPath();
+        if (!invert) {
+          ctx.moveTo(ix, iy);
+          ctx.lineTo(ix + iw, iy);
+          ctx.lineTo(ix + iw, iy + ih - cut);
+          ctx.lineTo(ix + iw - cut, iy + ih);
+          ctx.lineTo(ix + cut, iy + ih);
+          ctx.lineTo(ix, iy + ih - cut);
+        } else {
+          ctx.moveTo(ix + cut, iy);
+          ctx.lineTo(ix + iw - cut, iy);
+          ctx.lineTo(ix + iw, iy + cut);
+          ctx.lineTo(ix + iw, iy + ih);
+          ctx.lineTo(ix, iy + ih);
+          ctx.lineTo(ix, iy + cut);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fill();
+      }
+
+      function drawSfpCage(x, y, w, h) {
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x, y, w, h, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a8b0ba";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "#0a0c10";
+        ctx.fillRect(x + w * 0.12, y + h * 0.22, w * 0.76, h * 0.56);
+      }
+
+      function drawBlankPlate(x, y, w, h) {
+        clearPanel(x, y, w, h);
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Top/bottom vent perforations
+        ctx.fillStyle = "rgba(60,68,78,0.45)";
+        for (let col = 0; col < Math.floor(w / 14); col++) {
+          ctx.beginPath();
+          ctx.arc(x + 16 + col * 14, y + 10, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x + 16 + col * 14, y + h - 10, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Thumb / flat-head screws
+        [0.08, 0.92].forEach((t) => {
+          const sx = x + w * t;
+          const sy = y + h / 2;
+          ctx.fillStyle = "#7a828c";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#4a5058";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(sx - 5, sy);
+          ctx.lineTo(sx + 5, sy);
+          ctx.stroke();
+        });
+      }
+
+      // Full-width zone layout — keep NIM/SM blanks; ports are a compact cluster
+      const margin = 16;
+      const usable = pw - margin * 2;
+      const zones = {
+        brand: 0.12,
+        ports: 0.26,
+        nim: 0.14,
+        sm: 0.44,
+        vent: 0.04,
+      };
+      let zx = margin;
+      const Z = {};
+      for (const [k, f] of Object.entries(zones)) {
+        Z[k] = { x: zx, w: usable * f };
+        zx += usable * f;
+      }
+      const top = 14;
+      const contentH = ph - 28;
+
+      // —— Brand / CON / USB ——
+      {
+        const { x, w } = Z.brand;
+        clearPanel(x + 4, top, w - 8, contentH);
+        ctx.fillStyle = "#049fd9";
+        ctx.font = `800 ${Math.floor(ph * 0.11)}px "Archivo Black", sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText("cisco", x + 14, top + contentH * 0.22);
+        ctx.fillStyle = "#2a3038";
+        ctx.font = `700 ${Math.floor(ph * 0.06)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("C8300-1N1S-6T", x + 14, top + contentH * 0.42);
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.05)}px "IBM Plex Mono", monospace`;
+        ctx.fillText("Catalyst Edge", x + 14, top + contentH * 0.88);
+        // Status LED
+        ctx.fillStyle = "#3a454f";
+        ctx.beginPath();
+        ctx.arc(x + 28, top + contentH * 0.62, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // USB-C CON
+        ctx.fillStyle = "#1a1e24";
+        roundRect(x + w * 0.45, top + contentH * 0.52, 34, 14, 2);
+        ctx.fill();
+        ctx.fillStyle = "#5a6572";
+        ctx.font = `600 ${Math.floor(ph * 0.04)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("CON", x + w * 0.45 + 17, top + contentH * 0.52 - 8);
+        // USB-A
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(x + w * 0.7, top + contentH * 0.5, 22, 32, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(x + w * 0.7 + 3, top + contentH * 0.5 + 4, 16, 24);
+      }
+
+      // —— 5× RJ-45 (MGT + 4× GE) then 2× SFP+ — cage size matches Dist switches above
+      {
+        const { x } = Z.ports;
+        // Same ballpark as Ruijie S6510 cages on this canvas (~78×88)
+        const pW = 72;
+        const pH = 78;
+        const gapX = 6;
+        const gapY = 8;
+        const clusterW = pW * 4 + gapX * 3; // MGT | GE | GE | SFP
+        const clusterH = pH * 2 + gapY;
+        const ox = x + 8;
+        const oy = top + (contentH - clusterH) * 0.55;
+
+        // Soft backing only behind the cluster (hex vent shows around it)
+        ctx.fillStyle = "rgba(200, 206, 214, 0.92)";
+        roundRect(ox - 8, oy - 22, clusterW + 16, clusterH + 30, 4);
+        ctx.fill();
+
+        // LED dots above each column
+        ctx.fillStyle = "#3a454f";
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.arc(ox + pW / 2 + i * (pW + gapX), oy - 10, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        let px = ox;
+        // Col 0: MGT RJ-45 (blue border), centered in the pair height
+        drawRj45Jack(px, oy + (clusterH - pH) * 0.5, pW, pH, { border: "#049fd9" });
+        ctx.fillStyle = "#049fd9";
+        ctx.font = `700 ${Math.floor(ph * 0.042)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText("MGT", px + pW / 2, oy - 10);
+        px += pW + gapX;
+
+        // Col 1–2: four GE RJ-45 (2×2)
+        for (let stack = 0; stack < 2; stack++) {
+          for (let r = 0; r < 2; r++) {
+            drawRj45Jack(px, oy + r * (pH + gapY), pW, pH, { invert: r === 1 });
+          }
+          px += pW + gapX;
+        }
+
+        // Col 3: two SFP+ stacked (not RJ-45)
+        for (let r = 0; r < 2; r++) {
+          drawSfpCage(px, oy + r * (pH + gapY), pW, pH);
+        }
+      }
+
+      // —— NIM blank ——
+      drawBlankPlate(Z.nim.x + 4, top + 4, Z.nim.w - 8, contentH - 8);
+
+      // —— Large SM blank ——
+      drawBlankPlate(Z.sm.x + 4, top + 4, Z.sm.w - 8, contentH - 8);
+      // Small triangle mark bottom-right of SM plate
+      {
+        const { x, w } = Z.sm;
+        ctx.fillStyle = "#6a7380";
+        ctx.beginPath();
+        ctx.moveTo(x + w - 36, top + contentH - 22);
+        ctx.lineTo(x + w - 22, top + contentH - 22);
+        ctx.lineTo(x + w - 29, top + contentH - 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Far-right hex already drawn; ear hints
+      ctx.fillStyle = "#9aa1ab";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      ciscoC8300FrontTex = tex;
+      return tex;
+    }
+
+    /** Cisco Catalyst 8300 — C8300-1N1S, 1U edge/voice router */
+    function makeCiscoC8300({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.15;
+      const w = 44.0;
+      const d = 43.8;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0xb8bec8, metalness: 0.5, roughness: 0.42,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.2, h + 0.15, 0.25, matChrome, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makeCiscoC8300FrontTexture(),
+        metalness: 0.25,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x1a1e24,
+        emissiveIntensity: 0.06,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.08), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("Voice");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.85, h * 0.65, 0.4, matUpsVent, 0, 0, d / 2 + 0.15));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "voice-router";
+      g.userData.label = "Cisco C8300-1N1S";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `Voice · ${rackName}`,
+        title: "Cisco Catalyst 8300 Edge",
+        model: "C8300-1N1S-6T",
+        rating: "1U · Edge / Voice",
+        blocks: [
+          {
+            label: "Interfaces",
+            text: "5× GE RJ45 (MGT + 4× data) · 2× GE SFP+ · USB console · USB-A · 1× NIM slot · 1× SM slot (blanks fitted)",
+          },
+          {
+            label: "Physical",
+            text: "1U rackmount · Hex-vent front · Catalyst Edge platform · Voice / SD-WAN edge services",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Dell PowerEdge R750 front — 2U security bezel with silver hex mesh */
+    let powerEdgeR750FrontTex = null;
+    function makePowerEdgeR750FrontTexture() {
+      if (powerEdgeR750FrontTex) return powerEdgeR750FrontTex;
+
+      const pw = 2400;
+      const ph = 480; // 2U aspect
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Charcoal chassis behind bezel
+      const gFace = ctx.createLinearGradient(0, 0, 0, ph);
+      gFace.addColorStop(0, "#1a1e24");
+      gFace.addColorStop(0.5, "#12161c");
+      gFace.addColorStop(1, "#0c0e12");
+      ctx.fillStyle = gFace;
+      ctx.fillRect(0, 0, pw, ph);
+
+      // Faint drive bays visible through mesh (left-labeled 0–11 style)
+      const leftW = pw * 0.07;
+      const rightW = pw * 0.09;
+      const meshX = leftW + 8;
+      const meshW = pw - leftW - rightW - 16;
+      const meshY = 12;
+      const meshH = ph - 24;
+      const cols = 12;
+      const rows = 2;
+      const gapX = 4;
+      const gapY = 6;
+      const bayW = (meshW - gapX * (cols - 1)) / cols;
+      const bayH = (meshH - gapY) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+          const bx = meshX + col * (bayW + gapX);
+          const by = meshY + r * (bayH + gapY);
+          ctx.fillStyle = "#1e242c";
+          roundRect(bx, by, bayW, bayH, 2);
+          ctx.fill();
+          ctx.fillStyle = "#2a3038";
+          roundRect(bx + bayW * 0.1, by + bayH * 0.35, bayW * 0.5, bayH * 0.3, 1);
+          ctx.fill();
+          // Drive activity LED (mostly off)
+          ctx.fillStyle = col % 4 === 0 ? "#2ecc71" : "#3a454f";
+          ctx.beginPath();
+          ctx.arc(bx + bayW * 0.82, by + bayH * 0.5, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // Slot numbers peeking on left of mesh
+      ctx.fillStyle = "rgba(180, 190, 200, 0.55)";
+      ctx.font = `600 ${Math.floor(ph * 0.035)}px "IBM Plex Mono", monospace`;
+      ctx.textAlign = "left";
+      for (let i = 0; i < 8; i++) {
+        ctx.fillText(String(i), meshX + 6, meshY + 28 + i * (meshH / 9));
+      }
+
+      // Fine black under-mesh
+      ctx.fillStyle = "rgba(8, 10, 14, 0.35)";
+      ctx.fillRect(meshX, meshY, meshW, meshH);
+      ctx.strokeStyle = "rgba(40, 48, 58, 0.8)";
+      ctx.lineWidth = 1;
+      for (let y = meshY; y < meshY + meshH; y += 6) {
+        ctx.beginPath();
+        ctx.moveTo(meshX, y);
+        ctx.lineTo(meshX + meshW, y);
+        ctx.stroke();
+      }
+
+      // Silver hexagonal honeycomb bezel frame
+      ctx.save();
+      ctx.beginPath();
+      roundRect(meshX, meshY, meshW, meshH, 6);
+      ctx.clip();
+      const hexR = 22;
+      for (let row = 0; row < 16; row++) {
+        for (let col = 0; col < 55; col++) {
+          const hx = meshX + 18 + col * (hexR * 1.75) + (row % 2 ? hexR * 0.88 : 0);
+          const hy = meshY + 18 + row * (hexR * 1.52);
+          // Outer silver ring
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i + Math.PI / 6;
+            const px = hx + Math.cos(a) * hexR;
+            const py = hy + Math.sin(a) * hexR;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          const silver = ctx.createRadialGradient(hx, hy, hexR * 0.2, hx, hy, hexR);
+          silver.addColorStop(0, "rgba(210, 218, 228, 0.15)");
+          silver.addColorStop(0.55, "rgba(170, 180, 192, 0.55)");
+          silver.addColorStop(1, "rgba(120, 130, 142, 0.85)");
+          ctx.fillStyle = silver;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(230, 236, 244, 0.95)";
+          ctx.lineWidth = 3.2;
+          ctx.stroke();
+          // Inner open cell (shows dark mesh behind)
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i + Math.PI / 6;
+            const px = hx + Math.cos(a) * hexR * 0.72;
+            const py = hy + Math.sin(a) * hexR * 0.72;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(10, 12, 16, 0.55)";
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // Outer silver bezel rim
+      ctx.strokeStyle = "#c8d0da";
+      ctx.lineWidth = 5;
+      roundRect(meshX - 2, meshY - 2, meshW + 4, meshH + 4, 8);
+      ctx.stroke();
+
+      // Center DELL circular emblem
+      const emblemR = 48;
+      const ex = pw / 2;
+      const ey = ph / 2;
+      const eg = ctx.createRadialGradient(ex - 8, ey - 8, 4, ex, ey, emblemR);
+      eg.addColorStop(0, "#f0f4f8");
+      eg.addColorStop(0.6, "#c8d0da");
+      eg.addColorStop(1, "#8a929c");
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.arc(ex, ey, emblemR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6a7380";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = "#1a1e24";
+      ctx.beginPath();
+      ctx.arc(ex, ey, emblemR * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e8edf3";
+      ctx.font = `800 ${Math.floor(emblemR * 0.55)}px "Archivo Black", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("DELL", ex, ey + 1);
+
+      // —— Left control strip: status icons + blue light bar + latch ——
+      {
+        const lx = 6;
+        const ly = 10;
+        const lw = leftW;
+        const lh = ph - 20;
+        ctx.fillStyle = "#0e1116";
+        roundRect(lx, ly, lw, lh, 4);
+        ctx.fill();
+        // Vertical blue status light bar
+        const barG = ctx.createLinearGradient(lx, ly, lx, ly + lh);
+        barG.addColorStop(0, "#4db8ff");
+        barG.addColorStop(0.5, "#049fd9");
+        barG.addColorStop(1, "#0277a8");
+        ctx.fillStyle = barG;
+        roundRect(lx + lw * 0.72, ly + 16, lw * 0.16, lh - 32, 3);
+        ctx.fill();
+        // Status icon LEDs
+        const icons = ["#2ecc71", "#3a454f", "#3a454f", "#049fd9", "#3a454f"];
+        icons.forEach((col, i) => {
+          const iy = ly + 40 + i * 42;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(lx + lw * 0.35, iy, 6, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        // Latch handle
+        ctx.fillStyle = "#2a3038";
+        roundRect(lx + 4, ly + lh * 0.78, lw * 0.55, lh * 0.14, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#5a6572";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // —— Right control: power, USB, VGA, micro-USB, latch ——
+      {
+        const rx = pw - rightW - 6;
+        const ry = 10;
+        const rw = rightW;
+        const rh = ph - 20;
+        ctx.fillStyle = "#0e1116";
+        roundRect(rx, ry, rw, rh, 4);
+        ctx.fill();
+
+        // Power button (square, green icon)
+        ctx.fillStyle = "#1a1e24";
+        roundRect(rx + rw * 0.28, ry + 28, rw * 0.44, rw * 0.44, 4);
+        ctx.fill();
+        ctx.strokeStyle = "#5a6572";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.strokeStyle = "#2ecc71";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(rx + rw * 0.5, ry + 28 + rw * 0.22, 10, 0.25 * Math.PI, 1.75 * Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(rx + rw * 0.5, ry + 28 + rw * 0.1);
+        ctx.lineTo(rx + rw * 0.5, ry + 28 + rw * 0.26);
+        ctx.stroke();
+
+        // USB-A
+        ctx.fillStyle = "#1a4a8a";
+        roundRect(rx + rw * 0.22, ry + rh * 0.38, rw * 0.56, 28, 2);
+        ctx.fill();
+        ctx.fillStyle = "#6a9ee0";
+        ctx.fillRect(rx + rw * 0.22 + 3, ry + rh * 0.38 + 4, rw * 0.56 - 6, 20);
+
+        // VGA (15-pin D-sub silhouette)
+        const vx = rx + rw * 0.18;
+        const vy = ry + rh * 0.52;
+        const vw = rw * 0.64;
+        const vh = 36;
+        ctx.fillStyle = "#2a3038";
+        ctx.beginPath();
+        ctx.moveTo(vx + 6, vy);
+        ctx.lineTo(vx + vw - 6, vy);
+        ctx.lineTo(vx + vw, vy + 8);
+        ctx.lineTo(vx + vw, vy + vh);
+        ctx.lineTo(vx, vy + vh);
+        ctx.lineTo(vx, vy + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "#8a929c";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#c9a227";
+        for (let row = 0; row < 3; row++) {
+          const n = row === 1 ? 5 : 5;
+          for (let col = 0; col < n; col++) {
+            ctx.beginPath();
+            ctx.arc(vx + 12 + col * ((vw - 24) / 4), vy + 10 + row * 9, 2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Micro-USB / iDRAC Direct
+        ctx.fillStyle = "#1a1e24";
+        roundRect(rx + rw * 0.28, ry + rh * 0.72, rw * 0.44, 16, 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // Latch
+        ctx.fillStyle = "#2a3038";
+        roundRect(rx + rw * 0.2, ry + rh * 0.84, rw * 0.6, rh * 0.1, 3);
+        ctx.fill();
+        ctx.strokeStyle = "#5a6572";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Ear tips
+      ctx.fillStyle = "#3a424c";
+      ctx.fillRect(0, 8, 5, ph - 16);
+      ctx.fillRect(pw - 5, 8, 5, ph - 16);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      powerEdgeR750FrontTex = tex;
+      return tex;
+    }
+
+    /** Dell PowerEdge R750 — 2U rack server, ≈434×700×87 mm */
+    function makePowerEdgeR750({ rackName = "Rack1" } = {}) {
+      const heightU = 2;
+      const h = heightU * U - 0.2;
+      const w = 43.4;
+      const d = 70.0;
+      const g = new THREE.Group();
+
+      const matChassis = new THREE.MeshStandardMaterial({
+        color: 0x1c2128, metalness: 0.45, roughness: 0.5,
+      });
+      g.add(box(w, h, d, matChassis, 0, 0, 0));
+      g.add(box(w + 0.25, h + 0.2, 0.3, matUpsFace, 0, 0, -d / 2 - 0.3));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makePowerEdgeR750FrontTexture(),
+        metalness: 0.3,
+        roughness: 0.52,
+        side: THREE.DoubleSide,
+        emissive: 0x10141a,
+        emissiveIntensity: 0.2,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.12), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.85);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      const fieldTag = makeFieldLabel("R750");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.85, -d / 2 - 0.98);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.96, 1.2, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+      g.add(box(w * 0.88, h * 0.7, 0.5, matUpsVent, 0, 0, d / 2 + 0.2));
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "server";
+      g.userData.label = "Dell PowerEdge R750";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `Server · ${rackName}`,
+        title: "Dell PowerEdge R750",
+        model: "PowerEdge R750",
+        rating: "2U · Dual Xeon",
+        blocks: [
+          {
+            label: "Compute",
+            text: "2× 3rd Gen Intel Xeon Scalable · up to 32× DDR4 DIMMs · PCIe Gen4",
+          },
+          {
+            label: "Storage",
+            text: "Up to 24× 2.5″ SAS/SATA/NVMe front bays · Optional rear drive module · PERC RAID",
+          },
+          {
+            label: "Physical",
+            text: "2U rackmount · 434 × 700.7 × 86.8 mm · Dual hot-swap PSU · iDRAC · Silver hex security bezel",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Panduit FMT1 1U fiber enclosure + CFAPPBL1 with 4× FAP6WBUDLCZ (OS2 LC) */
+    let panduitFmt1FrontTex = null;
+    function makePanduitFmt1FrontTexture() {
+      if (panduitFmt1FrontTex) return panduitFmt1FrontTex;
+      const pw = 1800;
+      const ph = 220;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // CFAPPBL1 carrier face
+      ctx.fillStyle = "#1a1a1b";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#121316";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      /** One FAP6WBUDLCZ — 6× LC duplex, staggered, OS2 blue */
+      function drawFap6(x, y, w, h) {
+        // FAP body
+        ctx.fillStyle = "#1a1a1b";
+        roundRect(x, y, w, h, 4);
+        ctx.fill();
+        ctx.strokeStyle = "#3a3e44";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Push-pin fasteners L/R
+        [0.08, 0.92].forEach((t) => {
+          const px = x + w * t;
+          const py = y + h * 0.5;
+          ctx.fillStyle = "#2a2e34";
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(4, h * 0.09), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#0a0c10";
+          ctx.beginPath();
+          ctx.arc(px, py, Math.max(2, h * 0.04), 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // 6 LC duplex in staggered 2×3 (bottom row offset)
+        const portAreaX = x + w * 0.16;
+        const portAreaW = w * 0.68;
+        const cols = 3;
+        const rows = 2;
+        const pGapX = portAreaW * 0.08;
+        const pGapY = h * 0.08;
+        const pW = (portAreaW - pGapX * (cols - 1)) / cols;
+        const pH = (h * 0.7 - pGapY) / rows;
+        const blue = "#4a74b4";
+        const blueDark = "#2f4f8a";
+
+        for (let r = 0; r < rows; r++) {
+          for (let col = 0; col < cols; col++) {
+            const stagger = r === 1 ? pW * 0.35 : 0;
+            const px = portAreaX + col * (pW + pGapX) + stagger;
+            const py = y + h * 0.14 + r * (pH + pGapY);
+            // Blue LC duplex housing (OS2 single-mode)
+            const g = ctx.createLinearGradient(px, py, px, py + pH);
+            g.addColorStop(0, "#5a8acc");
+            g.addColorStop(0.45, blue);
+            g.addColorStop(1, blueDark);
+            ctx.fillStyle = g;
+            roundRect(px, py, pW, pH, 2);
+            ctx.fill();
+            // Silver latch/spring at top
+            ctx.fillStyle = "#c8d0da";
+            roundRect(px + pW * 0.18, py + pH * 0.06, pW * 0.64, pH * 0.14, 1);
+            ctx.fill();
+            // Twin LC bores
+            ctx.fillStyle = "#0a0c10";
+            const boreW = pW * 0.28;
+            const boreH = pH * 0.42;
+            const boreY = py + pH * 0.38;
+            ctx.fillRect(px + pW * 0.14, boreY, boreW, boreH);
+            ctx.fillRect(px + pW * 0.58, boreY, boreW, boreH);
+            // Ceramic ferrule hint
+            ctx.fillStyle = "#e8eef4";
+            ctx.beginPath();
+            ctx.arc(px + pW * 0.14 + boreW / 2, boreY + boreH * 0.45, Math.max(1.5, boreW * 0.18), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(px + pW * 0.58 + boreW / 2, boreY + boreH * 0.45, Math.max(1.5, boreW * 0.18), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Four FAP modules across CFAPPBL1
+      const marginX = 40;
+      const marginY = 18;
+      const gap = 10;
+      const bays = 4;
+      const bayW = (pw - marginX * 2 - gap * (bays - 1)) / bays;
+      const bayH = ph - marginY * 2;
+      for (let i = 0; i < bays; i++) {
+        const bx = marginX + i * (bayW + gap);
+        const by = marginY;
+        // Bay frame recess
+        ctx.fillStyle = "#0a0c10";
+        roundRect(bx - 2, by - 2, bayW + 4, bayH + 4, 3);
+        ctx.fill();
+        drawFap6(bx, by, bayW, bayH);
+      }
+
+      // Carrier ear screw hints
+      ctx.fillStyle = "#2a2e34";
+      [0.25, 0.75].forEach((t) => {
+        ctx.beginPath();
+        ctx.arc(16, ph * t, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(pw - 16, ph * t, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      panduitFmt1FrontTex = tex;
+      return tex;
+    }
+
+    function makePanduitFmt1({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.2;
+      const w = 44.0;
+      const d = 28; // shallow fiber enclosure depth
+      const g = new THREE.Group();
+
+      const matBody = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.4, roughness: 0.55,
+      });
+      const matInside = new THREE.MeshStandardMaterial({
+        color: 0x0c0e12, metalness: 0.2, roughness: 0.75,
+      });
+
+      // Enclosure box (behind front panel)
+      g.add(box(w - 0.5, h - 0.15, d, matBody, 0, 0, 0));
+      // Hollow look: darker inset at front cavity
+      g.add(box(w - 3, h - 1.2, 0.4, matInside, 0, 0, -d / 2 + 1.2));
+
+      // Side cable knockouts
+      [-1, 1].forEach((side) => {
+        for (let i = 0; i < 3; i++) {
+          const ko = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.55, 0.55, 0.5, 12),
+            matInside
+          );
+          ko.rotation.z = Math.PI / 2;
+          ko.position.set(side * (w / 2 - 0.1), -h * 0.15 + i * 0.9, d * 0.15);
+          g.add(ko);
+        }
+      });
+
+      // CFAPPBL1 front adapter panel (flush to rails)
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makePanduitFmt1FrontTexture(),
+        metalness: 0.3,
+        roughness: 0.55,
+        side: THREE.DoubleSide,
+        emissive: 0x10141a,
+        emissiveIntensity: 0.12,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.1, h - 0.12), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.55);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      // Thin panel plate behind the texture plane
+      g.add(box(w + 0.2, h + 0.1, 0.25, matBody, 0, 0, -d / 2 - 0.35));
+
+      g.add(box(1.8, h * 0.92, 1.1, matChrome, -w / 2 - 0.5, 0, -d / 2 - 0.35));
+      g.add(box(1.8, h * 0.92, 1.1, matChrome, w / 2 + 0.5, 0, -d / 2 - 0.35));
+
+      const fieldTag = makeFieldLabel("FIBER");
+      const tagW = fieldTag.userData.labelW || 6.44;
+      fieldTag.position.set(w / 2 - tagW * 0.52, h / 2 - 0.55, -d / 2 - 0.7);
+      fieldTag.rotation.z = -0.03;
+      g.add(fieldTag);
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = true;
+      g.userData.kind = "fiber";
+      g.userData.label = "Panduit FMT1 + FAP6WBUDLCZ ×4";
+      g.userData.frontMat = frontMat;
+      g.userData.info = {
+        eyebrow: `Fiber · ${rackName}`,
+        title: "Panduit Fiber Enclosure",
+        model: "FMT1 + CFAPPBL1 + FAP6WBUDLCZ",
+        rating: "1U · 24× LC duplex (OS2)",
+        blocks: [
+          {
+            label: "Enclosure",
+            text: "Panduit FMT1 1U fiber tray / enclosure · CFAPPBL1 4-bay front carrier",
+          },
+          {
+            label: "Adapters",
+            text: "4× FAP6WBUDLCZ · 6 LC duplex each (24 ports total) · Blue = single-mode OS2 · Staggered layout",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Panduit 1U 24-port copper patch panel (RJ45) — label only, no info popup */
+    let panduitPp24FrontTex = null;
+    function makePanduitPp24FrontTexture() {
+      if (panduitPp24FrontTex) return panduitPp24FrontTex;
+      const pw = 1800;
+      const ph = 220;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // Black powder-coat panel
+      ctx.fillStyle = "#0e1014";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#161a20";
+      ctx.fillRect(6, 6, pw - 12, ph - 12);
+
+      // Mounting ears
+      ctx.fillStyle = "#222830";
+      ctx.fillRect(0, 14, 22, ph - 28);
+      ctx.fillRect(pw - 22, 14, 22, ph - 28);
+
+      // 24× RJ45 in a single row — bright jack bodies so they read on black metal
+      const cols = 24;
+      const areaX = 48;
+      const areaY = ph * 0.2;
+      const areaW = pw - 96;
+      const areaH = ph * 0.58;
+      const gapX = 2.5;
+      const pW = (areaW - gapX * (cols - 1)) / cols;
+      const pH = areaH;
+
+      for (let col = 0; col < cols; col++) {
+        const px = areaX + col * (pW + gapX);
+        const py = areaY;
+        // High-contrast off-white RJ45 jack housing
+        roundRect(px, py, pW, pH, 2.5);
+        const jackGrad = ctx.createLinearGradient(px, py, px, py + pH);
+        jackGrad.addColorStop(0, "#fffdf8");
+        jackGrad.addColorStop(0.4, "#f0ebe0");
+        jackGrad.addColorStop(1, "#d4cdc0");
+        ctx.fillStyle = jackGrad;
+        ctx.fill();
+        ctx.strokeStyle = "#a89f90";
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        // Dark keyed RJ45 aperture
+        const ix = px + pW * 0.12;
+        const iy = py + pH * 0.16;
+        const iw = pW * 0.76;
+        const ih = pH * 0.54;
+        ctx.fillStyle = "#12100e";
+        ctx.fillRect(ix, iy, iw, ih);
+        // Latch notch
+        ctx.fillStyle = "#050403";
+        ctx.fillRect(ix + iw * 0.3, iy + ih * 0.68, iw * 0.4, ih * 0.32);
+        // Gold contact strip — reads as copper pins
+        ctx.fillStyle = "#e0b84a";
+        ctx.fillRect(ix + iw * 0.16, iy + 1, iw * 0.68, Math.max(2, ih * 0.14));
+
+        // Port number above jack
+        ctx.fillStyle = "#eef2f7";
+        ctx.font = `700 ${Math.floor(ph * 0.11)}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(String(col + 1), px + pW / 2, py - 2);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      panduitPp24FrontTex = tex;
+      return tex;
+    }
+
+    function makePanduitPp24({ rackName = "Rack3", code = "PATCH 1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.18;
+      const w = 44.0;
+      const d = 8.5; // shallow patch panel
+      const g = new THREE.Group();
+
+      const matBody = new THREE.MeshStandardMaterial({
+        color: 0x0e1014, metalness: 0.35, roughness: 0.6,
+      });
+      g.add(box(w - 0.4, h - 0.12, d, matBody, 0, 0, 0));
+      g.add(box(w + 0.15, h + 0.08, 0.22, matBody, 0, 0, -d / 2 - 0.28));
+
+      const frontMat = new THREE.MeshStandardMaterial({
+        map: makePanduitPp24FrontTexture(),
+        metalness: 0.22,
+        roughness: 0.62,
+        side: THREE.DoubleSide,
+        emissive: 0x080a0e,
+        emissiveIntensity: 0.08,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.12, h - 0.1), frontMat);
+      face.position.set(0, 0, -d / 2 - 0.48);
+      face.rotation.y = Math.PI;
+      face.castShadow = true;
+      g.add(face);
+
+      g.add(box(1.7, h * 0.92, 1.0, matChrome, -w / 2 - 0.45, 0, -d / 2 - 0.3));
+      g.add(box(1.7, h * 0.92, 1.0, matChrome, w / 2 + 0.45, 0, -d / 2 - 0.3));
+
+      const fieldTag = makeFieldLabel(code || "PATCH", { fit: true, widthCm: 4.4 });
+      const tagW = fieldTag.userData.labelW || 4.4;
+      const tagH = fieldTag.userData.labelH || 0.68;
+      // Bottom-left as seen from the aisle (+X matches other field labels)
+      fieldTag.position.set(w / 2 - tagW * 0.55 - 1.2, -h / 2 + tagH * 0.55 + 0.12, -d / 2 - 0.62);
+      fieldTag.rotation.z = -0.02;
+      g.add(fieldTag);
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = face.position.z;
+      g.userData.interactive = false;
+      g.userData.kind = "patch-panel";
+      g.userData.code = code;
+      g.userData.label = `Panduit 24-port patch panel (${code})`;
+      return g;
+    }
+
+    /** Zero-U vertical PDU — mounts in rear side channel; outlets face rack bay */
+    const PDU_LOCAL_X = (RAIL_WIDTH / 2 + OUTER_W / 2 - FRAME_T) / 2 + 1.5;
+    const pduFaceTexCache = new Map();
+    function makeVerticalPduFaceTexture(code = "PDU1") {
+      if (pduFaceTexCache.has(code)) return pduFaceTexCache.get(code);
+      const pw = 160;
+      const ph = 2048;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+
+      function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      /** IEC 60320 C13 female receptacle (accepts C14) */
+      function drawC13(cx, cy, scale) {
+        const bw = 52 * scale;
+        const bh = 36 * scale;
+        // Bezel
+        roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 3 * scale);
+        ctx.fillStyle = "#1a1e24";
+        ctx.fill();
+        ctx.strokeStyle = "#4a5562";
+        ctx.lineWidth = 1.2 * scale;
+        ctx.stroke();
+        // Inner IEC C13 aperture — keyed rectangle
+        const iw = bw * 0.72;
+        const ih = bh * 0.62;
+        const ix = cx - iw / 2;
+        const iy = cy - ih / 2 + 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(ix + 3 * scale, iy);
+        ctx.lineTo(ix + iw - 3 * scale, iy);
+        ctx.lineTo(ix + iw, iy + 4 * scale);
+        ctx.lineTo(ix + iw, iy + ih);
+        ctx.lineTo(ix, iy + ih);
+        ctx.lineTo(ix, iy + 4 * scale);
+        ctx.closePath();
+        ctx.fillStyle = "#050608";
+        ctx.fill();
+        ctx.strokeStyle = "#6a7380";
+        ctx.lineWidth = 1 * scale;
+        ctx.stroke();
+        // Contact slots — L / N top row, earth bottom center (C13 layout)
+        ctx.fillStyle = "#c5ccd6";
+        const slotW = 5.5 * scale;
+        const slotH = 9 * scale;
+        // Line
+        ctx.fillRect(cx - iw * 0.28 - slotW / 2, cy - ih * 0.12 - slotH / 2, slotW, slotH);
+        // Neutral
+        ctx.fillRect(cx + iw * 0.28 - slotW / 2, cy - ih * 0.12 - slotH / 2, slotW, slotH);
+        // Earth (horizontal bar style)
+        ctx.fillRect(cx - slotH / 2, cy + ih * 0.22 - slotW / 2, slotH, slotW);
+      }
+
+      // Light aluminum face — reads against dark rack interior
+      ctx.fillStyle = "#c5ced8";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.fillStyle = "#aeb8c4";
+      ctx.fillRect(0, 0, 8, ph);
+      ctx.fillRect(pw - 8, 0, 8, ph);
+      const sheen = ctx.createLinearGradient(0, 0, pw, 0);
+      sheen.addColorStop(0, "rgba(255,255,255,0.22)");
+      sheen.addColorStop(0.45, "rgba(255,255,255,0)");
+      sheen.addColorStop(1, "rgba(0,0,0,0.12)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(0, 0, pw, ph);
+
+      // Header badge
+      ctx.fillStyle = "#1a222c";
+      ctx.fillRect(12, 18, pw - 24, 90);
+      ctx.strokeStyle = "#f0c040";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(13.5, 19.5, pw - 27, 87);
+      ctx.fillStyle = "#f5f7fa";
+      ctx.font = "800 28px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(code, pw / 2, 48);
+      ctx.font = "600 14px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = "#c5ccd6";
+      ctx.fillText("32A · IEC C13", pw / 2, 78);
+
+      // Stack of C13 outlets down the face
+      const startY = 150;
+      const endY = ph - 50;
+      const pitch = 44;
+      for (let y = startY; y < endY; y += pitch) {
+        drawC13(pw / 2, y, 1.15);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      tex.needsUpdate = true;
+      pduFaceTexCache.set(code, tex);
+      return tex;
+    }
+
+    function makeVerticalPdu({ rackName = "Rack1", code = "PDU1" } = {}) {
+      const g = new THREE.Group();
+      g.name = `${rackName}-${code}`;
+
+      // Zero-U stick — 40% shorter than full channel, still vertically centered on mount
+      const w = 5.2;
+      const d = 8.5;
+      const h = (INNER_H - 4) * 0.6;
+      // PDU1 sits on +X (rear-view left) → outlets face −X into the bay
+      // PDU2 sits on −X (rear-view right) → outlets face +X into the bay
+      const faceDir = code === "PDU1" ? -1 : 1;
+
+      // Light slate body + brighter rear spine so it separates from dark interior
+      const matBody = new THREE.MeshStandardMaterial({
+        color: 0x8a949e, metalness: 0.42, roughness: 0.42,
+      });
+      const matSpine = new THREE.MeshStandardMaterial({
+        color: 0xd0d6de, metalness: 0.55, roughness: 0.32,
+      });
+      g.add(box(w, h, d, matBody, 0, 0, 0));
+      g.add(box(0.55, h - 0.4, d - 0.6, matSpine, -faceDir * (w / 2 + 0.2), 0, 0));
+
+      const faceMat = new THREE.MeshStandardMaterial({
+        map: makeVerticalPduFaceTexture(code),
+        metalness: 0.18,
+        roughness: 0.48,
+        side: THREE.DoubleSide,
+        emissive: 0x2a3340,
+        emissiveIntensity: 0.22,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(d - 0.4, h - 0.6), faceMat);
+      face.position.set(faceDir * (w / 2 + 0.06), 0, 0);
+      face.rotation.y = faceDir === -1 ? -Math.PI / 2 : Math.PI / 2;
+      g.add(face);
+
+      // End caps / mount brackets
+      g.add(box(w + 0.6, 1.4, d + 0.5, matChrome, 0, h / 2 - 0.5, 0));
+      g.add(box(w + 0.6, 1.4, d + 0.5, matChrome, 0, -h / 2 + 0.5, 0));
+
+      g.userData.interactive = true;
+      g.userData.kind = "pdu";
+      g.userData.label = `${rackName} ${code}`;
+      g.userData.frontMat = faceMat;
+      g.userData.info = {
+        eyebrow: `Power · ${rackName}`,
+        title: `Vertical PDU · ${code}`,
+        model: "Zero-U rear vertical PDU",
+        rating: code === "PDU1"
+          ? (rackName === "Rack1" ? "32A feed · IEC C13" : "16A feed · IEC C13")
+          : "Building power · IEC C13",
+        blocks: [
+          {
+            label: "Mount",
+            text: code === "PDU1"
+              ? "Rear-left when facing the rack rear · Outlets face into the bay"
+              : "Rear-right when facing the rack rear · Outlets face into the bay",
+          },
+          {
+            label: "Outlets",
+            text: "IEC 60320 C13 sockets (C14 inlet cord) stacked vertically",
+          },
+          {
+            label: "Feed",
+            text: code === "PDU1"
+              ? "Powered from the UPS via the Distribution Panel → ceiling industrial socket → whip"
+              : "Powered from the MCB (building power, not UPS) via ceiling trunk → industrial socket → whip",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** IEC 60309 industrial socket — faces down from ceiling trunk (not interactive) */
+    function makeIndustrialSocket({ rackName = "Rack1", pdu = "PDU1", scale = 1 } = {}) {
+      const g = new THREE.Group();
+      g.name = `${rackName}-${pdu}-IndSock`;
+
+      const matFlange = new THREE.MeshStandardMaterial({
+        color: 0xb0b8c0, metalness: 0.55, roughness: 0.35,
+      });
+      const matBlue = new THREE.MeshStandardMaterial({
+        color: 0x1a6fd4, metalness: 0.25, roughness: 0.45,
+      });
+      const matLid = new THREE.MeshStandardMaterial({
+        color: 0x155bb0, metalness: 0.3, roughness: 0.4,
+      });
+      const matDark = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.2, roughness: 0.55,
+      });
+      const matPin = new THREE.MeshStandardMaterial({
+        color: 0xd8dee6, metalness: 0.85, roughness: 0.25,
+      });
+
+      // Mount flange against trunk underside
+      g.add(box(7.5, 0.6, 7.5, matFlange, 0, 0, 0));
+      // Blue IEC 60309 body hanging down
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.1, 5.5, 24), matBlue);
+      body.position.y = -3.0;
+      g.add(body);
+      // Face ring
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.45, 24), matBlue);
+      ring.position.y = -5.7;
+      g.add(ring);
+      // Dark receptacle face (looking up into socket from below)
+      const face = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), matDark);
+      face.rotation.x = Math.PI / 2; // face down (−Y)
+      face.position.y = -5.95;
+      g.add(face);
+      // Pin recesses
+      const pinR = 1.35;
+      [0, 72, 144, 216, 288].forEach((deg) => {
+        const a = (deg * Math.PI) / 180;
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.5, 10), matPin);
+        pin.position.set(Math.cos(a) * pinR, -5.7, Math.sin(a) * pinR);
+        g.add(pin);
+      });
+      // Hinged lid — slightly open
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(3.15, 3.15, 0.35, 24, 1, false, 0, Math.PI), matLid);
+      lid.rotation.x = 0.55;
+      lid.position.set(0, -4.2, 1.6);
+      g.add(lid);
+
+      if (scale !== 1) g.scale.setScalar(scale);
+      return g;
+    }
+
+    /** IEC 60309 male industrial plug — pins up into a downward socket (not interactive) */
+    function makeIndustrialPlug({ scale = 1 } = {}) {
+      const g = new THREE.Group();
+      g.name = "IndustrialPlug";
+
+      const matBlue = new THREE.MeshStandardMaterial({
+        color: 0x1a6fd4, metalness: 0.25, roughness: 0.45,
+      });
+      const matGrip = new THREE.MeshStandardMaterial({
+        color: 0x155bb0, metalness: 0.2, roughness: 0.5,
+      });
+      const matPin = new THREE.MeshStandardMaterial({
+        color: 0xe8ecf0, metalness: 0.9, roughness: 0.2,
+      });
+      const matCableBoot = new THREE.MeshStandardMaterial({
+        color: 0x1a1e24, metalness: 0.05, roughness: 0.75,
+      });
+
+      // Origin at the mating face (inserts up into socket). Body hangs below.
+      const face = new THREE.Mesh(new THREE.CylinderGeometry(2.85, 2.85, 0.5, 24), matBlue);
+      face.position.y = 0.15;
+      g.add(face);
+      // Pins up (+Y) into socket
+      const pinR = 1.2;
+      [0, 72, 144, 216, 288].forEach((deg) => {
+        const a = (deg * Math.PI) / 180;
+        const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.1, 8), matPin);
+        pin.position.set(Math.cos(a) * pinR, 0.85, Math.sin(a) * pinR);
+        g.add(pin);
+      });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(2.9, 3.05, 4.2, 24), matBlue);
+      body.position.y = -2.0;
+      g.add(body);
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 2.6, 1.6, 24), matGrip);
+      grip.position.y = -4.3;
+      g.add(grip);
+      // Cable entry boot at bottom
+      const boot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 0.85, 1.4, 12), matCableBoot);
+      boot.position.y = -5.5;
+      g.add(boot);
+
+      if (scale !== 1) g.scale.setScalar(scale);
+      g.userData.cableAttachLocalY = -5.5 * scale; // bottom of boot
+      return g;
+    }
+
+    function makeCableTube(points, radius, mat, opts = {}) {
+      if (points.length < 2) return null;
+      const tension = opts.tension ?? 0.5;
+      const tubular = opts.tubular ?? Math.max(24, points.length * 8);
+      const curve = new THREE.CatmullRomCurve3(points, false, "catmullrom", tension);
+      const geo = new THREE.TubeGeometry(curve, tubular, radius, 8, false);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      return mesh;
+    }
+
+    /** 1U inverted-L fixed shelf — open top for sliding gear on; flange hangs below front */
+    function makeFixedShelf({ rackName = "Rack1" } = {}) {
+      const heightU = 1;
+      const h = heightU * U - 0.25;
+      // Span the full 19″ opening so the shelf meets both rails (no floating gap)
+      const w = RAIL_WIDTH - 1.5; // ~46.76 between rail faces
+      const d = 50;
+      const g = new THREE.Group();
+
+      const matShelf = new THREE.MeshStandardMaterial({
+        color: 0x4a5560, metalness: 0.45, roughness: 0.48,
+      });
+
+      const trayT = 0.45;
+      // Tray near top of the RU so the drop-flange hangs in the unit below the deck
+      const trayY = h * 0.22;
+      const lipH = h * 0.55;
+      const lipD = 0.45;
+      const frontZ = -d / 2;
+
+      // Horizontal tray — clear top surface (slide equipment on from the aisle)
+      g.add(box(w, trayT, d, matShelf, 0, trayY, 0));
+
+      // Front flange hangs DOWN from the tray → inverted L (does not block the deck)
+      g.add(box(
+        w,
+        lipH,
+        lipD,
+        matShelf,
+        0,
+        trayY - trayT / 2 - lipH / 2,
+        frontZ + lipD / 2
+      ));
+
+      // Side returns under the tray — tie flange into the ears
+      const sideT = 0.45;
+      const sideD = Math.min(12, d * 0.35);
+      [-1, 1].forEach((side) => {
+        const sx = side * (w / 2 - sideT / 2);
+        g.add(box(
+          sideT,
+          lipH,
+          sideD,
+          matShelf,
+          sx,
+          trayY - trayT / 2 - lipH / 2,
+          frontZ + sideD / 2
+        ));
+      });
+
+      // Mounting ears — inner face flush against shelf ends
+      const earW = 1.8;
+      const earD = 1.2;
+      const earZ = frontZ + earD / 2;
+      [-1, 1].forEach((side) => {
+        g.add(box(
+          earW,
+          h * 0.92,
+          earD,
+          matChrome,
+          side * (w / 2 + earW / 2),
+          0,
+          earZ
+        ));
+      });
+
+      g.userData.heightU = heightU;
+      g.userData.mountZ = frontZ;
+      g.userData.interactive = true;
+      g.userData.kind = "shelf";
+      g.userData.label = "1U Fixed Shelf";
+      g.userData.info = {
+        eyebrow: `Shelf · ${rackName}`,
+        title: "1U Inverted-L Fixed Shelf",
+        model: "Fixed rack shelf",
+        rating: "1U · RU 39",
+        blocks: [
+          {
+            label: "Reserve",
+            text: "RU 39–42 reserved for Telecom · Open deck for sliding non-rackmount gear on",
+          },
+          {
+            label: "Physical",
+            text: "Inverted L: flat tray on top · front flange hangs below · ~500 mm deep · Screwed to 19″ rails",
+          },
+        ],
+      };
+      return g;
+    }
+
+    /** Wall-mount grey power enclosure (MCB / UPS Bypass) — closed cover + front label */
+    function makeWallPowerBox({
+      name = "PowerBox",
+      label = "MCB",
+      kind = "mcb",
+      eyebrow = "Power",
+      title = "Power Board",
+      model = "Wall-mount distribution board",
+      rating = "3-phase · 32A",
+      blocks = [],
+    } = {}) {
+      const g = new THREE.Group();
+      g.name = name;
+
+      const w = 36.4;
+      const h = 54.6;
+      const d = 8.5;
+
+      g.add(box(w, h, d, matMcbShell, 0, 0, 0));
+      const cover = box(w - 1.2, h - 1.2, 0.6, matMcbCover, 0, 0, -d / 2 - 0.25);
+      g.add(cover);
+
+      // Cover front is at −d/2 − 0.55; sit the label clearly in front to avoid z-fight flicker
+      const plate = makePowerFacePlate(label, w * 0.72, h * 0.22);
+      plate.position.set(0, h * 0.12, -d / 2 - 0.75);
+      g.add(plate);
+
+      g.userData.size = { w, h, d };
+      g.userData.interactive = true;
+      g.userData.kind = kind;
+      g.userData.label = title;
+      g.userData.info = { eyebrow, title, model, rating, blocks };
+      return g;
+    }
+
+    function makePowerFacePlate(text = "MCB", labelW = 22, labelH = 8) {
+      const pw = 512;
+      const ph = 180;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#eceff3";
+      ctx.fillRect(0, 0, pw, ph);
+      ctx.strokeStyle = "rgba(20,24,30,0.35)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(3, 3, pw - 6, ph - 6);
+      ctx.fillStyle = "#12161c";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const lines = String(text).split("\n");
+      const long = text.length > 10 || lines.length > 1;
+      const fs = Math.floor(ph * (long ? 0.32 : 0.55));
+      ctx.font = `800 ${fs}px "Archivo Black", "Arial Black", sans-serif`;
+      if (lines.length === 1) {
+        ctx.fillText(lines[0], pw / 2, ph / 2 + 2);
+      } else {
+        const step = fs * 1.15;
+        const startY = ph / 2 - ((lines.length - 1) * step) / 2;
+        lines.forEach((ln, i) => ctx.fillText(ln, pw / 2, startY + i * step));
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: 0.72,
+        metalness: 0.04,
+        side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(labelW, labelH), mat);
+      mesh.rotation.y = Math.PI; // face out (−Z)
+      mesh.renderOrder = 2;
+      return mesh;
+    }
+
+    const interactiveItems = [];
+    const pickBlockers = []; // opaque rack side panels that occlude picking
+
+    function createRack(name, extraLabels = [], equipment = []) {
+      const rack = new THREE.Group();
+      rack.name = name;
+
+      rack.add(rounded(OUTER_W + 1.5, BASE_H, OUTER_D + 1.5, 0.35, matFrame, 0, BASE_H / 2, 0));
+      [[-32, -42], [32, -42], [-32, 42], [32, 42]].forEach(([cx, cz]) => {
+        rack.add(box(4.5, 2.2, 4.5, matCaster, cx, 1.1, cz));
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 1.5, 16), matCaster);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(cx, 0.65, cz);
+        rack.add(wheel);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 2.2, 12), matChrome);
+        foot.position.set(cx + (cx > 0 ? -5 : 5), 1.1, cz + (cz > 0 ? -5 : 5));
+        rack.add(foot);
+      });
+
+      const postH = INNER_H + TOP_H;
+      const postY = BASE_H + postH / 2;
+      const px = OUTER_W / 2 - FRAME_T / 2;
+      const pz = OUTER_D / 2 - FRAME_T / 2;
+      [[-px, -pz], [px, -pz], [-px, pz], [px, pz]].forEach(([x, z]) => {
+        rack.add(box(FRAME_T, postH, FRAME_T, matFrame, x, postY, z));
+      });
+
+      const sideH = INNER_H - 1;
+      const sideY = BASE_H + INNER_H / 2;
+      const sideD = (OUTER_D - FRAME_T * 2 - 3) / 2;
+      [-1, 1].forEach((side) => {
+        const x = side * (OUTER_W / 2 - 0.55);
+        [
+          [sideY + sideH * 0.255, -sideD / 2 - 0.2],
+          [sideY - sideH * 0.255, -sideD / 2 - 0.2],
+          [sideY + sideH * 0.255, sideD / 2 + 0.2],
+          [sideY - sideH * 0.255, sideD / 2 + 0.2],
+        ].forEach(([y, z]) => {
+          const panel = box(0.7, sideH * 0.49, sideD - 0.4, matPanel, x, y, z);
+          panel.userData.blocksPick = true;
+          pickBlockers.push(panel);
+          rack.add(panel);
+        });
+      });
+
+      const topY = BASE_H + INNER_H + TOP_H / 2;
+      // Rear rectangular cable opening (brush/pass-through) in the top cover
+      const cableOpenW = OUTER_W * 0.64;
+      const cableOpenD = 14;
+      const cableOpenZ = OUTER_D / 2 - cableOpenD / 2 - 1.2;
+      const topFrontD = OUTER_D + 0.8 - cableOpenD - 2.2;
+      const earW = (OUTER_W + 0.8 - cableOpenW) / 2;
+      // Main top plate — stops short of the rear opening
+      rack.add(rounded(
+        OUTER_W + 0.8,
+        TOP_H,
+        topFrontD,
+        0.25,
+        matFrame,
+        0,
+        topY,
+        -OUTER_D / 2 + 0.4 + topFrontD / 2
+      ));
+      // Left / right rear ears beside the opening
+      [-1, 1].forEach((side) => {
+        rack.add(box(
+          earW,
+          TOP_H,
+          cableOpenD + 0.6,
+          matFrame,
+          side * (cableOpenW / 2 + earW / 2),
+          topY,
+          cableOpenZ
+        ));
+      });
+      // Dark void + thin brush lip so the opening reads as a cable cutout
+      const matCableOpen = new THREE.MeshStandardMaterial({
+        color: 0x0a0c10, metalness: 0.1, roughness: 0.85,
+      });
+      rack.add(box(cableOpenW - 0.6, 0.35, cableOpenD - 0.8, matCableOpen, 0, topY + TOP_H / 2 - 0.15, cableOpenZ));
+      // Brush strip hint across the opening
+      for (let i = 0; i < 14; i++) {
+        const bx = -cableOpenW * 0.42 + (i / 13) * cableOpenW * 0.84;
+        rack.add(box(0.35, 1.1, cableOpenD * 0.7, matCableOpen, bx, topY + TOP_H / 2 + 0.2, cableOpenZ));
+      }
+      rack.userData.cableOpen = {
+        y: BASE_H + INNER_H + TOP_H,
+        z: cableOpenZ,
+        w: cableOpenW,
+        d: cableOpenD,
+      };
+      rack.add(box(OUTER_W * 0.55, 0.4, OUTER_D * 0.28, matAccent, 0, BASE_H + INNER_H + TOP_H - 0.5, -8));
+
+      const railInsetX = RAIL_WIDTH / 2;
+      const railZFront = -OUTER_D / 2 + 10;
+      const railZRear = OUTER_D / 2 - 12;
+      [-railInsetX, railInsetX].forEach((x) => {
+        rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZFront));
+        rack.add(box(1.5, INNER_H, 2.2, matRail, x, sideY, railZRear));
+      });
+
+      // RU silk-screen on front 19″ rails — 1 bottom, 42 top (faces aisle).
+      // Centered on the rail face (not biased into the 19″ bay) to avoid z-fight with gear.
+      const ruZ = railZFront - 1.2;
+      const leftRu = makeRuRailLabel();
+      leftRu.position.set(-railInsetX, sideY, ruZ);
+      rack.add(leftRu);
+      const rightRu = makeRuRailLabel();
+      rightRu.position.set(railInsetX, sideY, ruZ);
+      rack.add(rightRu);
+
+      // No interior backplane — keep rear open so device backs are workable
+
+      for (let u = 0; u < UNITS; u++) {
+        const yBase = BASE_H + u * U;
+        for (let n = 0; n < 3; n++) {
+          const hy = yBase + 0.63 + n * 1.59;
+          [-railInsetX, railInsetX].forEach((x) => {
+            const hole = new THREE.Mesh(holeGeo, holeMat);
+            hole.rotation.z = Math.PI / 2;
+            hole.position.set(x + (x > 0 ? -0.8 : 0.8), hy, railZFront);
+            rack.add(hole);
+          });
+        }
+      }
+
+      // Brother labels on top — name, width, depth
+      const labelY = BASE_H + INNER_H + TOP_H + 0.12;
+      const labelW = 56;
+      const labelD = 11;
+      const labelGap = 1.2;
+      [`${name}`, "800W", "1072D", ...extraLabels].forEach((text, i) => {
+        const tag = makeBrotherLabel(text, labelW, labelD);
+        tag.position.set(0, labelY, -OUTER_D / 2 + 7 + i * (labelD + labelGap));
+        rack.add(tag);
+      });
+
+      // Mounted equipment — front faces flush to 19″ rail face (screwed to rails).
+      // Chassis depth varies; only the mount plane is shared, bodies extend rearward.
+      const railFrontFaceZ = railZFront - 1.1; // front face of rail extrusion (depth 2.2)
+      equipment.forEach((spec) => {
+        const { type, startU, code, transceivers } = spec;
+        let unit = null;
+        if (type === "ups-srtg15") unit = makeApcSrtg15();
+        if (type === "ups-srt6k") unit = makeApcSrt6();
+        if (type === "batt-srtg192") unit = makeApcSrtgBatt();
+        if (type === "batt-srt192rm") unit = makeApcSrt192RmBatt();
+        if (type === "sw-h3c-9850") {
+          unit = makeH3c9850({ rackName: name, code, transceivers: transceivers || [] });
+        }
+        if (type === "fw-hillstone-a3800") {
+          unit = makeHillstoneA3800({ rackName: name, code, transceivers: transceivers || [] });
+        }
+        if (type === "rt-huawei-ar1600c") {
+          unit = makeHuaweiAr1600c({ rackName: name });
+        }
+        if (type === "sw-ruijie-s6510") {
+          unit = makeRuijieS6510({ rackName: name, code, transceivers: transceivers || [] });
+        }
+        if (type === "sw-ruijie-s5760") {
+          unit = makeRuijieS5760({ rackName: name, code, transceivers: transceivers || [] });
+        }
+        if (type === "rt-cisco-c8300") {
+          unit = makeCiscoC8300({ rackName: name });
+        }
+        if (type === "srv-poweredge-r750") {
+          unit = makePowerEdgeR750({ rackName: name });
+        }
+        if (type === "fo-panduit-fmt1") {
+          unit = makePanduitFmt1({ rackName: name });
+        }
+        if (type === "pp-panduit-24") {
+          unit = makePanduitPp24({ rackName: name, code });
+        }
+        if (type === "shelf-fixed-1u") {
+          unit = makeFixedShelf({ rackName: name });
+        }
+        if (!unit) return;
+        const heightU = unit.userData.heightU || 1;
+        const eh = heightU * U - 0.2;
+        const y = BASE_H + startU * U + eh / 2 + 0.05;
+        const mountZ = unit.userData.mountZ ?? 0;
+        unit.position.set(0, y, railFrontFaceZ - mountZ);
+        if (name === "Rack1" && type === "srv-poweredge-r750") {
+          unit.userData.hideOn26F = true;
+          hideOn26FUnits.push(unit);
+        }
+        rack.add(unit);
+        if (unit.userData.interactive) interactiveItems.push(unit);
+      });
+
+      // Zero-U vertical PDUs — rear side channels
+      // Facing the rear: left = PDU1 (+X), right = PDU2 (−X)
+      const pduZ = railZRear + 1.5; // at rear rails, inside the cabinet
+      [
+        { code: "PDU1", x: PDU_LOCAL_X },
+        { code: "PDU2", x: -PDU_LOCAL_X },
+      ].forEach(({ code, x }) => {
+        const pdu = makeVerticalPdu({ rackName: name, code });
+        pdu.position.set(x, sideY, pduZ);
+        rack.add(pdu);
+        interactiveItems.push(pdu);
+      });
+
+      const doorW = OUTER_W - 3.2;
+      const doorH = INNER_H - 1.5;
+
+      const frontDoor = new THREE.Group();
+      const frontLeaf = makePerforatedDoorLeaf(doorW, doorH, { makerMark: true });
+      frontLeaf.position.x = doorW / 2;
+      frontDoor.add(frontLeaf);
+      const frontHandle = makeSwingHandle(16);
+      frontHandle.position.set(doorW - 3.2, 0, 0.9);
+      frontDoor.add(frontHandle);
+      frontDoor.position.set(-OUTER_W / 2 + 1.4, sideY, -OUTER_D / 2 + 0.6);
+      frontDoor.rotation.y = FRONT_OPEN;
+      rack.add(frontDoor);
+
+      const rearLeafW = (OUTER_W - 3.5) / 2;
+
+      const rearLeft = new THREE.Group();
+      const rearLeftLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
+      rearLeftLeaf.position.x = rearLeafW / 2;
+      rearLeft.add(rearLeftLeaf);
+      const rearLeftHandle = makeSwingHandle(14);
+      rearLeftHandle.position.set(rearLeafW - 2.6, 0, -0.9);
+      rearLeftHandle.rotation.y = Math.PI;
+      rearLeft.add(rearLeftHandle);
+      rearLeft.position.set(-OUTER_W / 2 + 1.5, sideY, OUTER_D / 2 - 0.6);
+      rearLeft.rotation.y = REAR_L_OPEN;
+      rack.add(rearLeft);
+
+      const rearRight = new THREE.Group();
+      const rearRightLeaf = makePerforatedDoorLeaf(rearLeafW, doorH);
+      rearRightLeaf.position.x = -rearLeafW / 2;
+      rearRight.add(rearRightLeaf);
+      const rearRightHandle = makeSwingHandle(14);
+      rearRightHandle.position.set(-(rearLeafW - 2.6), 0, -0.9);
+      rearRightHandle.rotation.y = Math.PI;
+      rearRight.add(rearRightHandle);
+      rearRight.position.set(OUTER_W / 2 - 1.5, sideY, OUTER_D / 2 - 0.6);
+      rearRight.rotation.y = REAR_R_OPEN;
+      rack.add(rearRight);
+
+      rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + INNER_H - 2, OUTER_D / 2 - 1.2));
+      rack.add(box(1.2, doorH * 0.08, 1.2, matFrame, 0, BASE_H + 2, OUTER_D / 2 - 1.2));
+
+      const interior = new THREE.PointLight(0xfff2dd, 22, 90, 2);
+      interior.position.set(0, sideY, 0);
+      rack.add(interior);
+
+      return { group: rack, frontDoor, rearLeft, rearRight };
+    }
+
+    // --- Raised access floors (data hall) ---
+    // Units are cm. 25F slab ≈ y=0; 26F slab at STOREY_H (8.4 m FTF — 2× prior storey).
+    const TILE = 60;           // 600 mm tiles
+    const FLOOR_H = 45;        // raised floor height (void + tile)
+    const FLOOR_TILE_T = 3.2;  // tile thickness
+    const FLOOR_COLS = 14;
+    const FLOOR_ROWS = 12;
+    const STOREY_H = 840;      // 25F slab → 26F slab (2× prior 4.2 m)
+    const floorW = FLOOR_COLS * TILE;
+    const floorD = FLOOR_ROWS * TILE;
+    const floorOriginX = -floorW / 2 + TILE / 2;
+    const floorOriginZ = -floorD / 2 + TILE / 2;
+
+    // Room footprints (approx — not CAD-precise).
+    // Shared WIDTH along Z (~3 window bays on the slanted −X façade).
+    // Depth runs −X (windows) → +X (interior). 25F uses full depth to floorXMax;
+    // 26F stops at Rack4’s interior (+X) face — same idea as the plan red boxes.
+    const floorZMax = floorD / 2;
+    const floorZMin = -floorD / 2;
+    const floorXMax = floorW / 2;
+    const rack6OuterX = -2 * RACK_PITCH - OUTER_W / 2;
+    const rack3OuterX = -RACK_PITCH - OUTER_W / 2;
+    const xDiagAtZMin = Math.max(-floorW / 2, rack6OuterX - 4.5 * TILE);
+    const xDiagAtZMax = rack3OuterX - 0.75 * TILE;
+
+    const AISLE = 220; // cm clear between front doors
+    const ROW_SEP = OUTER_D + AISLE;
+    // Rack4 at x=0 (row B, i=0 with −RACK_PITCH shift); interior face toward +X
+    // Plus two more tile rows beyond that face (user request)
+    const rack4InteriorX = 0 + OUTER_W / 2;
+    const floorXMax26 = rack4InteriorX + 2 * TILE;
+    // 26F rack row center (mid-depth); rotY = −π/2 → fronts face +X (into the room)
+    const rack26X = (floorXMinAt(0) + floorXMax26) * 0.5;
+
+    function floorXMinAt(z) {
+      const t = (z - floorZMin) / (floorZMax - floorZMin);
+      return xDiagAtZMin + t * (xDiagAtZMax - xDiagAtZMin);
+    }
+    function makeRoomOutline(xMax, zMin, zMax) {
+      return [
+        [xMax, zMin],
+        [xMax, zMax],
+        [floorXMinAt(zMax), zMax],
+        [floorXMinAt(zMin), zMin],
+      ];
+    }
+    function inFootprint(x, z, xMax, zMin, zMax) {
+      return z >= zMin && z <= zMax && x <= xMax && x >= floorXMinAt(z);
+    }
+    function tileOverlapsFootprint(x, z, xMax, zMin, zMax) {
+      const half = (TILE - 0.7) * 0.5;
+      if (z + half < zMin || z - half > zMax) return false;
+      if (x - half > xMax || x + half < -floorW / 2) return false;
+      const xRight = x + half;
+      const need = Math.min(floorXMinAt(z - half), floorXMinAt(z + half));
+      return xRight >= need;
+    }
+    // 25F helpers (full room) — used by wall / Wyr-Grid / trunking
+    function inRoomFootprint(x, z) {
+      return inFootprint(x, z, floorXMax, floorZMin, floorZMax);
+    }
+    function tileOverlapsRoom(x, z) {
+      return tileOverlapsFootprint(x, z, floorXMax, floorZMin, floorZMax);
+    }
+    const roomOutline = makeRoomOutline(floorXMax, floorZMin, floorZMax);
+    const roomOutline26 = makeRoomOutline(floorXMax26, floorZMin, floorZMax);
+
+    // Building slab under the 25F void
+    const subfloor = new THREE.Mesh(
+      new THREE.CircleGeometry(520, 64),
+      matSubfloor
+    );
+    subfloor.rotation.x = -Math.PI / 2;
+    subfloor.position.y = -0.02;
+    subfloor.receiveShadow = true;
+    scene.add(subfloor);
+
+    // Raised-floor void is open (no solid plenum box) so underfloor trunking is visible
+    const plenumH = FLOOR_H - FLOOR_TILE_T;
+
+    // Perforation texture for airflow tiles in the cold aisle
+    function makePerfTileTexture() {
+      const s = 256;
+      const c = document.createElement("canvas");
+      c.width = s;
+      c.height = s;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#bcc6d1";
+      ctx.fillRect(0, 0, s, s);
+      ctx.fillStyle = "#2a3038";
+      const step = 14;
+      const rad = 3.2;
+      for (let y = step / 2; y < s; y += step) {
+        for (let x = step / 2; x < s; x += step) {
+          ctx.beginPath();
+          ctx.arc(x, y, rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.strokeStyle = "rgba(40,48,58,0.35)";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, s - 4, s - 4);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    const matFloorPerfMapped = new THREE.MeshStandardMaterial({
+      map: makePerfTileTexture(),
+      metalness: 0.35,
+      roughness: 0.55,
+    });
+
+    // Diagonal clip shared by both floors (same −X cut line)
+    const floorDiagClip = (() => {
+      const dx = xDiagAtZMax - xDiagAtZMin;
+      const dz = floorZMax - floorZMin;
+      const len = Math.hypot(dx, dz) || 1;
+      const n = new THREE.Vector3(-dz / len, 0, dx / len);
+      let c = -(n.x * xDiagAtZMin + n.z * floorZMin);
+      if (c < 0) {
+        n.negate();
+        c = -c;
+      }
+      return new THREE.Plane(n, c);
+    })();
+    // 26F also clips flush to its shorter interior wall (discard x > floorXMax26)
+    const floor26DepthClip = new THREE.Plane(new THREE.Vector3(-1, 0, 0), floorXMax26);
+
+    [matFloorTile, matFloorTileAlt, matFloorPerfMapped].forEach((m) => {
+      m.clippingPlanes = [floorDiagClip];
+      m.clipShadows = true;
+    });
+    const matFloorTile26 = matFloorTile.clone();
+    const matFloorTileAlt26 = matFloorTileAlt.clone();
+    const matFloorPerfMapped26 = matFloorPerfMapped.clone();
+    [matFloorTile26, matFloorTileAlt26, matFloorPerfMapped26].forEach((m) => {
+      m.clippingPlanes = [floorDiagClip, floor26DepthClip];
+      m.clipShadows = true;
+    });
+
+    // Cold-aisle Z band (between the two front door lines) → perforated tiles
+    const aisleZ0 = -AISLE / 2;
+    const aisleZ1 = AISLE / 2;
+
+    const tileGeo = new THREE.BoxGeometry(TILE - 0.7, FLOOR_TILE_T, TILE - 0.7);
+    const pedGeo = new THREE.CylinderGeometry(1.2, 1.6, plenumH - 1, 8);
+    const floorTileDummy = new THREE.Object3D();
+
+    function collectFloorTiles(xMax, zMin, zMax, aisle = null) {
+      const solid = [];
+      const solidAlt = [];
+      const perf = [];
+      for (let r = 0; r < FLOOR_ROWS; r++) {
+        for (let c = 0; c < FLOOR_COLS; c++) {
+          const x = floorOriginX + c * TILE;
+          const z = floorOriginZ + r * TILE;
+          if (!tileOverlapsFootprint(x, z, xMax, zMin, zMax)) continue;
+          let inAisle = false;
+          if (aisle && aisle.axis === "x") {
+            inAisle = x >= aisle.a0 && x <= aisle.a1;
+          } else if (aisle && aisle.axis === "z") {
+            inAisle = z >= aisle.a0 && z <= aisle.a1;
+          } else {
+            inAisle = z >= aisleZ0 && z <= aisleZ1;
+          }
+          const entry = { x, z };
+          if (inAisle) perf.push(entry);
+          else if ((r + c) % 2 === 0) solid.push(entry);
+          else solidAlt.push(entry);
+        }
+      }
+      return { solid, solidAlt, perf };
+    }
+
+    const tiles25 = collectFloorTiles(floorXMax, floorZMin, floorZMax, {
+      axis: "z",
+      a0: aisleZ0,
+      a1: aisleZ1,
+    });
+    // 26F cold aisle is in front of the rack row (rotY −π/2 → front at +X)
+    const coldAisle26 = 160;
+    const rack26FrontX = rack26X + OUTER_D / 2;
+    const rack26RearX = rack26X - OUTER_D / 2;
+    const tiles26 = collectFloorTiles(floorXMax26, floorZMin, floorZMax, {
+      axis: "x",
+      a0: rack26FrontX,
+      a1: rack26FrontX + coldAisle26,
+    });
+
+    function makeFloorMark(text, fillColor, widthCm, depthCm) {
+      const pw = 1024;
+      const ph = 256;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillRect(0, ph * 0.18, pw, ph * 0.64);
+      ctx.fillStyle = fillColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.5)}px "Archivo Black", "Arial Black", sans-serif`;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshStandardMaterial({
+        map: tex,
+        transparent: true,
+        roughness: 0.85,
+        metalness: 0.05,
+        depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, depthCm), mat);
+      mesh.rotation.x = -Math.PI / 2;
+      return mesh;
+    }
+
+    /** Floating dimension label (transparent plate) */
+    function makeHoverDimLabel(text, widthCm = 26, heightCm = 5.2) {
+      const pw = 512;
+      const ph = 128;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.floor(ph * 0.58)}px "Archivo Black", "Arial Black", sans-serif`;
+      // Light halo so black text reads over scene clutter
+      ctx.strokeStyle = "rgba(255,255,255,0.92)";
+      ctx.lineWidth = 10;
+      ctx.strokeText(text, pw / 2, ph / 2 + 1);
+      ctx.fillStyle = "#0f141b";
+      ctx.fillText(text, pw / 2, ph / 2 + 1);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 8;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        depthTest: true,
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(widthCm, heightCm), mat);
+      mesh.renderOrder = 40;
+      mesh.userData.noPick = true;
+      hoverDimLabels.push(mesh);
+      return mesh;
+    }
+
+    /** Structural slab matching a room outline (has real underside). */
+    const SLAB_T = 22; // cm — typical RC floor thickness so underside reads from below
+    function makeRoomSlab(topY, outline, material, thickness = SLAB_T) {
+      const shape = new THREE.Shape();
+      shape.moveTo(outline[0][0], -outline[0][1]);
+      for (let i = 1; i < outline.length; i++) {
+        shape.lineTo(outline[i][0], -outline[i][1]);
+      }
+      shape.closePath();
+      // Extrude in local +Z, then tip flat so depth becomes world +Y (top at topY)
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: false,
+        curveSegments: 1,
+      });
+      const mesh = new THREE.Mesh(geo, material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = topY - thickness;
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      return mesh;
+    }
+
+    /**
+     * Build one raised-floor deck (pedestals + tiles + aisle marks) on a slab at slabY.
+     * Deck surface is at slabY + FLOOR_H.
+     */
+    function buildRaisedFloorLevel(name, slabY, {
+      xMax,
+      zMin,
+      zMax,
+      tiles,
+      mats,
+      aisleMarks = true,
+      floorTag = "",
+    }) {
+      const group = new THREE.Group();
+      group.name = name;
+
+      // Pedestals in the void
+      for (let c = 0; c <= FLOOR_COLS; c += 2) {
+        for (let r = 0; r <= FLOOR_ROWS; r += 2) {
+          const px = -floorW / 2 + c * TILE;
+          const pz = -floorD / 2 + r * TILE;
+          if (!inFootprint(px, pz, xMax, zMin, zMax)) continue;
+          const ped = new THREE.Mesh(pedGeo, matPedestal);
+          ped.position.set(px, slabY + plenumH / 2, pz);
+          ped.castShadow = true;
+          group.add(ped);
+        }
+      }
+
+      function addTileInstances(list, material) {
+        if (!list.length) return null;
+        const mesh = new THREE.InstancedMesh(tileGeo, material, list.length);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        list.forEach((t, i) => {
+          floorTileDummy.position.set(t.x, slabY + FLOOR_H - FLOOR_TILE_T / 2, t.z);
+          floorTileDummy.updateMatrix();
+          mesh.setMatrixAt(i, floorTileDummy.matrix);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        group.add(mesh);
+        return mesh;
+      }
+
+      addTileInstances(tiles.solid, mats.solid);
+      addTileInstances(tiles.solidAlt, mats.solidAlt);
+      addTileInstances(tiles.perf, mats.perf);
+
+      const markY = slabY + FLOOR_H + 0.2;
+      if (aisleMarks) {
+        const coldZ = 0;
+        if (coldZ >= zMin && coldZ <= zMax && -RACK_PITCH / 2 <= xMax) {
+          const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 160, 28);
+          coldMark.position.set(-RACK_PITCH / 2, markY, coldZ);
+          group.add(coldMark);
+        }
+
+        const hotAZ = ROW_SEP / 2 + OUTER_D / 2 + 28;
+        if (hotAZ >= zMin && hotAZ <= zMax && 0 <= xMax) {
+          const hotA = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+          hotA.position.set(0, markY, hotAZ);
+          group.add(hotA);
+        }
+
+        const hotBZ = -(ROW_SEP / 2 + OUTER_D / 2 + 28);
+        if (hotBZ >= zMin && hotBZ <= zMax && -RACK_PITCH <= xMax) {
+          const hotB = makeFloorMark("HOT AISLE", "#e11d2e", 140, 26);
+          hotB.rotation.z = Math.PI;
+          hotB.position.set(-RACK_PITCH, markY, hotBZ);
+          group.add(hotB);
+        }
+      }
+
+      if (floorTag) {
+        const tag = makeFloorMark(floorTag, "#1a2330", 90, 28);
+        // Keep tag inside this floor’s xMax
+        tag.position.set(Math.min(xMax, floorXMax) - 70, markY, zMin + 40);
+        group.add(tag);
+      }
+
+      scene.add(group);
+      return group;
+    }
+
+    const raisedFloor = buildRaisedFloorLevel("RaisedFloor25F", 0, {
+      xMax: floorXMax,
+      zMin: floorZMin,
+      zMax: floorZMax,
+      tiles: tiles25,
+      mats: {
+        solid: matFloorTile,
+        solidAlt: matFloorTileAlt,
+        perf: matFloorPerfMapped,
+      },
+      aisleMarks: true,
+      floorTag: "25F",
+    });
+
+    // 26F — full window-span (Z); depth stops at Rack4 interior face
+    const raisedFloor26 = buildRaisedFloorLevel("RaisedFloor26F", STOREY_H, {
+      xMax: floorXMax26,
+      zMin: floorZMin,
+      zMax: floorZMax,
+      tiles: tiles26,
+      mats: {
+        solid: matFloorTile26,
+        solidAlt: matFloorTileAlt26,
+        perf: matFloorPerfMapped26,
+      },
+      aisleMarks: false,
+      floorTag: "26F",
+    });
+    // 26F aisle marks — cold in front (+X), hot at rear (−X), text along the row (Z)
+    {
+      const markY = STOREY_H + FLOOR_H + 0.2;
+      const coldMark = makeFloorMark("COLD AISLE", "#1a5cff", 200, 28);
+      coldMark.rotation.z = Math.PI / 2;
+      coldMark.position.set(rack26FrontX + coldAisle26 * 0.45, markY, 0);
+      raisedFloor26.add(coldMark);
+
+      const hotMark = makeFloorMark("HOT AISLE", "#e11d2e", 200, 28);
+      hotMark.rotation.z = Math.PI / 2;
+      hotMark.position.set(rack26RearX - 32, markY, 0);
+      raisedFloor26.add(hotMark);
+    }
+    scene.add(makeRoomSlab(STOREY_H, roomOutline26, matSubfloor));
+
+    const bay = new THREE.Group();
+    // Cabinets sit on the 25F raised floor deck
+    bay.position.y = FLOOR_H;
+    scene.add(bay);
+
+    // 26F cabinets sit on the upper raised floor deck
+    const bay26 = new THREE.Group();
+    bay26.name = "Bay26F";
+    bay26.position.y = STOREY_H + FLOOR_H;
+    scene.add(bay26);
+
+    const racks = [];
+    const hideOn26FUnits = [];
+
+    function placeRow(names, z, rotY, xShift = 0, extrasByName = {}, equipmentByName = {}) {
+      names.forEach((name, i) => {
+        const unit = createRack(
+          name,
+          extrasByName[name] || [],
+          equipmentByName[name] || []
+        );
+        // Base LTR layout, plus optional row shift
+        const x = (names.length - 1 - i) * RACK_PITCH - RACK_PITCH + xShift;
+        unit.group.position.set(x, 0, z);
+        unit.group.rotation.y = rotY;
+        bay.add(unit.group);
+        racks.push(unit);
+      });
+    }
+
+    /** 26F: one row parallel to the window façade (along Z), fronts face into the room (+X). */
+    function placeRow26AlongWindows(names, extrasByName = {}, equipmentByName = {}) {
+      names.forEach((name, i) => {
+        const unit = createRack(
+          name,
+          extrasByName[name] || [],
+          equipmentByName[name] || []
+        );
+        // LTR when facing into the room (+X): left = +Z
+        const z = ((names.length - 1) / 2 - i) * RACK_PITCH;
+        unit.group.position.set(rack26X, 0, z);
+        unit.group.rotation.y = -Math.PI / 2;
+        bay26.add(unit.group);
+        racks.push(unit);
+      });
+    }
+
+    // Optic maps — linked=true → green port LED.
+    // MM aqua: C1↔C2 and C3↔C4 ports 47–50 (peer redundancy).
+    // SM yellow Rack1: C1:3→C3:1 · C1:4→F1:24 · F1:25→C3:2
+    // SM yellow Rack2: C2:3→C4:1 · C2:4→F2:24 · F2:25→C4:2
+    // SM yellow C3→Dist: 11/12/13→D1/D3/D5:49 · 21/22/23→D2/D4/D6:49
+    // SM yellow C4→Dist: 11/12/13→D1/D3/D5:50 · 21/22/23→D2/D4/D6:50
+    // SM yellow Dist→Access:
+    //   D1:1–4 → A1–A4:49 · D2:1–4 → A1–A4:50 · D3:1–2 → A5–A6:49 · D4:1–2 → A5–A6:50
+    //   D5:1–2 → A7–A8:49 · D6:1–2 → A7–A8:50
+    const CORE_MM_47_50 = [47, 48, 49, 50].map((port) => ({
+      port, model: "XG-SFP-SR-MM850", kind: "multimode", linked: true,
+    }));
+    const CORE_XCVRS_C1 = [
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const CORE_XCVRS_C2 = [
+      ...[1, 2].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: false,
+      })),
+      ...[3, 4].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const CORE_XCVRS_C3 = [
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const CORE_XCVRS_C4 = [
+      ...[1, 2, 11, 12, 13, 21, 22, 23].map((port) => ({
+        port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+      })),
+      ...CORE_MM_47_50,
+    ];
+    const FW_XCVRS_F1 = [24, 25].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
+    const FW_XCVRS_F2 = FW_XCVRS_F1;
+    // Dist ports 49←C3 · 50←C4 — same SM optic as cores
+    const DIST_XCVRS_UPLINK = [49, 50].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
+    // D1/D2:1–4 → A1–A4 · D3/D4:1–2 → A5–A6 · D5/D6:1–2 → A7–A8 (Access downlinks)
+    const DIST_XCVRS_DOWNLINK_1_4 = [1, 2, 3, 4].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
+    const DIST_XCVRS_DOWNLINK_1_2 = [1, 2].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
+    const DIST_XCVRS_D1 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_4,
+    ];
+    const DIST_XCVRS_D2 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_4,
+    ];
+    const DIST_XCVRS_D3 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_2,
+    ];
+    const DIST_XCVRS_D4 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_2,
+    ];
+    const DIST_XCVRS_D5 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_2,
+    ];
+    const DIST_XCVRS_D6 = [
+      ...DIST_XCVRS_UPLINK,
+      ...DIST_XCVRS_DOWNLINK_1_2,
+    ];
+    const ACCESS_XCVRS_UPLINK_49_50 = [49, 50].map((port) => ({
+      port, model: "XG-SFP-LR-SM1310", kind: "single-mode", linked: true,
+    }));
+    const ACCESS_XCVRS_A1 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A2 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A3 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A4 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A5 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A6 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A7 = ACCESS_XCVRS_UPLINK_49_50;
+    const ACCESS_XCVRS_A8 = ACCESS_XCVRS_UPLINK_49_50;
+
+    // Row A — fronts face the aisle (-Z): Rack1, Rack2, Rack3
+    placeRow(
+      ["Rack1", "Rack2", "Rack3"],
+      ROW_SEP / 2,
+      0,
+      0,
+      { Rack1: ["CORE"], Rack2: ["CORE"], Rack3: ["ACCESS"] },
+      {
+        // H3C LS-9850-4C-H1 core switches (2U) at RU 28–29 and 33–34
+        // Top = higher RU: C1/C2 · Bottom = lower RU: C3/C4
+        Rack1: [
+          { type: "srv-poweredge-r750", startU: 16 }, // RU 17–18
+          { type: "rt-cisco-c8300", startU: 19 }, // RU 20 — Voice
+          // Dist top→down: D1 (RU26), D3 (RU24), D5 (RU22)
+          { type: "sw-ruijie-s6510", startU: 21, code: "D5", transceivers: DIST_XCVRS_D5 },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D3", transceivers: DIST_XCVRS_D3 },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D1", transceivers: DIST_XCVRS_D1 },
+          { type: "sw-h3c-9850", startU: 27, code: "C3", transceivers: CORE_XCVRS_C3 },
+          { type: "fw-hillstone-a3800", startU: 30, code: "F1", transceivers: FW_XCVRS_F1 }, // RU 31 between C3 and C1
+          { type: "sw-h3c-9850", startU: 32, code: "C1", transceivers: CORE_XCVRS_C1 },
+          { type: "rt-huawei-ar1600c", startU: 35 }, // RU 36
+          { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 + CFAPPBL1
+          { type: "shelf-fixed-1u", startU: 38 }, // RU 39 fixed shelf — Telecom reserve RU 39–42
+        ],
+        Rack2: [
+          // Dist top→down: D2 (RU26), D4 (RU24), D6 (RU22)
+          { type: "sw-ruijie-s6510", startU: 21, code: "D6", transceivers: DIST_XCVRS_D6 },
+          { type: "sw-ruijie-s6510", startU: 23, code: "D4", transceivers: DIST_XCVRS_D4 },
+          { type: "sw-ruijie-s6510", startU: 25, code: "D2", transceivers: DIST_XCVRS_D2 },
+          { type: "sw-h3c-9850", startU: 27, code: "C4", transceivers: CORE_XCVRS_C4 },
+          { type: "fw-hillstone-a3800", startU: 30, code: "F2", transceivers: FW_XCVRS_F2 }, // RU 31 between C4 and C2
+          { type: "sw-h3c-9850", startU: 32, code: "C2", transceivers: CORE_XCVRS_C2 },
+          { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — fiber (same as Rack1)
+          { type: "shelf-fixed-1u", startU: 38 }, // RU 39 — Telecom shelf (same as Rack1)
+        ],
+        Rack3: [
+          // Access top→down: A7/A5/A3/A1 at RU 18, 20, 22, 24 (equally spaced)
+          { type: "sw-ruijie-s5760", startU: 17, code: "A7", transceivers: ACCESS_XCVRS_A7 }, // RU 18
+          { type: "sw-ruijie-s5760", startU: 19, code: "A5", transceivers: ACCESS_XCVRS_A5 }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 }, // RU 22
+          { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 }, // RU 24
+          // 8× Panduit 1U 24-port PP — top→bottom PATCH 1…8 (higher RU = top)
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+        ],
+      }
+    );
+    // Row B — turned 180°, shifted one bay so:
+    //   Rack1 → empty | Rack2 ↔ Rack4 | Rack3 ↔ Rack5 | empty ← Rack6
+    placeRow(
+      ["Rack4", "Rack5", "Rack6"],
+      -ROW_SEP / 2,
+      Math.PI,
+      -RACK_PITCH,
+      { Rack4: ["ACCESS"], Rack5: ["ACS"], Rack6: ["UPS"] },
+      {
+        Rack4: [
+          // Access top→down: A8/A6/A4/A2 at RU 18, 20, 22, 24 (equally spaced)
+          { type: "sw-ruijie-s5760", startU: 17, code: "A8", transceivers: ACCESS_XCVRS_A8 }, // RU 18
+          { type: "sw-ruijie-s5760", startU: 19, code: "A6", transceivers: ACCESS_XCVRS_A6 }, // RU 20
+          { type: "sw-ruijie-s5760", startU: 21, code: "A4", transceivers: ACCESS_XCVRS_A4 }, // RU 22
+          { type: "sw-ruijie-s5760", startU: 23, code: "A2", transceivers: ACCESS_XCVRS_A2 }, // RU 24
+          // Patching racks = Rack3 + Rack4 only — same 8× PP stack as Rack3
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+        ],
+        // APC Smart-UPS On-Line SRTG15KXLI 15kVA — 7U at bottom of Rack6
+        // + 4× SRTG192XLBP2 192V battery packs (4U each) stacked above
+        Rack6: [
+          { type: "ups-srtg15", startU: 0 },
+          { type: "batt-srtg192", startU: 7 },
+          { type: "batt-srtg192", startU: 11 },
+          { type: "batt-srtg192", startU: 15 },
+          { type: "batt-srtg192", startU: 19 },
+        ],
+      }
+    );
+
+    // 26F — cabinets parallel to the windows (plan 26-F10).
+    // 26F-1 / 26F-2 mirror 25F Rack3 / Rack4 (access + patching); 26F-3 stays empty.
+    placeRow26AlongWindows(
+      ["26F-1", "26F-2", "26F-3"],
+      { "26F-1": ["ACCESS"], "26F-2": ["ACCESS", "UPS"] },
+      {
+        "26F-1": [
+          // Same stack as 25F Rack3, plus fiber panel as on 25F Rack1 (RU 38)
+          { type: "sw-ruijie-s5760", startU: 17, code: "A7", transceivers: ACCESS_XCVRS_A7 },
+          { type: "sw-ruijie-s5760", startU: 19, code: "A5", transceivers: ACCESS_XCVRS_A5 },
+          { type: "sw-ruijie-s5760", startU: 21, code: "A3", transceivers: ACCESS_XCVRS_A3 },
+          { type: "sw-ruijie-s5760", startU: 23, code: "A1", transceivers: ACCESS_XCVRS_A1 },
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+          { type: "fo-panduit-fmt1", startU: 37 }, // RU 38 — Panduit FMT1 (same as 25F Rack1)
+        ],
+        "26F-2": [
+          // APC Smart-UPS On-Line SRT6KRMXLI 6kVA — 4U at bottom + 1× SRT192RMBP 3U
+          { type: "ups-srt6k", startU: 0 },
+          { type: "batt-srt192rm", startU: 4 }, // RU 5–7 above the UPS
+          // Same access + patch stack as 25F Rack4
+          { type: "sw-ruijie-s5760", startU: 17, code: "A8", transceivers: ACCESS_XCVRS_A8 },
+          { type: "sw-ruijie-s5760", startU: 19, code: "A6", transceivers: ACCESS_XCVRS_A6 },
+          { type: "sw-ruijie-s5760", startU: 21, code: "A4", transceivers: ACCESS_XCVRS_A4 },
+          { type: "sw-ruijie-s5760", startU: 23, code: "A2", transceivers: ACCESS_XCVRS_A2 },
+          { type: "pp-panduit-24", startU: 36, code: "PATCH 1" },
+          { type: "pp-panduit-24", startU: 35, code: "PATCH 2" },
+          { type: "pp-panduit-24", startU: 34, code: "PATCH 3" },
+          { type: "pp-panduit-24", startU: 33, code: "PATCH 4" },
+          { type: "pp-panduit-24", startU: 32, code: "PATCH 5" },
+          { type: "pp-panduit-24", startU: 31, code: "PATCH 6" },
+          { type: "pp-panduit-24", startU: 30, code: "PATCH 7" },
+          { type: "pp-panduit-24", startU: 29, code: "PATCH 8" },
+        ],
+      }
+    );
+
+    // -------------------------------------------------------------------------
+    // Core links — virtual LC–LC indicators (straight; no physical routing)
+    // MM aqua: C1↔C2 / C3↔C4 ports 47–50 (±thickness Y for 47/48 up · 49/50 down).
+    // SM yellow: Rack1/2 via F1/F2 under Core · C3/C4→Dist under Dist · D1→A1 under Access.
+    // -------------------------------------------------------------------------
+    function findEquipmentByCode(code) {
+      // Prefer 25F — 26F mirrors access/PATCH codes for local gear but must not join 25F links.
+      const pools = [
+        racks.filter((r) => r.group.parent === bay),
+        racks.filter((r) => r.group.parent !== bay),
+      ];
+      for (const pool of pools) {
+        for (const { group: rack } of pool) {
+          for (const child of rack.children) {
+            if (child.userData && child.userData.code === code) {
+              return { rack, unit: child };
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    function portWorldPos(unit, port) {
+      const local = unit.userData.portAnchors?.[port];
+      if (!local) return null;
+      // Anchor is slightly proud of the face; nudge onto/into the faceplate texture
+      // so a side view shows the line touching the SFP, not floating in the aisle.
+      return unit.localToWorld(local.clone().add(new THREE.Vector3(0, 0, 0.45)));
+    }
+
+    const roomCoreLinks = new THREE.Group();
+    roomCoreLinks.name = "CoreRedundancyLinks";
+    roomCoreLinks.visible = false;
+    scene.add(roomCoreLinks);
+
+    const roomCoreDistLinks = new THREE.Group();
+    roomCoreDistLinks.name = "CoreToDistLinks";
+    roomCoreDistLinks.visible = false;
+    scene.add(roomCoreDistLinks);
+
+    const roomDistAccessLinks = new THREE.Group();
+    roomDistAccessLinks.name = "DistToAccessLinks";
+    roomDistAccessLinks.visible = false;
+    scene.add(roomDistAccessLinks);
+
+    const matCoreMmXray = new THREE.MeshBasicMaterial({
+      color: 0x3dcec7, // aqua = multimode
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matCoreSmXray = new THREE.MeshBasicMaterial({
+      color: 0xf0d000, // yellow = single-mode (matches SFP pull-tab)
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    });
+    // Access LAN role aura — blue glow around SM yellow cores (industry SM = yellow).
+    // At pulse peak a near-core blue cover fully occludes yellow; trough lets SM show.
+    const ACCESS_LAN_COVER_PEAK = 1.0;
+    const ACCESS_LAN_AURA_PEAK = 0.55;
+    const ACCESS_LAN_AURA_SOFT_PEAK = 0.32;
+    const ACCESS_LAN_AURA_PULSE_SEC = 3;
+    const matAccessLanBlueCover = new THREE.MeshBasicMaterial({
+      color: 0x3b82f6,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matAccessLanAura = new THREE.MeshBasicMaterial({
+      color: 0x3b82f6,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const matAccessLanAuraSoft = new THREE.MeshBasicMaterial({
+      color: 0x60a5fa,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_SOFT_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    // Access Wi‑Fi role aura — greenish (vs face teal) around SM yellow; same pulse as LAN
+    const matAccessWifiCover = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matAccessWifiAura = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const matAccessWifiAuraSoft = new THREE.MeshBasicMaterial({
+      color: 0x4ade80,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_SOFT_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    // Access Security role aura — red (0xf04343) around SM yellow; same pulse as LAN
+    const matAccessSecCover = new THREE.MeshBasicMaterial({
+      color: 0xf04343,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const matAccessSecAura = new THREE.MeshBasicMaterial({
+      color: 0xf04343,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const matAccessSecAuraSoft = new THREE.MeshBasicMaterial({
+      color: 0xf87171,
+      transparent: true,
+      opacity: ACCESS_LAN_AURA_SOFT_PEAK,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const CORE_LINK_R = 0.14;
+    const CORE_LINK_THICK = CORE_LINK_R * 2; // diameter = “thickness of the line”
+    const CORE_LINK_PORTS = [
+      { port: 47, yOff: +CORE_LINK_THICK },
+      { port: 48, yOff: +CORE_LINK_THICK },
+      { port: 49, yOff: -CORE_LINK_THICK },
+      { port: 50, yOff: -CORE_LINK_THICK },
+    ];
+
+    const coreCalloutAnchors = {
+      C1C2: null, // world midpoint of C1↔C2 P47
+      C3C4: null, // world midpoint of C3↔C4 P47
+      SM_C1: null, // just above C1 port 3
+      SM_C2: null, // just above C2 port 3
+      SM_CD: null, // just under D5 port 50 (C3→Dist)
+      SM_CD2: null, // just under D6 port 50 (C4→Dist)
+    };
+    // World endpoints of linked clusters (for frustum tests)
+    const coreCalloutFrustumPts = {
+      C1C2: [],
+      C3C4: [],
+      SM_C1: [],
+      SM_C2: [],
+      SM_CD: [],
+      SM_CD2: [],
+    };
+
+    function addCorePeerLinks(codeA, codeB) {
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return;
+      const key = `${codeA}${codeB}`;
+      if (coreCalloutFrustumPts[key]) coreCalloutFrustumPts[key].length = 0;
+      for (const { port, yOff } of CORE_LINK_PORTS) {
+        const a = portWorldPos(aEq.unit, port);
+        const b = portWorldPos(bEq.unit, port);
+        if (!a || !b) continue;
+        a.y += yOff;
+        b.y += yOff;
+        if (coreCalloutFrustumPts[key]) {
+          coreCalloutFrustumPts[key].push(a.clone(), b.clone());
+        }
+        // Callout points at the midpoint of each pair's port 47 link
+        if (port === 47) {
+          coreCalloutAnchors[key] = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+        }
+        const link = makeCableTube([a, b], CORE_LINK_R, matCoreMmXray, {
+          tension: 0,
+          tubular: 6,
+        });
+        if (!link) continue;
+        link.name = `CORE-MM-${codeA}${codeB}-P${port}`;
+        link.userData.interactive = false;
+        link.renderOrder = 4;
+        roomCoreLinks.add(link);
+      }
+    }
+
+    /** One straight virtual LC–LC between two named equipment ports. */
+    function addCorePortLink(codeA, portA, codeB, portB, material, name, group = roomCoreLinks) {
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return null;
+      const a = portWorldPos(aEq.unit, portA);
+      const b = portWorldPos(bEq.unit, portB);
+      if (!a || !b) return null;
+      const link = makeCableTube([a, b], CORE_LINK_R, material, {
+        tension: 0,
+        tubular: 6,
+      });
+      if (!link) return null;
+      link.name = name || `CORE-${codeA}P${portA}-${codeB}P${portB}`;
+      link.userData.interactive = false;
+      link.renderOrder = 4;
+      group.add(link);
+      return link;
+    }
+
+    /**
+     * Full port-to-port link with slack: drops near each face first, then a
+     * flatter low run across the middle (more like a hung cable than a U).
+     * Optional `aura` adds additive glow shells (LAN role blue, etc.).
+     */
+    function addSlackPortLink(codeA, portA, codeB, portB, material, name, group, {
+      sag = 10,
+      aura = null, // [{ material, radiusScale }]
+      role = null,
+    } = {}) {
+      const aEq = findEquipmentByCode(codeA);
+      const bEq = findEquipmentByCode(codeB);
+      if (!aEq || !bEq) return null;
+      aEq.unit.updateWorldMatrix(true, false);
+      bEq.unit.updateWorldMatrix(true, false);
+      const a = portWorldPos(aEq.unit, portA);
+      const b = portWorldPos(bEq.unit, portB);
+      if (!a || !b) return null;
+
+      const qa = aEq.unit.getWorldQuaternion(new THREE.Quaternion());
+      const qb = bEq.unit.getWorldQuaternion(new THREE.Quaternion());
+      const outA = new THREE.Vector3(0, 0, -1).applyQuaternion(qa).normalize();
+      const outB = new THREE.Vector3(0, 0, -1).applyQuaternion(qb).normalize();
+      const across = new THREE.Vector3().subVectors(b, a);
+      const span = across.length();
+      if (span < 1e-3) return null;
+      const dir = across.clone().multiplyScalar(1 / span);
+      const floorY = Math.min(a.y, b.y) - sag;
+      const leave = Math.min(4.2, span * 0.05);
+      const aisle = outA.clone().add(outB);
+      if (aisle.lengthSq() > 1e-4) aisle.normalize();
+      else aisle.set(0, 0, 0);
+
+      const along = (t, y, aisleAmt = leave * 0.55) => {
+        const p = a.clone().addScaledVector(dir, span * t);
+        p.y = y;
+        if (aisleAmt) p.addScaledVector(aisle, aisleAmt);
+        return p;
+      };
+
+      // Leave face → dump most of the drop early → flat midspan → climb late
+      const aExit = a.clone().addScaledVector(outA, leave);
+      const bExit = b.clone().addScaledVector(outB, leave);
+      const aDrop = along(0.1, THREE.MathUtils.lerp(a.y, floorY, 0.94), leave * 0.7);
+      const bDrop = along(0.9, THREE.MathUtils.lerp(b.y, floorY, 0.94), leave * 0.7);
+      const flat1 = along(0.28, floorY);
+      const flatMid = along(0.5, floorY, leave * 0.7);
+      const flat2 = along(0.72, floorY);
+      const points = [a, aExit, aDrop, flat1, flatMid, flat2, bDrop, bExit, b];
+      const tubeOpts = { tension: 0.12, tubular: 56 };
+
+      const link = makeCableTube(points, CORE_LINK_R, material, tubeOpts);
+      if (!link) return null;
+      const bundleName = name || `SLACK-${codeA}P${portA}-${codeB}P${portB}`;
+      link.name = bundleName;
+      link.userData.interactive = false;
+      link.renderOrder = 4;
+
+      const bundle = new THREE.Group();
+      bundle.name = bundleName;
+      bundle.userData.interactive = false;
+      if (role) bundle.userData.role = role;
+      bundle.add(link);
+
+      if (aura && aura.length) {
+        aura.forEach((layer, i) => {
+          const halo = makeCableTube(
+            points,
+            CORE_LINK_R * (layer.radiusScale ?? 3),
+            layer.material,
+            tubeOpts
+          );
+          if (!halo) return;
+          halo.name = `${bundleName}-aura${i}`;
+          halo.userData.interactive = false;
+          // Near-core cover sits above yellow; soft halos stay behind
+          halo.renderOrder = layer.renderOrder ?? ((layer.radiusScale ?? 3) <= 1.25 ? 5 : 3);
+          bundle.add(halo);
+        });
+      }
+      group.add(bundle);
+      return bundle;
+    }
+
+    addCorePeerLinks("C1", "C2");
+    addCorePeerLinks("C3", "C4");
+    // SM via firewalls (and direct top↔bottom core) — Controls → Core
+    addCorePortLink("C1", 3, "C3", 1, matCoreSmXray, "CORE-SM-C1P3-C3P1");
+    addCorePortLink("C1", 4, "F1", 24, matCoreSmXray, "CORE-SM-C1P4-F1P24");
+    addCorePortLink("F1", 25, "C3", 2, matCoreSmXray, "CORE-SM-F1P25-C3P2");
+    addCorePortLink("C2", 3, "C4", 1, matCoreSmXray, "CORE-SM-C2P3-C4P1");
+    addCorePortLink("C2", 4, "F2", 24, matCoreSmXray, "CORE-SM-C2P4-F2P24");
+    addCorePortLink("F2", 25, "C4", 2, matCoreSmXray, "CORE-SM-F2P25-C4P2");
+    // SM C3/C4 → distribution — Controls → Dist
+    addCorePortLink("C3", 11, "D1", 49, matCoreSmXray, "CORE-SM-C3P11-D1P49", roomCoreDistLinks);
+    addCorePortLink("C3", 12, "D3", 49, matCoreSmXray, "CORE-SM-C3P12-D3P49", roomCoreDistLinks);
+    addCorePortLink("C3", 13, "D5", 49, matCoreSmXray, "CORE-SM-C3P13-D5P49", roomCoreDistLinks);
+    addCorePortLink("C3", 21, "D2", 49, matCoreSmXray, "CORE-SM-C3P21-D2P49", roomCoreDistLinks);
+    addCorePortLink("C3", 22, "D4", 49, matCoreSmXray, "CORE-SM-C3P22-D4P49", roomCoreDistLinks);
+    addCorePortLink("C3", 23, "D6", 49, matCoreSmXray, "CORE-SM-C3P23-D6P49", roomCoreDistLinks);
+    addCorePortLink("C4", 11, "D1", 50, matCoreSmXray, "CORE-SM-C4P11-D1P50", roomCoreDistLinks);
+    addCorePortLink("C4", 12, "D3", 50, matCoreSmXray, "CORE-SM-C4P12-D3P50", roomCoreDistLinks);
+    addCorePortLink("C4", 13, "D5", 50, matCoreSmXray, "CORE-SM-C4P13-D5P50", roomCoreDistLinks);
+    addCorePortLink("C4", 21, "D2", 50, matCoreSmXray, "CORE-SM-C4P21-D2P50", roomCoreDistLinks);
+    addCorePortLink("C4", 22, "D4", 50, matCoreSmXray, "CORE-SM-C4P22-D4P50", roomCoreDistLinks);
+    addCorePortLink("C4", 23, "D6", 50, matCoreSmXray, "CORE-SM-C4P23-D6P50", roomCoreDistLinks);
+    // Dist → Access — SM yellow core + LAN blue aura (Controls → Access)
+    const ACCESS_LAN_AURA = [
+      { material: matAccessLanBlueCover, radiusScale: 1.12 }, // peaks opaque → hides yellow
+      { material: matAccessLanAura, radiusScale: 2.8 },
+      { material: matAccessLanAuraSoft, radiusScale: 4.6 },
+    ];
+    addSlackPortLink("D1", 1, "A1", 49, matCoreSmXray, "DIST-SM-D1P1-A1P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D1", 2, "A2", 49, matCoreSmXray, "DIST-SM-D1P2-A2P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D1", 3, "A3", 49, matCoreSmXray, "DIST-SM-D1P3-A3P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D1", 4, "A4", 49, matCoreSmXray, "DIST-SM-D1P4-A4P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D2", 1, "A1", 50, matCoreSmXray, "DIST-SM-D2P1-A1P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D2", 2, "A2", 50, matCoreSmXray, "DIST-SM-D2P2-A2P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D2", 3, "A3", 50, matCoreSmXray, "DIST-SM-D2P3-A3P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    addSlackPortLink("D2", 4, "A4", 50, matCoreSmXray, "DIST-SM-D2P4-A4P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_LAN_AURA,
+      role: "LAN",
+    });
+    // Wi‑Fi role (green aura)
+    const ACCESS_WIFI_AURA = [
+      { material: matAccessWifiCover, radiusScale: 1.12 },
+      { material: matAccessWifiAura, radiusScale: 2.8 },
+      { material: matAccessWifiAuraSoft, radiusScale: 4.6 },
+    ];
+    addSlackPortLink("D3", 1, "A5", 49, matCoreSmXray, "DIST-SM-D3P1-A5P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
+    });
+    addSlackPortLink("D3", 2, "A6", 49, matCoreSmXray, "DIST-SM-D3P2-A6P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
+    });
+    addSlackPortLink("D4", 1, "A5", 50, matCoreSmXray, "DIST-SM-D4P1-A5P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
+    });
+    addSlackPortLink("D4", 2, "A6", 50, matCoreSmXray, "DIST-SM-D4P2-A6P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_WIFI_AURA,
+      role: "WIFI",
+    });
+    // Security role (red aura)
+    const ACCESS_SEC_AURA = [
+      { material: matAccessSecCover, radiusScale: 1.12 },
+      { material: matAccessSecAura, radiusScale: 2.8 },
+      { material: matAccessSecAuraSoft, radiusScale: 4.6 },
+    ];
+    addSlackPortLink("D5", 1, "A7", 49, matCoreSmXray, "DIST-SM-D5P1-A7P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_SEC_AURA,
+      role: "SECURITY",
+    });
+    addSlackPortLink("D5", 2, "A8", 49, matCoreSmXray, "DIST-SM-D5P2-A8P49", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_SEC_AURA,
+      role: "SECURITY",
+    });
+    addSlackPortLink("D6", 1, "A7", 50, matCoreSmXray, "DIST-SM-D6P1-A7P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_SEC_AURA,
+      role: "SECURITY",
+    });
+    addSlackPortLink("D6", 2, "A8", 50, matCoreSmXray, "DIST-SM-D6P2-A8P50", roomDistAccessLinks, {
+      sag: 50,
+      aura: ACCESS_SEC_AURA,
+      role: "SECURITY",
+    });
+
+    // SM callouts: C1/C2 above port 3 · Dist under D5/D6 port 50
+    // frustum: "links" (default) = any linked port in view · "anchor" = only the callout switch
+    function registerSmCallout(key, anchorCode, anchorPort, links, { ySign = 1, frustum = "links" } = {}) {
+      const eq = findEquipmentByCode(anchorCode);
+      const p = eq && portWorldPos(eq.unit, anchorPort);
+      if (p) {
+        coreCalloutAnchors[key] = p.clone().add(new THREE.Vector3(0, CORE_LINK_THICK * 1.5 * ySign, 0));
+      }
+      const pts = coreCalloutFrustumPts[key];
+      if (!pts) return;
+      pts.length = 0;
+      if (frustum === "anchor") {
+        // Dist callouts: hide when the Dist switch leaves view (not when remote core ports linger)
+        if (p) pts.push(p.clone());
+        return;
+      }
+      for (const [codeA, portA, codeB, portB] of links) {
+        const aEq = findEquipmentByCode(codeA);
+        const bEq = findEquipmentByCode(codeB);
+        const a = aEq && portWorldPos(aEq.unit, portA);
+        const b = bEq && portWorldPos(bEq.unit, portB);
+        if (a) pts.push(a);
+        if (b) pts.push(b);
+      }
+    }
+    registerSmCallout("SM_C1", "C1", 3, [
+      ["C1", 3, "C3", 1],
+      ["C1", 4, "F1", 24],
+      ["F1", 25, "C3", 2],
+    ]);
+    registerSmCallout("SM_C2", "C2", 3, [
+      ["C2", 3, "C4", 1],
+      ["C2", 4, "F2", 24],
+      ["F2", 25, "C4", 2],
+    ]);
+    registerSmCallout("SM_CD", "D5", 50, [
+      ["C3", 11, "D1", 49],
+      ["C3", 12, "D3", 49],
+      ["C3", 13, "D5", 49],
+      ["C3", 21, "D2", 49],
+      ["C3", 22, "D4", 49],
+      ["C3", 23, "D6", 49],
+    ], { ySign: -1, frustum: "anchor" });
+    registerSmCallout("SM_CD2", "D6", 50, [
+      ["C4", 11, "D1", 50],
+      ["C4", 12, "D3", 50],
+      ["C4", 13, "D5", 50],
+      ["C4", 21, "D2", 50],
+      ["C4", 22, "D4", 50],
+      ["C4", 23, "D6", 50],
+    ], { ySign: -1, frustum: "anchor" });
+
+    // --- Single thin translucent wall behind Rack1–3 + MCB ---
+    // (no walls on the other sides — diagonal room shape is the floor cut)
+    const WALL_T = 1.2;
+    const WALL_H = 290;
+    const wallFaceZ = floorZMax;
+    const wallCenterZ = wallFaceZ - WALL_T / 2;
+
+    const mcbW = 36.4;
+    const mcbH = 54.6;
+    const mcbD = 8.5;
+    const mcbGap = OUTER_W * 1.55;
+    const rack1X = RACK_PITCH;
+    const mcbX = rack1X + OUTER_W / 2 + mcbGap + mcbW / 2;
+    const mcbY = TOTAL_H * 0.55;
+    const BOX_GAP = 12.7; // ~5″ clear between stacked boxes
+    const bypassY = mcbY + mcbH + BOX_GAP;
+    const sideGap = 8; // clear Bypass↔trunk and trunk↔Dist
+    const TRUNK = 10.16; // 4 inches
+    // Layout: MCB/Bypass | trunk | Dist  (Dist on the far side of the vertical trunk)
+    const trunkX = mcbX - mcbW / 2 - sideGap - TRUNK / 2;
+    const distX = trunkX - TRUNK / 2 - sideGap - mcbW / 2;
+
+    // Wall only where floor remains: diagonal end → past MCB (Dist sits toward racks)
+    const wallX0 = Math.min(xDiagAtZMax, distX - mcbW / 2 - 24);
+    const wallX1 = Math.min(floorXMax, mcbX + mcbW / 2 + 40);
+    const wallW = wallX1 - wallX0;
+    const wallCenterX = (wallX0 + wallX1) / 2;
+
+    const roomPower = new THREE.Group();
+    roomPower.name = "RoomPower";
+    roomPower.position.y = FLOOR_H;
+    scene.add(roomPower);
+
+    // 25F power / Wyr-Grid / sockets stay on the lower bay only — never attach to 26F racks
+    const racks25F = () => racks.filter((r) => r.group.parent === bay);
+
+    const backWall = box(wallW, WALL_H, WALL_T, matWall, wallCenterX, WALL_H / 2, wallCenterZ);
+    backWall.castShadow = false;
+    roomPower.add(backWall);
+
+    const mcb = makeWallPowerBox({
+      name: "MCB",
+      label: "MCB",
+      kind: "mcb",
+      eyebrow: "Power · Room feed",
+      title: "Main MCB Board",
+      model: "Wall-mount distribution board",
+      rating: "3-phase · 32A TPN",
+      blocks: [
+        {
+          label: "Role",
+          text: "Main circuit breaker for the room — feeds UPS Bypass and direct building-power circuits",
+        },
+        {
+          label: "Supply",
+          text: "Three-phase 32A TPN incoming to the room power train",
+        },
+        {
+          label: "Routing",
+          text: "Feeds UPS Bypass via wall conduit (5-wire 3P+N+E); also feeds PDU2 circuits via vertical trunk (building power, not UPS)",
+        },
+      ],
+    });
+    mcb.position.set(mcbX, mcbY, wallFaceZ - WALL_T - mcbD / 2);
+    roomPower.add(mcb);
+    interactiveItems.push(mcb);
+
+    // UPS Bypass — same enclosure, a few inches above MCB, linked by conduit
+    const bypass = makeWallPowerBox({
+      name: "UPSBypass",
+      label: "UPS\nBYPASS",
+      kind: "ups-bypass",
+      eyebrow: "Power · UPS",
+      title: "UPS Bypass Switch",
+      model: "Wall-mount bypass / maintenance switch",
+      rating: "3-phase · 32A TPN",
+      blocks: [
+        {
+          label: "Role",
+          text: "UPS bypass / maintenance switch — routes 32A TPN to the UPS and takes the UPS output back",
+        },
+        {
+          label: "Feed out",
+          text: "32A TPN via vertical trunk + underfloor to Rack6 UPS hardwire INPUT",
+        },
+        {
+          label: "Return",
+          text: "Receives 32A TPN on a separate return trunk from UPS hardwire OUTPUT, then feeds Dist",
+        },
+      ],
+    });
+    bypass.position.set(mcbX, bypassY, wallFaceZ - WALL_T - mcbD / 2);
+    roomPower.add(bypass);
+    interactiveItems.push(bypass);
+
+    // Distribution panel — far side of vertical trunk (toward racks), not beside Bypass
+    const dist = makeWallPowerBox({
+      name: "DistPanel",
+      label: "DIST\nPANEL",
+      kind: "dist-panel",
+      eyebrow: "Power · Distribution",
+      title: "Distribution Panel",
+      model: "Wall-mount MCB distribution board",
+      rating: "UPS output → PDU1 circuits",
+      blocks: [
+        {
+          label: "Role",
+          text: "Breaks out UPS-protected power from Bypass to each rack’s PDU1 (via ceiling industrial sockets)",
+        },
+        {
+          label: "Circuits",
+          text: "L1: Rack1 PDU1 · L2: Rack2 PDU1 · L3: Rack3 PDU1 · L4: Rack4 PDU1 · L5: Rack5 PDU1 · L6: Rack6 PDU1 · L7: Security system",
+        },
+        {
+          label: "L7",
+          text: "Security system supply (UPS-protected) — circuit reserved; no cable drawn in this scene",
+        },
+        {
+          label: "Ratings",
+          text: "Rack1 PDU1 = 32A industrial socket · Rack2–6 PDU1 = 16A industrial sockets",
+        },
+      ],
+    });
+    dist.position.set(distX, bypassY, wallFaceZ - WALL_T - mcbD / 2);
+    roomPower.add(dist);
+    interactiveItems.push(dist);
+
+    // Interconnect conduit — MCB ↔ Bypass (vertical)
+    const conduit = box(4.2, BOX_GAP, 4.2, matTrunkSilver, mcbX, mcbY + mcbH / 2 + BOX_GAP / 2, wallFaceZ - WALL_T - 2.1);
+    conduit.name = "McbBypassConduit";
+    roomPower.add(conduit);
+
+    // 4″×4″ silver vertical trunk — between Bypass and Dist
+    const trunkZ = wallFaceZ - WALL_T - TRUNK / 2;
+    const trunkH = WALL_H + FLOOR_H; // wall top down through raised floor to slab
+    const trunkY = (WALL_H - FLOOR_H) / 2; // centered on that span
+    const trunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, trunkX, trunkY, trunkZ);
+    trunk.name = "PowerTrunk";
+    roomPower.add(trunk);
+
+    // Parallel return trunk — into the room from the outbound trunk (separate UPS→Bypass lane)
+    const returnTrunkX = trunkX;
+    const returnTrunkZ = trunkZ - TRUNK - 4;
+    const returnTrunk = box(TRUNK, trunkH, TRUNK, matTrunkSilver, returnTrunkX, trunkY, returnTrunkZ);
+    returnTrunk.name = "PowerTrunkReturn";
+    roomPower.add(returnTrunk);
+
+    // Short conduit: UPS Bypass → outbound vertical trunk
+    const bypassFaceX = mcbX - mcbW / 2;
+    const trunkFaceX = trunkX + TRUNK / 2;
+    const bypassTrunkConduitLen = bypassFaceX - trunkFaceX;
+    const bypassTrunkConduit = box(
+      bypassTrunkConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (bypassFaceX + trunkFaceX) / 2,
+      bypassY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    bypassTrunkConduit.name = "BypassTrunkConduit";
+    roomPower.add(bypassTrunkConduit);
+
+    // Short conduit: MCB → outbound vertical trunk (building-power / PDU2 feed entry)
+    const mcbTrunkConduit = box(
+      bypassTrunkConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (bypassFaceX + trunkFaceX) / 2,
+      mcbY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    mcbTrunkConduit.name = "McbTrunkConduit";
+    roomPower.add(mcbTrunkConduit);
+
+    // Conduit: outbound trunk → Dist (Dist sits on the far side of the trunk)
+    const trunkOuterX = trunkX - TRUNK / 2;
+    const distInnerX = distX + mcbW / 2;
+    const trunkDistConduitLen = trunkOuterX - distInnerX;
+    const trunkDistConduit = box(
+      trunkDistConduitLen,
+      4.2,
+      4.2,
+      matTrunkSilver,
+      (trunkOuterX + distInnerX) / 2,
+      bypassY,
+      wallFaceZ - WALL_T - 2.1
+    );
+    trunkDistConduit.name = "TrunkDistConduit";
+    roomPower.add(trunkDistConduit);
+
+    // Short link: return trunk → Bypass (into the room, separate from outbound Bypass→trunk)
+    const powerCableZ = wallFaceZ - WALL_T - mcbD / 2;
+    const retLinkZ0 = returnTrunkZ + TRUNK / 2;
+    const retLinkZ1 = powerCableZ - mcbD / 2; // Bypass front (into room)
+    const retLinkLen = Math.max(2, retLinkZ1 - retLinkZ0);
+    const returnBypassLink = box(
+      4.2,
+      4.2,
+      retLinkLen,
+      matTrunkSilver,
+      mcbX - mcbW * 0.22,
+      bypassY,
+      (retLinkZ0 + retLinkZ1) / 2
+    );
+    returnBypassLink.name = "ReturnBypassLink";
+    roomPower.add(returnBypassLink);
+
+    // Logical 32A TPN — invisible until Show Power (x-ray)
+    // Outbound + separate return lane (not the same path reversed)
+    const rack6X = -2 * RACK_PITCH;
+    const rack6Z = -ROW_SEP / 2;
+    const underY = -FLOOR_H + TRUNK / 2 + 1.5; // 4″ trunk sitting on the slab
+    const periX = xDiagAtZMax + TRUNK * 0.75; // inside +Z / −X floor corner
+    const retLane = TRUNK + 8; // parallel underfloor return offset (+X / into floor plate)
+
+    // UPS rear 32A TPN hardwire I/O (Rack6 rotated 180° — local +Z rear → world −Z)
+    const upsD = 70;
+    const upsH = 7 * U - 0.2;
+    const railZFront = -OUTER_D / 2 + 10;
+    const railFrontFaceZ = railZFront - 1.1;
+    const upsMountZ = -(upsD / 2) - 0.9;
+    const upsUnitZ = railFrontFaceZ - upsMountZ;
+    const upsCenterY = BASE_H + upsH / 2 + 0.05;
+    const upsIoLocalY = -upsH * 0.12;
+    const upsIoLocalZ = upsD / 2 + 1.35; // rear face terminal
+    const upsInLocalX = -5;
+    const upsOutLocalX = 5;
+    const riseClear = TRUNK * 0.55; // stand-off just outside the rear face
+    // Rack-local → world with rotY=π: (rx,ry,rz) → (rackX−rx, ry, rackZ−rz)
+    const upsIoY = upsCenterY + upsIoLocalY;
+    const upsRiseRackZ = upsUnitZ + upsIoLocalZ + riseClear;
+    const upsEntryRackZ = upsUnitZ + upsIoLocalZ - 2.5; // into the terminal block
+    const upsInWorldX = rack6X - upsInLocalX;
+    const upsOutWorldX = rack6X - upsOutLocalX;
+    const upsRiseWorldZ = rack6Z - upsRiseRackZ;
+    const upsEntryWorldZ = rack6Z - upsEntryRackZ;
+    const retRack6X = rack6X + retLane;
+    const retPeriX = periX + retLane;
+
+    function buildPolyline(points) {
+      const segs = [];
+      let total = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        const len = points[i].distanceTo(points[i + 1]);
+        segs.push({ a: points[i], b: points[i + 1], len, start: total });
+        total += len;
+      }
+      return {
+        total,
+        segs,
+        getPointAt(t) {
+          const d = Math.min(1, Math.max(0, t)) * total;
+          for (let i = 0; i < segs.length; i++) {
+            const s = segs[i];
+            if (d <= s.start + s.len || i === segs.length - 1) {
+              const u = s.len < 1e-6 ? 0 : (d - s.start) / s.len;
+              return new THREE.Vector3().lerpVectors(s.a, s.b, THREE.MathUtils.clamp(u, 0, 1));
+            }
+          }
+          return points[points.length - 1].clone();
+        },
+      };
+    }
+
+    function cylinderBetween(a, b, radius, mat) {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      if (len < 1e-4) return null;
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 12), mat);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      return mesh;
+    }
+
+    function trunkBetween(a, b, size, mat) {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const len = dir.length();
+      if (len < 1e-4) return null;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, len, size), mat);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
+
+    /** Hollow rectangular trunk segment, axis along +X (open ends for cable fill). */
+    function hollowTrunkX(length, outerH, outerW, wallT, mat) {
+      const g = new THREE.Group();
+      const innerH = Math.max(outerH - wallT * 2, wallT);
+      const innerW = Math.max(outerW - wallT * 2, wallT);
+      const yTop = (outerH - wallT) * 0.5;
+      const yBot = -yTop;
+      const zPos = (outerW - wallT) * 0.5;
+
+      const top = new THREE.Mesh(new THREE.BoxGeometry(length, wallT, outerW), mat);
+      top.position.set(0, yTop, 0);
+      const bot = new THREE.Mesh(new THREE.BoxGeometry(length, wallT, outerW), mat);
+      bot.position.set(0, yBot, 0);
+      const left = new THREE.Mesh(new THREE.BoxGeometry(length, innerH, wallT), mat);
+      left.position.set(0, 0, -zPos);
+      const right = new THREE.Mesh(new THREE.BoxGeometry(length, innerH, wallT), mat);
+      right.position.set(0, 0, zPos);
+
+      for (const m of [top, bot, left, right]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        g.add(m);
+      }
+
+      g.userData.inner = { h: innerH, w: innerW, len: length };
+      return g;
+    }
+
+    const powerPathPoints = [
+      // Outbound: MCB → Bypass → outbound trunk → underfloor → UPS 32A TPN INPUT
+      new THREE.Vector3(mcbX, mcbY + mcbH / 2, powerCableZ),
+      new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(trunkX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsInWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsInWorldX, upsIoY, upsEntryWorldZ),
+      // Through UPS hardwire block → 32A TPN OUTPUT
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsEntryWorldZ),
+      // Separate return lane (offset underfloor + return trunk) → Bypass → Dist
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsOutWorldX, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, bypassY, returnTrunkZ),
+      new THREE.Vector3(mcbX, bypassY, powerCableZ),
+      new THREE.Vector3(trunkX, bypassY, trunkZ),
+      new THREE.Vector3(distX, bypassY, powerCableZ),
+    ];
+
+    // 4″×4″ metal trunking — outbound run + parallel return run
+    const underfloorTrunkPtsOut = [
+      new THREE.Vector3(trunkX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, trunkZ),
+      new THREE.Vector3(periX, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, rack6Z),
+      new THREE.Vector3(rack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(rack6X, upsIoY, upsRiseWorldZ),
+    ];
+    const underfloorTrunkPtsRet = [
+      new THREE.Vector3(upsOutWorldX, upsIoY, upsRiseWorldZ),
+      new THREE.Vector3(upsOutWorldX, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, upsRiseWorldZ),
+      new THREE.Vector3(retRack6X, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, rack6Z),
+      new THREE.Vector3(retPeriX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, underY, returnTrunkZ),
+      new THREE.Vector3(returnTrunkX, bypassY, returnTrunkZ),
+    ];
+    const underfloorTrunking = new THREE.Group();
+    underfloorTrunking.name = "UnderfloorTrunking";
+    for (const run of [underfloorTrunkPtsOut, underfloorTrunkPtsRet]) {
+      for (let i = 0; i < run.length - 1; i++) {
+        const seg = trunkBetween(run[i], run[i + 1], TRUNK, matTrunkSilver);
+        if (seg) underfloorTrunking.add(seg);
+      }
+    }
+    roomPower.add(underfloorTrunking);
+
+    // 25F underfloor Cat6 (copper cabling) trunk — 400×200 mm, silver finish like power trunking.
+    // Cold-aisle run on the Rack1 / +X side of the power underfloor crossing (not the diagonal/−X stub).
+    {
+      const CAT6_W = 40; // 400 mm
+      const CAT6_H = 20; // 200 mm
+      const CAT6_WALL_T = 0.25; // 2.5 mm steel/aluminum wall thickness
+      const CAT6_DIA = 0.66; // 6.6 mm OD
+      const clearOfPower = 22.62; // +3" more (total ~9") clear of power trunk at periX
+      // Pedestals sit on 2-tile grid including z=0; offset to mid-cell toward row A (+Z)
+      const cat6Z = TILE * 0.5; // 30 cm — between pedestal rows at z=0 and z=±120
+      // Power Z-run crosses the aisle at x=periX — keep the +X / Rack1 side only
+      const cat6XMin = periX + TRUNK / 2 + clearOfPower;
+      const cat6XMax = floorXMax + 10; // poke ~4" past raised-floor edge
+      const cat6Len = Math.max(40, cat6XMax - cat6XMin);
+      const cat6Trunk = hollowTrunkX(cat6Len, CAT6_H, CAT6_W, CAT6_WALL_T, matTrunkSilver);
+      cat6Trunk.name = "UnderfloorCat6Trunk";
+      cat6Trunk.userData.kind = "cat6-trunk";
+      // Cat6 bundle (24 cables) laid through full trunk length, CBOT24K-style row pack:
+      // top→bottom row counts = 4 / 5 / 6 / 5 / 4
+      const cat6Mat = new THREE.MeshStandardMaterial({
+        color: 0x2f7dff,
+        metalness: 0.08,
+        roughness: 0.52,
+      });
+      const cat6BundleGroup = new THREE.Group();
+      cat6BundleGroup.name = "Cat6BundleGroup";
+      const rowCountsTop = [4, 5, 6, 5, 4];
+      const rowCountsBottom = [...rowCountsTop].reverse(); // placement starts at bottom row
+      const cableDiaVis = CAT6_DIA;
+      const hPitch = cableDiaVis * 1.08;
+      const vPitch = cableDiaVis * 0.93;
+      const bundleH = (rowCountsBottom.length - 1) * vPitch + cableDiaVis;
+      const bundleBottomY = -CAT6_H / 2 + CAT6_WALL_T + cableDiaVis / 2 + 0.02;
+
+      const cableGeo = new THREE.CylinderGeometry(cableDiaVis / 2, cableDiaVis / 2, cat6Len, 14);
+
+      // A few black tie bands to read as a bundled loom.
+      const bundleTopY = bundleBottomY + bundleH - cableDiaVis;
+      const bundleMidY = (bundleBottomY + bundleTopY) / 2;
+      const maxCount = Math.max(...rowCountsBottom);
+      const bundleHalfW = ((maxCount - 1) * hPitch) / 2 + cableDiaVis / 2;
+      const bundleHalfH = bundleH / 2;
+      const tieRadius = Math.max(bundleHalfW, bundleHalfH) + 0.3;
+      const tieMat = new THREE.MeshStandardMaterial({ color: 0x111317, metalness: 0.2, roughness: 0.72 });
+      const tieGeo = new THREE.TorusGeometry(tieRadius, Math.max(0.1, cableDiaVis * 0.08), 8, 28);
+      const bundlePitchZ = bundleHalfW * 2 + 1.8;
+      const bundleOffsetsZ = [-1.5, -0.5, 0.5, 1.5].map((m) => m * bundlePitchZ);
+      bundleOffsetsZ.forEach((bundleOffsetZ, bundleIdx) => {
+        const cat6Bundle = new THREE.Group();
+        cat6Bundle.name = `Cat6Bundle24-${bundleIdx + 1}`;
+        rowCountsBottom.forEach((count, row) => {
+          const y = bundleBottomY + row * vPitch;
+          const z0 = -((count - 1) * hPitch) / 2 + bundleOffsetZ;
+          for (let i = 0; i < count; i++) {
+            const cable = new THREE.Mesh(cableGeo, cat6Mat);
+            cable.rotation.z = Math.PI / 2; // cylinder axis Y -> trunk X
+            cable.position.set(0, y, z0 + i * hPitch);
+            cable.castShadow = true;
+            cable.receiveShadow = true;
+            cat6Bundle.add(cable);
+          }
+        });
+        [-cat6Len * 0.32, 0, cat6Len * 0.32].forEach((x) => {
+          const tie = new THREE.Mesh(tieGeo, tieMat);
+          tie.rotation.y = Math.PI / 2; // ring normal along trunk axis (X)
+          tie.position.set(x, bundleMidY, bundleOffsetZ);
+          cat6Bundle.add(tie);
+        });
+        cat6BundleGroup.add(cat6Bundle);
+      });
+      cat6Trunk.add(cat6BundleGroup);
+
+      // Hovering size callouts (as requested): true width 400 mm and true height 200 mm
+      const dimMat = new THREE.MeshBasicMaterial({
+        color: 0x0f141b,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        depthTest: true,
+      });
+      const dimGroup = new THREE.Group();
+      dimGroup.name = "UnderfloorCat6TrunkDims";
+      dimGroup.renderOrder = 40;
+
+      // Place dimensions near the +X end cap of trunk, in the local YZ plane.
+      const dimX = cat6Len / 2 + 0.9;
+
+      // 400 mm width (across Z) — exact trunk width, with extension lines from top corners
+      const dimTopY = CAT6_H / 2 + 4.2;
+      const widthHalf = CAT6_W / 2;
+      const extY = dimTopY - CAT6_H / 2;
+      dimGroup.add(box(0.28, extY, 0.28, dimMat, dimX, CAT6_H / 2 + extY / 2, -widthHalf));
+      dimGroup.add(box(0.28, extY, 0.28, dimMat, dimX, CAT6_H / 2 + extY / 2, widthHalf));
+      dimGroup.add(box(0.28, 0.28, CAT6_W, dimMat, dimX, dimTopY, 0));
+      // End ticks
+      dimGroup.add(box(0.28, 3.2, 0.28, dimMat, dimX, dimTopY, -widthHalf));
+      dimGroup.add(box(0.28, 3.2, 0.28, dimMat, dimX, dimTopY, widthHalf));
+      const wLabel = makeHoverDimLabel("400mm", 22, 4.8);
+      wLabel.position.set(dimX + 0.15, dimTopY + 2.65, 0);
+      dimGroup.add(wLabel);
+
+      // 200 mm height (along Y) — standard style: straight dim line with top/bottom extensions
+      const dimLeftZ = -CAT6_W / 2 - 4.8;
+      const extZ = Math.abs(dimLeftZ - (-CAT6_W / 2));
+      const extCenterZ = (-CAT6_W / 2 + dimLeftZ) / 2;
+      // Extension lines from trunk top/bottom edge to dim line
+      dimGroup.add(box(0.28, 0.28, extZ, dimMat, dimX, CAT6_H / 2, extCenterZ));
+      dimGroup.add(box(0.28, 0.28, extZ, dimMat, dimX, -CAT6_H / 2, extCenterZ));
+      // Main dimension line
+      dimGroup.add(box(0.28, CAT6_H, 0.28, dimMat, dimX, 0, dimLeftZ));
+      // End ticks that cross the main line (not bracket corners)
+      dimGroup.add(box(0.28, 0.28, 3.0, dimMat, dimX, CAT6_H / 2, dimLeftZ));
+      dimGroup.add(box(0.28, 0.28, 3.0, dimMat, dimX, -CAT6_H / 2, dimLeftZ));
+      const hLabel = makeHoverDimLabel("200mm", 20, 4.8);
+      hLabel.position.set(dimX + 0.15, 0, dimLeftZ - 4.2);
+      dimGroup.add(hLabel);
+      cat6Trunk.add(dimGroup);
+      // Scene/slab space (raisedFloor is at y=0); not in roomPower local coords
+      cat6Trunk.position.set(
+        (cat6XMin + cat6XMax) / 2,
+        CAT6_H / 2 + 2,
+        cat6Z
+      );
+      raisedFloor.add(cat6Trunk);
+    }
+
+    const powerPath = buildPolyline(powerPathPoints);
+
+    const matPowerXray = new THREE.MeshBasicMaterial({
+      color: 0x3dff9a,
+      transparent: true,
+      opacity: 0.715,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const powerCableGroup = new THREE.Group();
+    powerCableGroup.name = "PowerCableMcbToUps";
+    powerPath.segs.forEach(({ a, b }) => {
+      const seg = cylinderBetween(a, b, 1.265, matPowerXray); // +10% vs 1.15
+      if (seg) powerCableGroup.add(seg);
+    });
+    powerCableGroup.visible = false;
+    powerCableGroup.renderOrder = 20;
+    powerCableGroup.frustumCulled = false;
+    roomPower.add(powerCableGroup);
+
+    // Traveling pulse — full 32A TPN run: MCB → Bypass → UPS → Bypass → Dist
+    const matPowerPulse = new THREE.MeshBasicMaterial({
+      color: 0xb8ffe0,
+      transparent: true,
+      opacity: 1,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const powerPulse = new THREE.Group();
+    powerPulse.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matPowerPulse)); // +10%
+    powerPulse.add(new THREE.Mesh(
+      new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), // +10%
+      matPowerPulse
+    ));
+    powerPulse.name = "PowerPulseMcbToUps";
+    powerPulse.visible = false;
+    powerPulse.renderOrder = 21;
+    powerPulse.frustumCulled = false;
+    powerPulse.position.copy(powerPathPoints[0]);
+    roomPower.add(powerPulse);
+
+    const powerHighlights = [powerCableGroup, powerPulse];
+    const POWER_PULSE_SPEED = 0.18; // slightly slower — path is longer (UPS return + Dist)
+
+    // Equipment glow shells — legend colors (MCB red · Bypass/UPS green · DB blue)
+    const powerGlowPulseMats = [];
+    function makePowerGlowShell(colorHex, w, h, d, opts = {}) {
+      const xray = !!opts.xray; // draw through occluders (doors / rails / textures)
+      const g = new THREE.Group();
+      g.name = "PowerGlow";
+      // +30% more solid vs prior glow opacities
+      const coreOp = xray ? 0.546 : 0.364;
+      const softOp = xray ? 0.26 : 0.156;
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: coreOp,
+        depthWrite: false,
+        depthTest: !xray,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      });
+      const softMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: softOp,
+        depthWrite: false,
+        depthTest: !xray,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      });
+      coreMat.userData.baseOpacity = coreOp;
+      softMat.userData.baseOpacity = softOp;
+      const pad = xray ? 5.5 : 3.2;
+      const softPad = xray ? 14 : 8.5;
+      const core = new THREE.Mesh(
+        new THREE.BoxGeometry(w + pad, h + pad, d + pad),
+        coreMat
+      );
+      const soft = new THREE.Mesh(
+        new THREE.BoxGeometry(w + softPad, h + softPad, d + softPad),
+        softMat
+      );
+      core.renderOrder = xray ? 28 : 19;
+      soft.renderOrder = xray ? 27 : 18;
+      g.add(soft);
+      g.add(core);
+      // Front billboard plane — reads through rack faceplates / doors
+      if (xray) {
+        const faceMat = new THREE.MeshBasicMaterial({
+          color: colorHex,
+          transparent: true,
+          opacity: 0.455,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        });
+        faceMat.userData.baseOpacity = 0.455;
+        const faceGlow = new THREE.Mesh(
+          new THREE.PlaneGeometry(w + 6, h + 4),
+          faceMat
+        );
+        faceGlow.position.z = -d / 2 - 2.5;
+        faceGlow.rotation.y = Math.PI;
+        faceGlow.renderOrder = 29;
+        g.add(faceGlow);
+        powerGlowPulseMats.push(faceMat);
+      }
+      g.visible = false;
+      g.userData.noPick = true;
+      powerGlowPulseMats.push(coreMat, softMat);
+      return g;
+    }
+
+    function attachPowerGlow(target, colorHex, opts = {}) {
+      if (!target) return null;
+      const sz = target.userData.size || { w: 44, h: 30, d: 70 };
+      const glow = makePowerGlowShell(colorHex, sz.w, sz.h, sz.d, opts);
+      target.add(glow);
+      powerHighlights.push(glow);
+      return glow;
+    }
+
+    attachPowerGlow(mcb, 0xff5c5c);     // MCB feed — red
+    attachPowerGlow(bypass, 0x3dff9a);  // 32A TPN — green
+    attachPowerGlow(dist, 0x4da3ff);    // UPS feed / DB — blue
+    // 25F Rack6 UPS (green with Bypass) — x-ray so glow cuts through doors/textures
+    let powerUpsUnit = null;
+    for (const { group: rack } of racks25F()) {
+      for (const child of rack.children) {
+        if (child.userData?.kind === "ups") {
+          powerUpsUnit = child;
+          break;
+        }
+      }
+      if (powerUpsUnit) break;
+    }
+    attachPowerGlow(powerUpsUnit, 0x3dff9a, { xray: true });
+
+    // Also tint the UPS face/rear emissive green while Power is shown
+    const powerUpsFaceMats = [];
+    if (powerUpsUnit) {
+      for (const key of ["frontMat", "rearMat"]) {
+        const mat = powerUpsUnit.userData[key];
+        if (!mat?.emissive) continue;
+        mat.userData.baseEmissive = mat.emissive.getHex();
+        mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
+        powerUpsFaceMats.push(mat);
+      }
+    }
+
+    // --- Panduit Wyr-Grid overhead basket (hovering indicator, no ceiling/hangers) ---
+    // Plan: crossbar past Rack1/Rack4 (+X), then a run down each row center to Rack3 / Rack6.
+    const WG_W = 45; // ~18″ pathway
+    const WG_SIDE = 5.5;
+    const WG_Y = TOTAL_H * 1.3; // ~30% above rack height
+    const rowAZ = ROW_SEP / 2;
+    const rowBZ = -ROW_SEP / 2;
+    const wgCrossX = RACK_PITCH + OUTER_W / 2 + WG_W * 0.55; // just past Rack1 (+X)
+    const wgEndA = -RACK_PITCH - OUTER_W / 2; // past Rack3
+    const wgEndB = -2 * RACK_PITCH - OUTER_W / 2; // past Rack6
+
+    /** Simple Wyr-Grid trough: length along local Z, width along local X */
+    function makeWyrGridRun(length, width = WG_W) {
+      const g = new THREE.Group();
+      const wire = 0.5;
+      const halfW = width / 2;
+      const pitch = 5.5;
+
+      // Side rails (top + bottom of each sidewall)
+      [-halfW, halfW].forEach((sx) => {
+        g.add(box(wire, wire, length, matWyrGrid, sx, 0, 0));
+        g.add(box(wire, wire, length, matWyrGrid, sx, WG_SIDE, 0));
+        // Verticals on sidewalls
+        for (let z = -length / 2; z <= length / 2 + 0.01; z += pitch) {
+          g.add(box(wire, WG_SIDE, wire, matWyrGrid, sx, WG_SIDE / 2, z));
+        }
+      });
+
+      // Bottom longitudinal wires
+      const botN = 5;
+      for (let i = 0; i < botN; i++) {
+        const t = botN === 1 ? 0.5 : i / (botN - 1);
+        const x = -halfW + t * width;
+        g.add(box(wire, wire, length, matWyrGrid, x, 0, 0));
+      }
+
+      // Bottom cross rungs
+      for (let z = -length / 2; z <= length / 2 + 0.01; z += pitch) {
+        g.add(box(width, wire, wire, matWyrGrid, 0, 0, z));
+      }
+
+      g.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = false;
+          o.receiveShadow = false;
+        }
+      });
+      return g;
+    }
+
+    function placeWyrGridRun(length, x, y, z, rotY) {
+      const run = makeWyrGridRun(length);
+      run.position.set(x, y, z);
+      run.rotation.y = rotY;
+      roomPower.add(run);
+      return run;
+    }
+
+    // Crossbar at +X — spans across both rows (floor −Z edge toward +Z wall)
+    const wgCrossLen = Math.abs(floorZMax - floorZMin) - 8;
+    placeWyrGridRun(wgCrossLen, wgCrossX, WG_Y, (floorZMin + floorZMax) / 2, 0);
+
+    // Row A run (Rack1→3) — along +Z row centerline
+    const wgRunALen = Math.abs(wgCrossX - wgEndA);
+    placeWyrGridRun(
+      wgRunALen,
+      (wgCrossX + wgEndA) / 2,
+      WG_Y,
+      rowAZ,
+      Math.PI / 2
+    );
+
+    // Row B run (Rack4→6) — along −Z row centerline
+    const wgRunBLen = Math.abs(wgCrossX - wgEndB);
+    placeWyrGridRun(
+      wgRunBLen,
+      (wgCrossX + wgEndB) / 2,
+      WG_Y,
+      rowBZ,
+      Math.PI / 2
+    );
+
+    // --- Panduit WGSWF4BL side waterfalls (one per rack, rear side of basket) ---
+    // Snaps onto the pathway sidewall; 3″ bend radius for drops into the rack.
+    // Local frame: origin at pathway floor outer lip; +Z = outboard/drop; +X = along run.
+    const WG_WF_BEND_R = 7.6;   // 3″ bend radius (WGSWF4BL)
+    const WG_WF_ALONG = 28.4;   // 11.2″ along pathway
+
+    function makeWyrGridSideWaterfall() {
+      const g = new THREE.Group();
+      g.name = "WyrGridSideWaterfall";
+      const bendR = WG_WF_BEND_R;
+      const along = WG_WF_ALONG;
+      const deckT = 0.55; // deck thickness
+
+      // Cable-bearing quarter-pipe: planks along θ=0 (lip) → θ=90° (hang)
+      // Local: origin at pathway floor outer lip; +Z outboard; +Y up
+      const segs = 10;
+      for (let i = 0; i < segs; i++) {
+        const th0 = (i / segs) * (Math.PI / 2);
+        const th1 = ((i + 1) / segs) * (Math.PI / 2);
+        const th = (th0 + th1) * 0.5;
+        const y = -bendR * (1 - Math.cos(th));
+        const z = bendR * Math.sin(th);
+        const chord = bendR * (th1 - th0);
+        const plank = box(along, deckT, chord + 0.12, matWyrGridWaterfall, 0, y, z);
+        plank.rotation.x = -th; // follow the bend tangent
+        g.add(plank);
+      }
+
+      // Retaining side walls (cable posts) on both edges of the deck
+      [-along / 2 + 0.35, along / 2 - 0.35].forEach((x) => {
+        for (let i = 0; i < segs; i++) {
+          const th0 = (i / segs) * (Math.PI / 2);
+          const th1 = ((i + 1) / segs) * (Math.PI / 2);
+          const th = (th0 + th1) * 0.5;
+          const y = -bendR * (1 - Math.cos(th)) + 1.15;
+          const z = bendR * Math.sin(th);
+          const chord = bendR * (th1 - th0);
+          const lip = box(0.55, 2.2, chord + 0.1, matWyrGridWaterfall, x, y, z);
+          lip.rotation.x = -th;
+          g.add(lip);
+        }
+      });
+
+      // Clip plate against the basket sidewall + top hook over the rail
+      g.add(box(along * 0.92, WG_SIDE * 0.95, 0.65, matWyrGridWaterfall, 0, WG_SIDE * 0.45, -0.4));
+      g.add(box(along * 0.75, 0.5, 1.6, matWyrGridWaterfall, 0, WG_SIDE + 0.15, -0.7));
+
+      g.traverse((o) => {
+        if (o.isMesh) {
+          o.castShadow = false;
+          o.receiveShadow = true;
+          o.userData.interactive = false;
+        }
+      });
+
+      return g;
+    }
+
+    // One side waterfall per rack on the rear (hot-aisle) rail of the basket
+    racks25F().forEach(({ group: rack }) => {
+      const isRowA = rack.position.z > 0;
+      const rearSign = isRowA ? 1 : -1; // world +Z = Row A rear; −Z = Row B rear
+      const basketZ = isRowA ? rowAZ : rowBZ;
+      const sideZ = basketZ + rearSign * (WG_W / 2);
+
+      const wf = makeWyrGridSideWaterfall();
+      wf.position.set(rack.position.x, WG_Y, sideZ);
+      wf.rotation.y = isRowA ? 0 : Math.PI; // local +Z = outboard drop toward rack rear
+      wf.name = `Waterfall-${rack.name}`;
+      roomPower.add(wf);
+    });
+
+    // --- Ceiling power trunk (U around both hot-aisle rears) ---
+    // Just below Wyr-Grid; feeds from vertical wall trunk. Later: hanging industrial plugs.
+    const CPT = 12; // ~5″ square ceiling busway
+    const CPT_Y = WG_Y - CPT * 0.5 - 8; // just under basket bottom
+    const cptClear = 14; // stand-off behind rear doors into each hot aisle
+    const cptZA = ROW_SEP / 2 + OUTER_D / 2 + cptClear; // behind Rack1–3
+    const cptZB = -(ROW_SEP / 2 + OUTER_D / 2 + cptClear); // behind Rack4–6
+    const cptXMax = RACK_PITCH + OUTER_W / 2 + 10; // open end of U past Rack1 / toward wall
+    const cptXMinA = -RACK_PITCH - OUTER_W / 2 - 10; // past Rack3
+    const cptXMinB = -2 * RACK_PITCH - OUTER_W / 2 - 10; // past Rack6
+
+    // U: row A rear → cross at +X → row B rear
+    const ceilingPowerTrunkPts = [
+      new THREE.Vector3(cptXMinA, CPT_Y, cptZA),
+      new THREE.Vector3(cptXMax, CPT_Y, cptZA),
+      new THREE.Vector3(cptXMax, CPT_Y, cptZB),
+      new THREE.Vector3(cptXMinB, CPT_Y, cptZB),
+    ];
+    // Feeder: U (+X / row A corner) → along toward wall → into vertical power trunk
+    const ceilingTrunkFeederPts = [
+      new THREE.Vector3(cptXMax, CPT_Y, cptZA),
+      new THREE.Vector3(cptXMax, CPT_Y, trunkZ),
+      new THREE.Vector3(trunkX, CPT_Y, trunkZ),
+    ];
+    const ceilingPowerTrunk = new THREE.Group();
+    ceilingPowerTrunk.name = "CeilingPowerTrunk";
+    for (const run of [ceilingPowerTrunkPts, ceilingTrunkFeederPts]) {
+      for (let i = 0; i < run.length - 1; i++) {
+        const seg = trunkBetween(run[i], run[i + 1], CPT, matTrunkSilver);
+        if (seg) ceilingPowerTrunk.add(seg);
+      }
+    }
+    // Industrial sockets on trunk underside — one above each 25F rack PDU, facing down
+    const sockY = CPT_Y - CPT / 2 - 0.35;
+    const industrialSocketByKey = new Map(); // `${rackName}|${pdu}` → { x, y, z, scale }
+    racks25F().forEach(({ group }) => {
+      const rackName = group.name;
+      const rackX = group.position.x;
+      const rotY = group.rotation.y;
+      const onRowA = Math.abs(rotY) < 0.1;
+      const sockZ = onRowA ? cptZA : cptZB;
+      const cos = Math.cos(rotY);
+      [
+        { pdu: "PDU1", lx: PDU_LOCAL_X },
+        { pdu: "PDU2", lx: -PDU_LOCAL_X },
+      ].forEach(({ pdu, lx }) => {
+        const sockX = rackX + lx * cos;
+        // Rack1 = 32A (≈20% larger); other racks = 16A
+        const scale = rackName === "Rack1" ? 1.2 : 1;
+        const sock = makeIndustrialSocket({ rackName, pdu, scale });
+        sock.position.set(sockX, sockY, sockZ);
+        ceilingPowerTrunk.add(sock);
+        industrialSocketByKey.set(`${rackName}|${pdu}`, { x: sockX, y: sockY, z: sockZ, scale });
+      });
+    });
+    roomPower.add(ceilingPowerTrunk);
+
+    // --- PDU whips: each 25F rack PDU1/PDU2 → top cable opening → plug into ceiling socket ---
+    const matWhip = new THREE.MeshStandardMaterial({
+      color: 0x12151a, metalness: 0.05, roughness: 0.72,
+    });
+    const pduH = (INNER_H - 4) * 0.6;
+    const pduTopY = BASE_H + INNER_H / 2 + pduH / 2;
+    const pduLocalZ = OUTER_D / 2 - 12 + 1.5; // railZRear + 1.5
+    racks25F().forEach(({ group: rack }) => {
+      const rackName = rack.name;
+      const rotY = rack.rotation.y;
+      const cos = Math.cos(rotY);
+      const sin = Math.sin(rotY);
+      const toWorld = (lx, ly, lz) => new THREE.Vector3(
+        rack.position.x + lx * cos - lz * sin,
+        ly,
+        rack.position.z + lx * sin + lz * cos
+      );
+
+      const open = rack.userData.cableOpen;
+      const openY = open?.y ?? BASE_H + INNER_H + TOP_H;
+      const openLocalZ = open?.z ?? OUTER_D / 2 - 8;
+
+      [
+        { pdu: "PDU1", localX: PDU_LOCAL_X },
+        { pdu: "PDU2", localX: -PDU_LOCAL_X },
+      ].forEach(({ pdu, localX }) => {
+        const sockInfo = industrialSocketByKey.get(`${rackName}|${pdu}`);
+        if (!sockInfo) return;
+
+        const plugScale = sockInfo.scale; // Rack1 32A larger; others 16A
+        const sockFaceY = sockInfo.y - 5.95 * plugScale;
+        const plug = makeIndustrialPlug({ scale: plugScale });
+        plug.position.set(sockInfo.x, sockFaceY, sockInfo.z);
+        plug.name = `${rackName}-${pdu}-Plug`;
+        roomPower.add(plug);
+
+        const cableEndY = sockFaceY + plug.userData.cableAttachLocalY;
+        // In-rack run: ~3% slack (gentle bow toward bay)
+        const whipStartY = pduTopY + 0.4;
+        const whipExitY = openY - 2.5;
+        const inSpan = Math.max(8, whipExitY - whipStartY);
+        const slack = inSpan * 0.03;
+        const bow = Math.sqrt(2 * inSpan * slack + slack * slack) * 0.55;
+        // Bow toward bay center: PDU1 (+X) bows −local X; PDU2 (−X) bows +local X
+        const bay = localX > 0 ? -1 : 1;
+        const whipPts = [
+          toWorld(localX, whipStartY, pduLocalZ),
+          toWorld(localX + bay * bow * 0.55, whipStartY + inSpan * 0.3, pduLocalZ + bow * 0.25),
+          toWorld(localX + bay * bow, whipStartY + inSpan * 0.58, pduLocalZ + bow * 0.4),
+          toWorld(localX + bay * bow * 0.3, whipExitY, pduLocalZ + bow * 0.15),
+          toWorld(localX, openY + 1.2, openLocalZ),
+          new THREE.Vector3(
+            rack.position.x + localX * cos,
+            openY + 14,
+            (toWorld(localX, 0, openLocalZ).z + sockInfo.z) * 0.5
+          ),
+          new THREE.Vector3(sockInfo.x, cableEndY + 6, sockInfo.z),
+          new THREE.Vector3(sockInfo.x, cableEndY, sockInfo.z),
+        ];
+        const whip = makeCableTube(whipPts, 0.85, matWhip);
+        if (whip) {
+          whip.name = `${rackName}-${pdu}-Whip`;
+          roomPower.add(whip);
+        }
+      });
+    });
+
+    const blueRedPower = initBlueRedPowerSystem({
+      THREE,
+      roomPower,
+      buildPolyline,
+      cylinderBetween,
+      industrialSocketByKey,
+      racks,
+      PDU_LOCAL_X,
+      pduLocalZ,
+      pduTopY,
+      CPT_Y,
+      distX,
+      bypassY,
+      powerCableZ,
+      cptXMax,
+      cptZA,
+      cptZB,
+      trunkX,
+      trunkZ,
+      mcbX,
+      mcbY,
+      getElapsedTime: () => clock.elapsedTime,
+    });
+    const {
+      matBlueXray,
+      matRedXray,
+      updateBluePulses,
+      updateRedPulses,
+      startBlueFeedWave,
+      startRedFeedWave,
+      clearBluePulses,
+      clearRedPulses,
+      highlightGroups: blueRedHighlightGroups,
+    } = blueRedPower;
+    powerHighlights.push(...blueRedHighlightGroups);
+
+    // Door / power controls (+ drop-up menu)
+    const doorState = {
+      frontOpen: true,
+      rearOpen: true,
+      frontTarget: FRONT_OPEN,
+      rearLTarget: REAR_L_OPEN,
+      rearRTarget: REAR_R_OPEN,
+    };
+    let showPower = false;
+    let showCore = false;
+    let showCoreDist = false;
+    let showAccess = false;
+    let showCoreInfo = true;
+    let showDistInfo = true;
+    let currentFloor = 25; // 25 | 26 (27 reserved)
+
+    const accessRoleOn = { LAN: true, WIFI: true, SECURITY: true };
+
+    const {
+      ctrlMenu,
+      controlsPanel,
+      btnControlsToggle,
+      floorMenu,
+      floorPanel,
+      btnFloorToggle,
+      floorToggleAction,
+      btnFront,
+      btnRear,
+      btnShowPower,
+      btnShowCore,
+      btnShowCoreDist,
+      btnShowAccess,
+      coreInfoChipEl,
+      distInfoChipEl,
+      btnCoreInfo,
+      btnDistInfo,
+      accessRoleFiltersEl,
+      accessRoleButtons,
+      powerLegend,
+      distLegend,
+      rackButtons,
+      floorButtons,
+      ctrl25OnlyRows,
+      doorControlsEl,
+    } = getUiElements(document);
+
+    function setFloorMenuOpen(open) {
+      floorMenu.classList.toggle("open", open);
+      floorPanel.hidden = !open;
+      btnFloorToggle.setAttribute("aria-expanded", String(open));
+    }
+
+    function syncFloorChrome() {
+      const on25 = currentFloor === 25;
+      if (doorControlsEl) doorControlsEl.dataset.floor = String(currentFloor);
+      if (floorToggleAction) floorToggleAction.textContent = `${currentFloor}F`;
+      btnFloorToggle.setAttribute("aria-label", `Floor ${currentFloor}F`);
+
+      floorButtons.forEach((btn) => {
+        const f = Number(btn.dataset.floor);
+        const active = f === currentFloor;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+      });
+
+      rackButtons.forEach((btn) => {
+        const f = Number(btn.dataset.floor || 25);
+        btn.hidden = f !== currentFloor;
+      });
+
+      // 26F: Core / Dist removed (access layer only). Power greyed; Access stays usable.
+      ctrl25OnlyRows.forEach((row) => {
+        row.hidden = !on25;
+      });
+      btnShowPower.disabled = !on25;
+      btnShowPower.classList.toggle("is-disabled", !on25);
+      btnShowAccess.disabled = false;
+      btnShowAccess.classList.remove("is-disabled");
+      if (!on25) {
+        coreInfoChipEl.hidden = true;
+        distInfoChipEl.hidden = true;
+      }
+      // Refresh Access chip visibility from current showAccess state
+      accessRoleFiltersEl.hidden = !showAccess;
+
+      syncRackButtons();
+    }
+
+    // Targeted floor rule: hide Rack1's Dell server while 26F is selected.
+    function syncFloorConditionalVisibility() {
+      const showDellOn25 = currentFloor === 25;
+      for (const unit of hideOn26FUnits) unit.visible = showDellOn25;
+    }
+
+    function setFloor(floor, { frame = true } = {}) {
+      const next = Number(floor);
+      if (next !== 25 && next !== 26) return;
+      if (currentFloor === next && !frame) {
+        syncFloorConditionalVisibility();
+        syncFloorChrome();
+        return;
+      }
+      currentFloor = next;
+      viewMode = "overview";
+      setControlsMenuOpen(false);
+      setFloorMenuOpen(false);
+
+      // Leaving 25F: drop Core / Dist / Power overlays (26F is access-layer only)
+      if (currentFloor !== 25) {
+        if (showPower) setShowPower(false);
+        if (showCore) setShowCore(false);
+        if (showCoreDist) setShowCoreDist(false);
+        if (showAccess) setShowAccess(false);
+      }
+
+      syncFloorConditionalVisibility();
+      syncFloorChrome();
+      if (frame) frameScene(true);
+      nudgeIdle();
+    }
+
+    function roleHighlightsActive() {
+      return showCoreDist || showAccess;
+    }
+
+    function isRoleVisualOn(role) {
+      if (showCoreDist) return true;
+      if (showAccess) return !!accessRoleOn[role];
+      return false;
+    }
+
+    // Face-role colors for Dist / Access (LAN · Wi-Fi · Security)
+    const DIST_ROLE_COLORS = {
+      LAN: 0x3b82f6,
+      WIFI: 0x14b8a6,
+      SECURITY: 0xf04343,
+    };
+    const DIST_ROLE_BY_CODE = {
+      D1: "LAN", D2: "LAN",
+      D3: "WIFI", D4: "WIFI",
+      D5: "SECURITY", D6: "SECURITY",
+      A1: "LAN", A2: "LAN", A3: "LAN", A4: "LAN",
+      A5: "WIFI", A6: "WIFI",
+      A7: "SECURITY", A8: "SECURITY",
+    };
+
+    function setDistRoleHighlights(_ignored) {
+      for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
+        const eq = findEquipmentByCode(code);
+        const mat = eq?.unit?.userData?.frontMat;
+        if (!mat) continue;
+        if (mat.userData.baseEmissive == null) {
+          mat.userData.baseEmissive = mat.emissive.getHex();
+          mat.userData.baseEmissiveIntensity = mat.emissiveIntensity;
+        }
+        const on = isRoleVisualOn(role);
+        if (on) {
+          mat.emissive.setHex(DIST_ROLE_COLORS[role]);
+          mat.emissiveIntensity = 0.72;
+        } else {
+          mat.emissive.setHex(mat.userData.baseEmissive);
+          mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
+        }
+      }
+      for (const label of distRoleLabels) {
+        const role = label.userData.role;
+        label.visible = role ? isRoleVisualOn(role) : roleHighlightsActive();
+      }
+    }
+
+    function syncAccessRoleLinkVisibility() {
+      for (const child of roomDistAccessLinks.children) {
+        const role = child.userData?.role;
+        child.visible = !role || !!accessRoleOn[role];
+      }
+    }
+
+    /** Hovering role text (LAN / WIFI / SECURITY) just outside the left RU strip. */
+    const DIST_ROLE_LABEL_TEXT = { LAN: "LAN", WIFI: "WIFI", SECURITY: "SECURITY" };
+    const distRoleLabels = [];
+
+    function makeDistRoleLabel(text, colorHex) {
+      const pw = 512;
+      const ph = 128;
+      const c = document.createElement("canvas");
+      c.width = pw;
+      c.height = ph;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, pw, ph);
+      const css = `#${colorHex.toString(16).padStart(6, "0")}`;
+      ctx.font = `800 ${Math.floor(ph * 0.55)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = css;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = css;
+      ctx.fillText(text, pw / 2, ph / 2 + 2);
+      // Soft dark plate behind glyphs for contrast on bright rooms
+      ctx.globalCompositeOperation = "destination-over";
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(8, 12, 18, 0.55)";
+      const tw = ctx.measureText(text).width;
+      const padX = 28;
+      const padY = 16;
+      const bx = (pw - tw) / 2 - padX;
+      const by = ph * 0.18;
+      const bw = tw + padX * 2;
+      const bh = ph * 0.64;
+      ctx.beginPath();
+      const r = 10;
+      ctx.moveTo(bx + r, by);
+      ctx.arcTo(bx + bw, by, bx + bw, by + bh, r);
+      ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
+      ctx.arcTo(bx, by + bh, bx, by, r);
+      ctx.arcTo(bx, by, bx + bw, by, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(11.4, 2.82, 1);
+      sprite.visible = false;
+      sprite.renderOrder = 8;
+      sprite.userData.interactive = false;
+      return sprite;
+    }
+
+    function buildDistRoleLabels() {
+      // Viewer's left when facing the front is +X (same side as Dist.*/Access field tags).
+      // Sit just outside the RU strip on that side.
+      const x = RAIL_WIDTH / 2 + RU_STRIP_W * 0.5 + 2.6;
+      for (const [code, role] of Object.entries(DIST_ROLE_BY_CODE)) {
+        const eq = findEquipmentByCode(code);
+        if (!eq?.unit) continue;
+        const { unit } = eq;
+        const label = makeDistRoleLabel(DIST_ROLE_LABEL_TEXT[role], DIST_ROLE_COLORS[role]);
+        label.userData.role = role;
+        const faceZ = unit.userData.mountZ ?? -20;
+        label.position.set(x, 0, faceZ - 0.2);
+        unit.add(label);
+        distRoleLabels.push(label);
+      }
+    }
+    buildDistRoleLabels();
+
+    let viewMode = "overview"; // "overview" | "Rack1" … "Rack6"
+
+    function setControlsMenuOpen(open) {
+      ctrlMenu.classList.toggle("open", open);
+      controlsPanel.hidden = !open;
+      btnControlsToggle.setAttribute("aria-expanded", String(open));
+      if (open) setFloorMenuOpen(false);
+    }
+
+    function syncDoorButton(btn, isOpen, noun) {
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-pressed", String(isOpen));
+      btn.querySelector(".action").textContent = isOpen ? "Close" : "Open";
+      btn.setAttribute("aria-label", `${isOpen ? "Close" : "Open"} ${noun}`);
+    }
+
+    function syncPowerButton() {
+      btnShowPower.classList.toggle("open", showPower);
+      btnShowPower.setAttribute("aria-pressed", String(showPower));
+      btnShowPower.querySelector(".action").textContent = showPower ? "Hide" : "Show";
+      btnShowPower.setAttribute(
+        "aria-label",
+        showPower ? "Hide power cable highlight" : "Show power cable highlight"
+      );
+      powerLegend.hidden = !showPower;
+      powerLegend.classList.toggle("visible", showPower);
+    }
+
+    function syncCoreButton() {
+      btnShowCore.classList.toggle("open", showCore);
+      btnShowCore.setAttribute("aria-pressed", String(showCore));
+      btnShowCore.querySelector(".action").textContent = showCore ? "Hide" : "Show";
+      btnShowCore.setAttribute(
+        "aria-label",
+        showCore ? "Hide core link indicator" : "Show core link indicator"
+      );
+      coreInfoChipEl.hidden = !showCore;
+      syncCoreInfoButton();
+    }
+
+    function syncCoreInfoButton() {
+      btnCoreInfo.classList.toggle("open", showCoreInfo);
+      btnCoreInfo.setAttribute("aria-pressed", String(showCoreInfo));
+      btnCoreInfo.setAttribute(
+        "aria-label",
+        showCoreInfo ? "Hide core detail boxes" : "Show core detail boxes"
+      );
+    }
+
+    function syncRoleLegend() {
+      const on = roleHighlightsActive();
+      distLegend.hidden = !on;
+      distLegend.classList.toggle("visible", on);
+    }
+
+    function syncCoreDistButton() {
+      btnShowCoreDist.classList.toggle("open", showCoreDist);
+      btnShowCoreDist.setAttribute("aria-pressed", String(showCoreDist));
+      btnShowCoreDist.querySelector(".action").textContent = showCoreDist ? "Hide" : "Show";
+      btnShowCoreDist.setAttribute(
+        "aria-label",
+        showCoreDist
+          ? "Hide core-to-dist links and role highlight"
+          : "Show core-to-dist links and role highlight"
+      );
+      distInfoChipEl.hidden = !showCoreDist;
+      syncDistInfoButton();
+      syncRoleLegend();
+    }
+
+    function syncDistInfoButton() {
+      btnDistInfo.classList.toggle("open", showDistInfo);
+      btnDistInfo.setAttribute("aria-pressed", String(showDistInfo));
+      btnDistInfo.setAttribute(
+        "aria-label",
+        showDistInfo ? "Hide dist detail boxes" : "Show dist detail boxes"
+      );
+    }
+
+    function syncAccessButton() {
+      btnShowAccess.classList.toggle("open", showAccess);
+      btnShowAccess.setAttribute("aria-pressed", String(showAccess));
+      btnShowAccess.querySelector(".action").textContent = showAccess ? "Hide" : "Show";
+      btnShowAccess.setAttribute(
+        "aria-label",
+        showAccess
+          ? "Hide access links and role highlight"
+          : "Show access links and role highlight"
+      );
+      accessRoleFiltersEl.hidden = !showAccess;
+      syncAccessRoleFilterButtons();
+      syncRoleLegend();
+    }
+
+    function syncAccessRoleFilterButtons() {
+      for (const [role, btn] of Object.entries(accessRoleButtons)) {
+        if (!btn) continue;
+        const on = !!accessRoleOn[role];
+        btn.classList.toggle("open", on);
+        btn.setAttribute("aria-pressed", String(on));
+      }
+    }
+
+    function setAccessRoleFilter(role, on) {
+      accessRoleOn[role] = on;
+      syncAccessRoleFilterButtons();
+      syncAccessRoleLinkVisibility();
+      setDistRoleHighlights();
+      nudgeIdle();
+    }
+
+    function setShowPower(on) {
+      if (on && currentFloor !== 25) return;
+      showPower = on;
+      powerHighlights.forEach((m) => { m.visible = on; });
+      for (const mat of powerUpsFaceMats) {
+        if (on) {
+          mat.emissive.setHex(0x3dff9a);
+          mat.emissiveIntensity = 1.1;
+        } else {
+          mat.emissive.setHex(mat.userData.baseEmissive);
+          mat.emissiveIntensity = mat.userData.baseEmissiveIntensity;
+        }
+      }
+      syncPowerButton();
+      if (on) {
+        // Pull fog back so the wide power overview stays readable
+        scene.fog.near = FOG_NEAR_POWER;
+        scene.fog.far = FOG_FAR_POWER;
+        startBlueFeedWave();
+        startRedFeedWave();
+        framePowerPath();
+      } else {
+        clearBluePulses();
+        clearRedPulses();
+        scene.fog.near = FOG_NEAR;
+        scene.fog.far = FOG_FAR;
+        nudgeIdle();
+      }
+    }
+
+    function setShowCore(on) {
+      if (on && currentFloor !== 25) return;
+      showCore = on;
+      roomCoreLinks.visible = on;
+      syncCoreButton();
+      setCoreCalloutVisible(on && showCoreInfo);
+      nudgeIdle();
+    }
+
+    function setShowCoreInfo(on) {
+      showCoreInfo = on;
+      syncCoreInfoButton();
+      setCoreCalloutVisible(showCore && showCoreInfo);
+      nudgeIdle();
+    }
+
+    function setShowCoreDist(on) {
+      if (on && currentFloor !== 25) return;
+      showCoreDist = on;
+      roomCoreDistLinks.visible = on;
+      setDistRoleHighlights();
+      syncCoreDistButton();
+      setCoreDistCalloutVisible(on && showDistInfo);
+      nudgeIdle();
+    }
+
+    function setShowDistInfo(on) {
+      showDistInfo = on;
+      syncDistInfoButton();
+      setCoreDistCalloutVisible(showCoreDist && showDistInfo);
+      nudgeIdle();
+    }
+
+    function setShowAccess(on) {
+      showAccess = on;
+      roomDistAccessLinks.visible = on;
+      if (on) syncAccessRoleLinkVisibility();
+      setDistRoleHighlights();
+      syncAccessButton();
+      nudgeIdle();
+    }
+
+    function nudgeIdle() {
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      // Don't auto-rotate while focused on a rack or while power path is highlighted
+      if (viewMode !== "overview" || showPower) return;
+      idleTimer = setTimeout(() => { controls.autoRotate = true; }, IDLE_AUTOSPIN_MS);
+    }
+
+    function setFrontDoor(open) {
+      doorState.frontOpen = open;
+      doorState.frontTarget = open ? FRONT_OPEN : FRONT_CLOSED;
+      syncDoorButton(btnFront, open, "front doors");
+      nudgeIdle();
+    }
+
+    function setRearDoors(open) {
+      doorState.rearOpen = open;
+      doorState.rearLTarget = open ? REAR_L_OPEN : REAR_L_CLOSED;
+      doorState.rearRTarget = open ? REAR_R_OPEN : REAR_R_CLOSED;
+      syncDoorButton(btnRear, open, "rear doors");
+      nudgeIdle();
+    }
+
+    function syncRackButtons() {
+      rackButtons.forEach((btn) => {
+        btn.classList.toggle("active", viewMode === btn.dataset.rack);
+      });
+    }
+
+    /** Zoom to a rack's front so the full cabinet fills the phone's vertical view */
+    function focusRackFront(name) {
+      const unit = racks.find((r) => r.group.name === name);
+      if (!unit) return;
+
+      // Keep floor chrome in sync with the rack being viewed
+      const floorForRack = String(name).startsWith("26F") ? 26 : 25;
+      if (currentFloor !== floorForRack) {
+        setFloor(floorForRack, { frame: false });
+      }
+
+      viewMode = name;
+      syncRackButtons();
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+
+      camera.fov = mobile ? 48 : 36;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      unit.group.updateWorldMatrix(true, true);
+      const box = new THREE.Box3().setFromObject(unit.group);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      // Local front is -Z; transform into world
+      const worldFront = new THREE.Vector3(0, 0, -1)
+        .applyQuaternion(unit.group.getWorldQuaternion(new THREE.Quaternion()))
+        .normalize();
+
+      // Fit full rack height in the vertical FOV (phone portrait)
+      const padY = mobile ? 1.08 : 1.15;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const dist = (size.y * padY * 0.5) / Math.tan(vFov / 2);
+
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(worldFront, dist);
+      controls.minDistance = Math.max(16, dist * 0.36); // 20% more zoom-in
+      controls.maxDistance = Math.max(800, dist * 4);
+      controls.update();
+    }
+
+    btnControlsToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setControlsMenuOpen(controlsPanel.hidden);
+    });
+    btnFloorToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = floorPanel.hidden;
+      setFloorMenuOpen(opening);
+      if (opening) setControlsMenuOpen(false);
+    });
+    btnFront.addEventListener("click", () => setFrontDoor(!doorState.frontOpen));
+    btnRear.addEventListener("click", () => setRearDoors(!doorState.rearOpen));
+    btnShowPower.addEventListener("click", () => setShowPower(!showPower));
+    btnShowCore.addEventListener("click", () => setShowCore(!showCore));
+    btnShowCoreDist.addEventListener("click", () => setShowCoreDist(!showCoreDist));
+    btnShowAccess.addEventListener("click", () => setShowAccess(!showAccess));
+    btnCoreInfo.addEventListener("click", () => setShowCoreInfo(!showCoreInfo));
+    btnDistInfo.addEventListener("click", () => setShowDistInfo(!showDistInfo));
+    Object.entries(accessRoleButtons).forEach(([role, btn]) => {
+      if (!btn) return;
+      btn.addEventListener("click", () => setAccessRoleFilter(role, !accessRoleOn[role]));
+    });
+    rackButtons.forEach((btn) => {
+      btn.addEventListener("click", () => focusRackFront(btn.dataset.rack));
+    });
+    floorButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        setFloor(btn.dataset.floor, { frame: true });
+      });
+    });
+    document.querySelector(".door-controls").addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+      if (!floorMenu.contains(e.target)) setFloorMenuOpen(false);
+    });
+    // Close drop-ups when clicking the canvas / elsewhere
+    document.addEventListener("pointerdown", (e) => {
+      if (!ctrlMenu.contains(e.target)) setControlsMenuOpen(false);
+      if (!floorMenu.contains(e.target)) setFloorMenuOpen(false);
+    });
+    syncDoorButton(btnFront, true, "front doors");
+    syncDoorButton(btnRear, true, "rear doors");
+    syncPowerButton();
+    syncCoreButton();
+    syncFloorConditionalVisibility();
+    syncFloorChrome();
+    syncRackButtons();
+
+    // Deep-link helpers: ?focus=Rack6&info=ups|battery
+    const bootParams = new URLSearchParams(location.search);
+    const bootFocus = bootParams.get("focus");
+    const bootInfo = bootParams.get("info");
+    if (bootFocus) {
+      requestAnimationFrame(() => {
+        focusRackFront(bootFocus);
+        if (bootInfo) {
+          window.setTimeout(() => {
+            const hit = interactiveItems.find((o) => o.userData.kind === bootInfo);
+            if (hit) triggerPressFeedback(hit);
+          }, 700);
+        }
+      });
+    }
+
+    // Lighting
+    // Stronger key/fill separation so metal edges and door mesh read on phone
+    scene.add(new THREE.AmbientLight(0xdde5ee, 0.55));
+
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.85);
+    key.position.set(140, 200, -40);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 10;
+    key.shadow.camera.far = 1600;
+    key.shadow.camera.left = -280;
+    key.shadow.camera.right = 280;
+    key.shadow.camera.top = 980;
+    key.shadow.camera.bottom = -80;
+    key.shadow.bias = -0.0002;
+    scene.add(key);
+
+    const fill = new THREE.DirectionalLight(0x9ec5ef, 1.15);
+    fill.position.set(-140, 90, 60);
+    scene.add(fill);
+
+    const rim = new THREE.DirectionalLight(0xffffff, 0.85);
+    rim.position.set(20, 70, 160);
+    scene.add(rim);
+
+    const bounce = new THREE.PointLight(0xffffff, 90, 340, 2);
+    bounce.position.set(0, FLOOR_H + 20, 0);
+    scene.add(bounce);
+
+    // Soft fill so the 26F raised deck reads when looking up from 25F
+    const floor26Fill = new THREE.PointLight(0xe8f0f8, 180, 780, 2);
+    floor26Fill.position.set(-RACK_PITCH / 2, STOREY_H + FLOOR_H + 90, 0);
+    scene.add(floor26Fill);
+
+    // Aisle light to lift door faces and equipment bezels
+    const aisleLight = new THREE.PointLight(0xe8f2ff, 110, 280, 2);
+    aisleLight.position.set(0, FLOOR_H + 140, 0);
+    scene.add(aisleLight);
+
+    const framingBox = new THREE.Box3();
+    function frameScene(forceReset = true) {
+      if (showPower) {
+        framePowerPath();
+        return;
+      }
+      if (viewMode !== "overview") {
+        focusRackFront(viewMode);
+        return;
+      }
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+
+      camera.fov = mobile ? 54 : 40;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      // Fit the active floor’s bay + raised deck
+      if (currentFloor === 26) {
+        framingBox.setFromObject(bay26);
+        framingBox.expandByObject(raisedFloor26);
+      } else {
+        framingBox.setFromObject(bay);
+        framingBox.expandByObject(raisedFloor);
+      }
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      framingBox.getSize(size);
+      framingBox.getCenter(center);
+
+      const padX = mobile ? 1.35 : 1.2;
+      const padY = mobile ? 1.45 : 1.25;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const distY = (size.y * padY * 0.5) / Math.tan(vFov / 2);
+      const distX = (size.x * padX * 0.5) / Math.tan(hFov / 2);
+      const distZ = (size.z * padX * 0.5) / Math.tan(hFov / 2);
+      const distance = Math.max(distX, distY, distZ) * (mobile ? 1.1 : 1.05);
+
+      controls.target.copy(center);
+      if (mobile) controls.target.y = center.y * 0.98;
+      controls.minDistance = Math.max(32, distance * 0.22);
+      controls.maxDistance = Math.max(1600, distance * 3.5);
+
+      if (forceReset) {
+        const dir = new THREE.Vector3(0.78, mobile ? 0.38 : 0.42, 0.38).normalize();
+        camera.position.copy(center).addScaledVector(dir, distance);
+        controls.update();
+      }
+      syncRackButtons();
+    }
+
+    /** Fit the full power run (green 32A TPN + blue Dist→PDU1 + red MCB→PDU2) in view */
+    function framePowerPath() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+
+      // Wider FOV → camera can sit closer without clipping the path
+      camera.fov = mobile ? 58 : 48;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+
+      const box = new THREE.Box3();
+      const tmp = new THREE.Vector3();
+      [...powerPathPoints, ...bluePowerPathPoints, ...redPowerPathPoints].forEach((p) => {
+        tmp.copy(p);
+        roomPower.localToWorld(tmp);
+        box.expandByPoint(tmp);
+      });
+      box.expandByScalar(mobile ? 55 : 42);
+
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+
+      const pad = mobile ? 1.2 : 1.1;
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+      const distance = Math.max(
+        (size.y * pad * 0.5) / Math.tan(vFov / 2),
+        (size.x * pad * 0.5) / Math.tan(hFov / 2),
+        (size.z * pad * 0.5) / Math.tan(hFov / 2)
+      ) * (mobile ? 0.95 : 0.9);
+
+      // High corner view so wall stack, underfloor L, and Rack6 riser all read
+      const dir = new THREE.Vector3(0.58, mobile ? 0.68 : 0.78, -0.42).normalize();
+      controls.target.copy(center);
+      camera.position.copy(center).addScaledVector(dir, distance);
+      controls.minDistance = Math.max(32, distance * 0.18);
+      controls.maxDistance = Math.max(1600, distance * 3.8);
+      controls.autoRotate = false;
+      clearTimeout(idleTimer);
+      viewMode = "overview";
+      syncRackButtons();
+      controls.update();
+    }
+
+    frameScene(true);
+
+    // --- Tap / click feedback on equipment (UX probe; no action yet) ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    const pressPtr = { x: 0, y: 0, down: false, moved: false };
+    const pressFx = {
+      target: null,
+      frontMat: null,
+      t: 0,
+      duration: 0.32,
+      baseEmissive: 0.35,
+    };
+
+    function findInteractiveRoot(obj) {
+      let o = obj;
+      while (o) {
+        if (o.userData && o.userData.interactive) return o;
+        o = o.parent;
+      }
+      return null;
+    }
+
+    const infoLeader = document.getElementById("info-leader");
+    const infoLine = document.getElementById("info-line");
+    const infoAnchor = document.getElementById("info-anchor");
+    const infoPanel = document.getElementById("info-panel");
+    const infoClose = document.getElementById("info-close");
+    let infoTarget = null;
+    let infoHideTimers = [];
+    const infoWorld = new THREE.Vector3();
+    const infoProj = new THREE.Vector3();
+
+    function clearInfoHideTimers() {
+      infoHideTimers.forEach((id) => window.clearTimeout(id));
+      infoHideTimers = [];
+    }
+
+    function resetLeaderGeometry() {
+      infoLine.style.strokeDashoffset = "1";
+      infoLine.setAttribute("x1", "0");
+      infoLine.setAttribute("y1", "0");
+      infoLine.setAttribute("x2", "0");
+      infoLine.setAttribute("y2", "0");
+      infoAnchor.setAttribute("cx", "-20");
+      infoAnchor.setAttribute("cy", "-20");
+    }
+
+    function hideInfoPanel() {
+      if (infoPanel.hidden && !infoLeader.classList.contains("show")) return;
+      clearInfoHideTimers();
+
+      // 1) Collapse the panel first (CSS base transition has no delay)
+      infoPanel.classList.remove("show");
+
+      // 2) After panel closes, retract the line while SVG stays visible
+      infoHideTimers.push(window.setTimeout(() => {
+        infoLine.style.strokeDashoffset = "1";
+      }, 300));
+
+      // 3) Hide leader + cleanup after retract finishes
+      infoHideTimers.push(window.setTimeout(() => {
+        infoLeader.classList.remove("show");
+        infoTarget = null;
+        resetLeaderGeometry();
+        if (!infoPanel.classList.contains("show")) {
+          infoPanel.hidden = true;
+          infoPanel.classList.remove("from-right");
+        }
+        infoHideTimers = [];
+      }, 640));
+    }
+
+    const infoQuat = new THREE.Quaternion();
+    const infoFront = new THREE.Vector3();
+    const infoBox = new THREE.Box3();
+    const infoCorner = new THREE.Vector3();
+    const infoScreen = { x: 0, y: 0 };
+
+    function projectWorldToScreen(v, out) {
+      infoProj.copy(v).project(camera);
+      const rect = canvas.getBoundingClientRect();
+      out.x = (infoProj.x * 0.5 + 0.5) * rect.width + rect.left;
+      out.y = (-infoProj.y * 0.5 + 0.5) * rect.height + rect.top;
+      return out;
+    }
+
+    function equipmentScreenBounds(obj) {
+      infoBox.setFromObject(obj);
+      const min = { x: Infinity, y: Infinity };
+      const max = { x: -Infinity, y: -Infinity };
+      const { min: bmin, max: bmax } = infoBox;
+      for (let i = 0; i < 8; i++) {
+        infoCorner.set(
+          i & 1 ? bmax.x : bmin.x,
+          i & 2 ? bmax.y : bmin.y,
+          i & 4 ? bmax.z : bmin.z
+        );
+        projectWorldToScreen(infoCorner, infoScreen);
+        min.x = Math.min(min.x, infoScreen.x);
+        min.y = Math.min(min.y, infoScreen.y);
+        max.x = Math.max(max.x, infoScreen.x);
+        max.y = Math.max(max.y, infoScreen.y);
+      }
+      return { min, max, cx: (min.x + max.x) * 0.5, cy: (min.y + max.y) * 0.5 };
+    }
+
+    function layoutInfoCallout() {
+      if (!infoTarget || infoPanel.hidden) return;
+      infoTarget.updateWorldMatrix(true, true);
+
+      // Anchor on front-biased center of the equipment
+      infoBox.setFromObject(infoTarget);
+      infoBox.getCenter(infoWorld);
+      infoFront.set(0, 0, -1).applyQuaternion(infoTarget.getWorldQuaternion(infoQuat)).normalize();
+      infoWorld.addScaledVector(infoFront, 8);
+      projectWorldToScreen(infoWorld, infoScreen);
+      const ax = infoScreen.x;
+      const ay = infoScreen.y;
+
+      const eq = equipmentScreenBounds(infoTarget);
+      const panelW = infoPanel.offsetWidth || 280;
+      const panelH = infoPanel.offsetHeight || 220;
+      const margin = 12;
+      const bottomChrome = 72; // door controls
+      const topChrome = isMobile() ? 12 : 56;
+      const gap = 20;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const safeBottom = vh - bottomChrome;
+
+      // Pressed gear in lower half → pin panel to the top (leave UPS visible)
+      const equipmentLow = eq.cy >= vh * 0.38 || eq.min.y >= vh * 0.35;
+      const spaceAbove = Math.max(0, eq.min.y - topChrome - gap);
+      const spaceBelow = Math.max(0, safeBottom - eq.max.y - gap);
+      let placeAbove = equipmentLow ? true : spaceAbove >= spaceBelow;
+
+      let px = Math.min(Math.max(margin, eq.cx - panelW * 0.5), vw - panelW - margin);
+      let py;
+      if (equipmentLow) {
+        // Match phone Rack6 zoom: box at top, line down to the gear
+        py = topChrome;
+        placeAbove = true;
+      } else if (placeAbove) {
+        py = Math.max(topChrome, eq.min.y - gap - panelH);
+      } else {
+        py = Math.min(Math.max(topChrome, eq.max.y + gap), safeBottom - panelH);
+      }
+
+      const overlaps = (x, y) =>
+        x < eq.max.x + gap &&
+        x + panelW > eq.min.x - gap &&
+        y < eq.max.y + gap &&
+        y + panelH > eq.min.y - gap;
+
+      // If panel still intersects the gear, flip to the opposite free band
+      if (overlaps(px, py)) {
+        if (!equipmentLow && spaceBelow > spaceAbove) {
+          placeAbove = false;
+          py = Math.min(safeBottom - panelH, Math.max(topChrome, eq.max.y + gap));
+        } else {
+          placeAbove = true;
+          py = topChrome;
+        }
+      }
+      if (overlaps(px, py)) {
+        const leftX = eq.min.x - gap - panelW;
+        const rightX = eq.max.x + gap;
+        if (vw - margin - rightX >= panelW && (leftX < margin || ax >= eq.cx)) {
+          px = Math.min(vw - panelW - margin, rightX);
+        } else if (leftX >= margin) {
+          px = leftX;
+        }
+      }
+
+      px = Math.max(margin, Math.min(vw - panelW - margin, px));
+      py = Math.max(topChrome, Math.min(safeBottom - panelH, py));
+
+      infoPanel.style.left = `${px}px`;
+      infoPanel.style.top = `${py}px`;
+
+      const preferRight = ax < px + panelW * 0.5;
+      infoPanel.classList.toggle("from-right", !preferRight);
+      infoPanel.style.transformOrigin = placeAbove
+        ? (preferRight ? "left bottom" : "right bottom")
+        : (preferRight ? "left top" : "right top");
+
+      const joinX = Math.min(Math.max(px + 16, ax), px + panelW - 16);
+      const joinY = placeAbove ? py + panelH : py;
+
+      infoAnchor.setAttribute("cx", ax.toFixed(1));
+      infoAnchor.setAttribute("cy", ay.toFixed(1));
+      infoLine.setAttribute("x1", ax.toFixed(1));
+      infoLine.setAttribute("y1", ay.toFixed(1));
+      infoLine.setAttribute("x2", joinX.toFixed(1));
+      infoLine.setAttribute("y2", joinY.toFixed(1));
+    }
+
+    function showInfoPanel(root) {
+      const info = root.userData.info;
+      if (!info) return;
+
+      clearInfoHideTimers();
+
+      document.getElementById("info-eyebrow").textContent = info.eyebrow || "Equipment";
+      document.getElementById("info-title").textContent = info.title || root.userData.label || "Device";
+      document.getElementById("info-model").textContent = info.model || "";
+      document.getElementById("info-rating").textContent = info.rating || "";
+      const body = document.getElementById("info-body");
+      body.innerHTML = "";
+      (info.blocks || []).forEach((b) => {
+        const wrap = document.createElement("div");
+        wrap.className = "block";
+        const dt = document.createElement("dt");
+        dt.textContent = b.label;
+        const dd = document.createElement("dd");
+        dd.textContent = b.text;
+        wrap.append(dt, dd);
+        body.append(wrap);
+      });
+
+      infoTarget = root;
+      infoPanel.hidden = false;
+      infoPanel.classList.remove("show");
+      infoLeader.classList.remove("show");
+      // pathLength=1 → dash uses normalized 0..1 units; prefer class over sticky inline 0
+      infoLine.style.removeProperty("stroke-dasharray");
+      infoLine.style.strokeDashoffset = "1";
+
+      layoutInfoCallout();
+      requestAnimationFrame(() => {
+        layoutInfoCallout();
+        infoLine.style.strokeDashoffset = "1";
+        requestAnimationFrame(() => {
+          infoLeader.classList.add("show");
+          infoPanel.classList.add("show");
+          // Let CSS .show drive dashoffset; clear inline so hide can re-cover
+          infoLine.style.removeProperty("stroke-dashoffset");
+        });
+      });
+    }
+
+    function triggerPressFeedback(root) {
+      if (pressFx.target && pressFx.target !== root) {
+        pressFx.target.scale.setScalar(1);
+        if (pressFx.frontMat) pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive;
+      }
+      pressFx.target = root;
+      pressFx.frontMat = root.userData.frontMat || null;
+      pressFx.baseEmissive = pressFx.frontMat ? (pressFx.frontMat.emissiveIntensity || 0.35) : 0.35;
+      pressFx.t = 0;
+      if (navigator.vibrate) navigator.vibrate(12);
+      showInfoPanel(root);
+    }
+
+    infoClose.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hideInfoPanel();
+    });
+    infoPanel.addEventListener("pointerdown", (e) => e.stopPropagation());
+
+    // --- Core sticky callouts (Core · Dist) ---
+    const coreScreen = { x: 0, y: 0 };
+    const coreCallouts = [
+      {
+        key: "C1C2",
+        leader: document.getElementById("core-leader-c12"),
+        line: document.getElementById("core-line-c12"),
+        anchorEl: document.getElementById("core-anchor-c12"),
+        panel: document.getElementById("core-panel-c12"),
+      },
+      {
+        key: "C3C4",
+        leader: document.getElementById("core-leader-c34"),
+        line: document.getElementById("core-line-c34"),
+        anchorEl: document.getElementById("core-anchor-c34"),
+        panel: document.getElementById("core-panel-c34"),
+      },
+      {
+        key: "SM_C1",
+        leader: document.getElementById("core-leader-sm-c1"),
+        line: document.getElementById("core-line-sm-c1"),
+        anchorEl: document.getElementById("core-anchor-sm-c1"),
+        panel: document.getElementById("core-panel-sm-c1"),
+      },
+      {
+        key: "SM_C2",
+        leader: document.getElementById("core-leader-sm-c2"),
+        line: document.getElementById("core-line-sm-c2"),
+        anchorEl: document.getElementById("core-anchor-sm-c2"),
+        panel: document.getElementById("core-panel-sm-c2"),
+      },
+    ];
+    const coreDistCallouts = [
+      {
+        key: "SM_CD",
+        below: true,
+        leader: document.getElementById("core-leader-cd"),
+        line: document.getElementById("core-line-cd"),
+        anchorEl: document.getElementById("core-anchor-cd"),
+        panel: document.getElementById("core-panel-cd"),
+      },
+      {
+        key: "SM_CD2",
+        below: true,
+        leader: document.getElementById("core-leader-cd2"),
+        line: document.getElementById("core-line-cd2"),
+        anchorEl: document.getElementById("core-anchor-cd2"),
+        panel: document.getElementById("core-panel-cd2"),
+      },
+    ];
+
+    function isWorldPointInView(v, margin = 0.02) {
+      infoProj.copy(v).project(camera);
+      return (
+        Math.abs(infoProj.x) <= 1 + margin &&
+        Math.abs(infoProj.y) <= 1 + margin &&
+        Math.abs(infoProj.z) <= 1
+      );
+    }
+
+    function coreLinkClusterInView(key) {
+      const pts = coreCalloutFrustumPts[key];
+      if (pts && pts.length) {
+        for (let i = 0; i < pts.length; i++) {
+          if (isWorldPointInView(pts[i])) return true;
+        }
+        return false;
+      }
+      const mid = coreCalloutAnchors[key];
+      return !!(mid && isWorldPointInView(mid));
+    }
+
+    function layoutOneCoreCallout(callout, isShown) {
+      const anchor = coreCalloutAnchors[callout.key];
+      if (!isShown || !anchor || callout.panel.hidden) return;
+
+      const inView = coreLinkClusterInView(callout.key);
+      callout.panel.classList.toggle("off-frustum", !inView);
+      callout.leader.classList.toggle("off-frustum", !inView);
+      if (!inView) {
+        callout.anchorEl.setAttribute("cx", "-20");
+        callout.anchorEl.setAttribute("cy", "-20");
+        return;
+      }
+
+      projectWorldToScreen(anchor, coreScreen);
+      const ax = coreScreen.x;
+      const ay = coreScreen.y;
+      const panelW = callout.panel.offsetWidth || 112;
+      const panelH = callout.panel.offsetHeight || 34;
+      const margin = 12;
+      const gap = 14;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const topChrome = isMobile() ? 12 : 56;
+      const below = !!callout.below;
+
+      const px = Math.min(Math.max(margin, ax - panelW * 0.5), vw - panelW - margin);
+      const py = below
+        ? Math.min(vh - panelH - margin, ay + gap)
+        : Math.max(topChrome, ay - gap - panelH);
+
+      callout.panel.style.left = `${px}px`;
+      callout.panel.style.top = `${py}px`;
+
+      const joinX = px + panelW * 0.5;
+      const joinY = below ? py : py + panelH;
+
+      callout.anchorEl.setAttribute("cx", ax.toFixed(1));
+      callout.anchorEl.setAttribute("cy", ay.toFixed(1));
+      callout.line.setAttribute("x1", ax.toFixed(1));
+      callout.line.setAttribute("y1", ay.toFixed(1));
+      callout.line.setAttribute("x2", joinX.toFixed(1));
+      callout.line.setAttribute("y2", joinY.toFixed(1));
+    }
+
+    function layoutCoreCallout() {
+      for (const callout of coreCallouts) layoutOneCoreCallout(callout, showCore && showCoreInfo);
+      for (const callout of coreDistCallouts) layoutOneCoreCallout(callout, showCoreDist && showDistInfo);
+    }
+
+    function setCalloutGroupVisible(callouts, on) {
+      for (const callout of callouts) {
+        if (on) {
+          if (!coreCalloutAnchors[callout.key]) continue;
+          callout.panel.hidden = false;
+          callout.panel.classList.remove("show", "off-frustum");
+          callout.leader.classList.remove("show", "off-frustum");
+          callout.line.style.strokeDashoffset = "1";
+        } else {
+          callout.panel.classList.remove("show", "off-frustum");
+          callout.leader.classList.remove("show", "off-frustum");
+          callout.panel.hidden = true;
+          callout.line.style.strokeDashoffset = "1";
+          callout.anchorEl.setAttribute("cx", "-20");
+          callout.anchorEl.setAttribute("cy", "-20");
+        }
+      }
+      if (!on) return;
+      layoutCoreCallout();
+      requestAnimationFrame(() => {
+        layoutCoreCallout();
+        for (const callout of callouts) {
+          callout.line.style.strokeDashoffset = "1";
+        }
+        requestAnimationFrame(() => {
+          for (const callout of callouts) {
+            if (callout.panel.hidden) continue;
+            callout.leader.classList.add("show");
+            callout.panel.classList.add("show");
+            callout.line.style.removeProperty("stroke-dashoffset");
+          }
+        });
+      });
+    }
+
+    function setCoreCalloutVisible(on) {
+      setCalloutGroupVisible(coreCallouts, on);
+    }
+
+    function setCoreDistCalloutVisible(on) {
+      setCalloutGroupVisible(coreDistCallouts, on);
+    }
+
+    attachPointerInteractions({
+      canvas,
+      camera,
+      raycaster,
+      pointerNdc,
+      pickBlockers,
+      interactiveItems,
+      findInteractiveRoot,
+      pressPtr,
+      triggerPressFeedback,
+      hideInfoPanel,
+    });
+
+    const clock = new THREE.Clock();
+
+    function onResize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (viewMode === "overview") frameScene(true);
+      else focusRackFront(viewMode);
+    }
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", () => setTimeout(onResize, 200));
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const ease = 1 - Math.exp(-dt * 7);
+      syncFloorConditionalVisibility();
+
+      racks.forEach(({ frontDoor, rearLeft, rearRight }) => {
+        frontDoor.rotation.y += (doorState.frontTarget - frontDoor.rotation.y) * ease;
+        rearLeft.rotation.y += (doorState.rearLTarget - rearLeft.rotation.y) * ease;
+        rearRight.rotation.y += (doorState.rearRTarget - rearRight.rotation.y) * ease;
+      });
+
+      // Equipment press feedback — quick scale pop + face flash
+      if (pressFx.target) {
+        pressFx.t += dt;
+        const u = Math.min(1, pressFx.t / pressFx.duration);
+        const pop = Math.sin(u * Math.PI); // 0 → 1 → 0
+        pressFx.target.scale.setScalar(1 + 0.05 * pop);
+        if (pressFx.frontMat) {
+          pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive + 1.4 * pop;
+        }
+        if (u >= 1) {
+          pressFx.target.scale.setScalar(1);
+          if (pressFx.frontMat) pressFx.frontMat.emissiveIntensity = pressFx.baseEmissive;
+          pressFx.target = null;
+          pressFx.frontMat = null;
+        }
+      }
+
+      // Keep leader line glued to the equipment while orbiting
+      if (infoTarget) layoutInfoCallout();
+      if (showCore || showCoreDist) layoutCoreCallout();
+
+      // Role auras on Access links — 3s pulse; peak cover fully overcomes SM yellow
+      if (showAccess) {
+        const pulse = 0.5 - 0.5 * Math.cos(
+          (clock.elapsedTime * Math.PI * 2) / ACCESS_LAN_AURA_PULSE_SEC
+        );
+        matAccessLanBlueCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
+        matAccessLanAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
+        matAccessLanAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
+        matAccessWifiCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
+        matAccessWifiAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
+        matAccessWifiAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
+        matAccessSecCover.opacity = ACCESS_LAN_COVER_PEAK * pulse;
+        matAccessSecAura.opacity = ACCESS_LAN_AURA_PEAK * pulse;
+        matAccessSecAuraSoft.opacity = ACCESS_LAN_AURA_SOFT_PEAK * pulse;
+      }
+      // Sci-fi pulses: green 32A TPN + blue Dist→PDU1 + red MCB→PDU2
+      if (showPower) {
+        const t = (clock.elapsedTime * POWER_PULSE_SPEED) % 1;
+        const p = powerPath.getPointAt(t);
+        powerPulse.position.copy(p);
+        const p2 = powerPath.getPointAt(Math.min(1, t + 0.02));
+        const dir = new THREE.Vector3().subVectors(p2, p);
+        if (dir.lengthSq() > 1e-6) {
+          powerPulse.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            dir.normalize()
+          );
+        }
+        matPowerXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 2.4);
+        matPowerPulse.opacity = 0.85 + 0.15 * Math.sin(t * Math.PI);
+
+        // Blue: UPS Dist→PDU1 · Red: building MCB→PDU2 (both split at U corner)
+        updateBluePulses(dt);
+        updateRedPulses(dt);
+        matBlueXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 2.1);
+        matRedXray.opacity = 0.52 + 0.234 * Math.sin(clock.elapsedTime * 1.9);
+
+        // Pulse equipment glow shells with the cable x-ray
+        const glowPulse = 0.72 + 0.28 * Math.sin(clock.elapsedTime * 2.3);
+        for (const mat of powerGlowPulseMats) {
+          mat.opacity = (mat.userData.baseOpacity ?? 0.2) * glowPulse;
+        }
+      }
+
+      // Keep floating dimension text readable from any camera angle.
+      for (const label of hoverDimLabels) {
+        label.quaternion.copy(camera.quaternion);
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
