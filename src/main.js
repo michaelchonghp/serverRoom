@@ -7833,10 +7833,22 @@
       syncRackButtons();
     }
 
+    // Render-cull inactive floor content to reduce GPU load (especially mobile):
+    // 25F shows bay + raisedFloor + roomPower, while 26F shows bay26 + raisedFloor26.
+    function applyFloorVisibility() {
+      const on25 = currentFloor === 25;
+      bay.visible = on25;
+      raisedFloor.visible = on25;
+      roomPower.visible = on25;
+      bay26.visible = !on25;
+      raisedFloor26.visible = !on25;
+    }
+
     function setFloor(floor, { frame = true } = {}) {
       const next = Number(floor);
       if (next !== 25 && next !== 26) return;
       if (currentFloor === next && !frame) {
+        applyFloorVisibility();
         syncFloorChrome();
         return;
       }
@@ -7853,6 +7865,8 @@
         if (showAccess) setShowAccess(false);
       }
 
+      applyFloorVisibility();
+      hideInfoPanel();
       syncFloorChrome();
       if (frame) frameScene(true);
       nudgeIdle();
@@ -8296,6 +8310,7 @@
     syncDoorButton(btnRear, true, "rear doors");
     syncPowerButton();
     syncCoreButton();
+    applyFloorVisibility();
     syncFloorChrome();
     syncRackButtons();
 
