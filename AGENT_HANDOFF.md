@@ -197,9 +197,4 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
   - Blue/red power lane + pulse subsystem extracted to `src/modules/power-blue-red.js` (`initBlueRedPowerSystem()`).
   - Pointer/tap picking event wiring extracted to `src/modules/interaction.js` (`attachPointerInteractions()`).
   - `src/main.js` now orchestrates these modules while retaining scene assembly logic in one place.
-- Floor-switch performance culling added:
-  - `setFloor()` now applies full floor visibility toggles via `applyFloorVisibility()`.
-  - On 26F: hide 25F-heavy groups (`bay`, `raisedFloor`, `roomPower`).
-  - On 25F: hide 26F groups (`bay26`, `raisedFloor26`).
-  - Floor switches also close the info callout panel to avoid stale overlays.
 - Future modular cuts should continue by domain (power logic, callouts, equipment factories) while passing shared state/context explicitly.
