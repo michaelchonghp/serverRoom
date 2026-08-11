@@ -2,6 +2,8 @@
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
     import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
     import { getUiElements } from "./modules/ui-elements.js";
+    import { initBlueRedPowerSystem } from "./modules/power-blue-red.js";
+    import { attachPointerInteractions } from "./modules/interaction.js";
 
     // Proportions ≈ Austin Hughes SR-8042 (800W × 1072D × 42U), cm
     const U = 4.445;
@@ -7707,460 +7709,41 @@
       });
     });
 
-    // Blue x-ray: Dist → wall trunk → up → feeder → U-corner, then tree (no backtrack):
-    //   arm A: Rack1→2→3 · arm B: cross → Rack4→5→6. Pulses split at corner and each PDU.
-    // Parallel lane offsets keep blue/red readable inside the same physical trunk.
-    const BLUE_TRUNK_OFF = new THREE.Vector3(-2.2, 0, 1.6); // toward Dist / into room
-    const RED_TRUNK_OFF = new THREE.Vector3(2.2, 0, -1.6); // toward MCB / opposite lane
-    const matBlueXray = new THREE.MeshBasicMaterial({
-      color: 0x4da3ff,
-      transparent: true,
-      opacity: 0.715,
-      depthTest: false,
-      depthWrite: false,
+    const blueRedPower = initBlueRedPowerSystem({
+      THREE,
+      roomPower,
+      buildPolyline,
+      cylinderBetween,
+      industrialSocketByKey,
+      racks,
+      PDU_LOCAL_X,
+      pduLocalZ,
+      pduTopY,
+      CPT_Y,
+      distX,
+      bypassY,
+      powerCableZ,
+      cptXMax,
+      cptZA,
+      cptZB,
+      trunkX,
+      trunkZ,
+      mcbX,
+      mcbY,
+      getElapsedTime: () => clock.elapsedTime,
     });
-    const bluePowerCableGroup = new THREE.Group();
-    bluePowerCableGroup.name = "PowerCableDistToPdu1";
-    const bluePowerPathPoints = []; // framing + static draw samples
-    const blueToCorner = []; // Dist → U corner (cptXMax, cptZA)
-    const blueArms = []; // [{ legs: Vector3[][], spurs: Vector3[][] }, …]
-    const blueSpurPaths = []; // flat list for arrival counting
-    const distFeedOrigin = new THREE.Vector3(distX, bypassY, powerCableZ);
-    const uCorner = new THREE.Vector3(cptXMax, CPT_Y, cptZA);
-
-    function pdu1FeedGeom(rackName) {
-      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU1`);
-      const rack = racks.find((r) => r.group.name === rackName)?.group;
-      if (!sockInfo || !rack) return null;
-      const rotY = rack.rotation.y;
-      const cos = Math.cos(rotY);
-      const sin = Math.sin(rotY);
-      const junction = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
-      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
-      const pduTop = new THREE.Vector3(
-        rack.position.x + PDU_LOCAL_X * cos - pduLocalZ * sin,
-        pduTopY + 0.4,
-        rack.position.z + PDU_LOCAL_X * sin + pduLocalZ * cos
-      );
-      return { junction, sockFace, pduTop };
-    }
-
-    function pushUniquePoint(arr, p) {
-      const last = arr[arr.length - 1];
-      const c = p.clone().add(BLUE_TRUNK_OFF);
-      if (!last || last.distanceTo(c) > 0.5) {
-        arr.push(c);
-        bluePowerPathPoints.push(c.clone());
-      }
-    }
-
-    // Dist → Dist–trunk conduit → up outbound trunk → ceiling feeder → U corner
-    pushUniquePoint(blueToCorner, distFeedOrigin);
-    pushUniquePoint(blueToCorner, new THREE.Vector3(trunkX, bypassY, trunkZ));
-    pushUniquePoint(blueToCorner, new THREE.Vector3(trunkX, CPT_Y, trunkZ));
-    pushUniquePoint(blueToCorner, new THREE.Vector3(cptXMax, CPT_Y, trunkZ));
-    pushUniquePoint(blueToCorner, uCorner);
-
-    function buildBlueArm(rackNames, leadPts) {
-      const arm = { legs: [], spurs: [] };
-      let leg = [];
-      (leadPts || []).forEach((p) => pushUniquePoint(leg, p));
-      rackNames.forEach((rackName) => {
-        const g = pdu1FeedGeom(rackName);
-        if (!g) return;
-        pushUniquePoint(leg, g.junction);
-        arm.legs.push(leg);
-        // Spur leaves the offset trunk lane and ends on the real socket / PDU
-        const jOff = leg[leg.length - 1];
-        const spur = [jOff.clone(), g.sockFace.clone(), g.pduTop.clone()];
-        arm.spurs.push(spur);
-        blueSpurPaths.push(spur);
-        spur.forEach((p) => bluePowerPathPoints.push(p.clone()));
-        leg = [jOff.clone()];
-      });
-      blueArms.push(arm);
-      return arm;
-    }
-
-    // Arm A: from U corner along row A (no revisit of the corner later)
-    buildBlueArm(["Rack1", "Rack2", "Rack3"], [uCorner]);
-    // Arm B: from U corner across the +X end, then along row B
-    buildBlueArm(
-      ["Rack4", "Rack5", "Rack6"],
-      [uCorner, new THREE.Vector3(cptXMax, CPT_Y, cptZB)]
-    );
-
-    function addBlueXrayPolyline(points) {
-      buildPolyline(points).segs.forEach(({ a, b }) => {
-        const seg = cylinderBetween(a, b, 1.265, matBlueXray);
-        if (seg) bluePowerCableGroup.add(seg);
-      });
-    }
-    {
-      addBlueXrayPolyline(blueToCorner);
-      blueArms.forEach((arm) => {
-        const spine = [];
-        arm.legs.forEach((leg, i) => {
-          leg.forEach((p, j) => {
-            if (i > 0 && j === 0) return; // shared junction with previous leg
-            const last = spine[spine.length - 1];
-            if (!last || last.distanceTo(p) > 0.5) spine.push(p);
-          });
-        });
-        addBlueXrayPolyline(spine);
-        arm.spurs.forEach((spur) => addBlueXrayPolyline(spur));
-      });
-    }
-    bluePowerCableGroup.visible = false;
-    bluePowerCableGroup.renderOrder = 20;
-    bluePowerCableGroup.frustumCulled = false;
-    roomPower.add(bluePowerCableGroup);
-
-    const matBluePulse = new THREE.MeshBasicMaterial({
-      color: 0xb8d9ff,
-      transparent: true,
-      opacity: 1,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const bluePulseGroup = new THREE.Group();
-    bluePulseGroup.name = "PowerPulsesDistToPdu1";
-    bluePulseGroup.visible = false;
-    roomPower.add(bluePulseGroup);
-
-    function makeBluePulseMesh() {
-      const g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matBluePulse));
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), matBluePulse));
-      g.visible = false;
-      g.renderOrder = 21;
-      g.frustumCulled = false;
-      g.userData.busy = false;
-      bluePulseGroup.add(g);
-      return g;
-    }
-    // Worst case: 2 arm trunk pulses + several spur pulses in flight after the U-corner split
-    const bluePulsePool = Array.from({ length: 10 }, makeBluePulseMesh);
-    const BLUE_PULSE_SPEED = 165; // cm / s along path
-    const BLUE_WAVE_RESTART_MS = 450;
-    const activeBluePulses = [];
-    let blueArrivedCount = 0;
-    let blueWaveRestartAt = 0;
-
-    function releaseBluePulse(mesh) {
-      mesh.visible = false;
-      mesh.userData.busy = false;
-    }
-
-    function acquireBluePulse() {
-      const mesh = bluePulsePool.find((m) => !m.userData.busy) || makeBluePulseMesh();
-      mesh.userData.busy = true;
-      mesh.visible = true;
-      return mesh;
-    }
-
-    function clearBluePulses() {
-      activeBluePulses.length = 0;
-      bluePulsePool.forEach(releaseBluePulse);
-      blueArrivedCount = 0;
-      blueWaveRestartAt = 0;
-    }
-
-    function spawnBluePulse(points, onArrive) {
-      if (!points || points.length < 2) {
-        onArrive?.();
-        return;
-      }
-      const path = buildPolyline(points);
-      if (path.total < 1e-3) {
-        onArrive?.();
-        return;
-      }
-      const mesh = acquireBluePulse();
-      mesh.position.copy(points[0]);
-      activeBluePulses.push({ mesh, path, traveled: 0, onArrive });
-    }
-
-    function onBluePduArrived() {
-      blueArrivedCount += 1;
-      if (blueArrivedCount >= blueSpurPaths.length) {
-        blueWaveRestartAt = performance.now() + BLUE_WAVE_RESTART_MS;
-      }
-    }
-
-    function onBlueReachedArmJunction(arm, index) {
-      // Split: spur to this PDU (ends there); continue along this arm to the next PDU
-      spawnBluePulse(arm.spurs[index], onBluePduArrived);
-      if (index + 1 < arm.legs.length) {
-        spawnBluePulse(arm.legs[index + 1], () => onBlueReachedArmJunction(arm, index + 1));
-      }
-    }
-
-    function onBlueReachedUCorner() {
-      // Split at U corner: one pulse down row A, one across then down row B — no backtrack
-      blueArms.forEach((arm) => {
-        if (!arm.legs.length) return;
-        spawnBluePulse(arm.legs[0], () => onBlueReachedArmJunction(arm, 0));
-      });
-    }
-
-    function startBlueFeedWave() {
-      clearBluePulses();
-      if (blueToCorner.length < 2 || !blueArms.length) return;
-      spawnBluePulse(blueToCorner, onBlueReachedUCorner);
-    }
-
-    function updateBluePulses(dt) {
-      if (blueWaveRestartAt && performance.now() >= blueWaveRestartAt) {
-        startBlueFeedWave();
-        return;
-      }
-      for (let i = activeBluePulses.length - 1; i >= 0; i--) {
-        const pulse = activeBluePulses[i];
-        pulse.traveled += BLUE_PULSE_SPEED * dt;
-        if (pulse.traveled >= pulse.path.total) {
-          const cb = pulse.onArrive;
-          releaseBluePulse(pulse.mesh);
-          activeBluePulses.splice(i, 1);
-          cb?.();
-          continue;
-        }
-        const t = pulse.traveled / pulse.path.total;
-        const p = pulse.path.getPointAt(t);
-        pulse.mesh.position.copy(p);
-        const p2 = pulse.path.getPointAt(Math.min(1, t + 0.02));
-        const dir = new THREE.Vector3().subVectors(p2, p);
-        if (dir.lengthSq() > 1e-6) {
-          pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-        }
-      }
-      matBluePulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
-    }
-
-    powerHighlights.push(bluePowerCableGroup, bluePulseGroup);
-
-    // Red x-ray: MCB → trunk → up → feeder → U-corner, then tree to PDU2 (building power, not UPS)
-    const matRedXray = new THREE.MeshBasicMaterial({
-      color: 0xff5c5c,
-      transparent: true,
-      opacity: 0.715,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const redPowerCableGroup = new THREE.Group();
-    redPowerCableGroup.name = "PowerCableMcbToPdu2";
-    const redPowerPathPoints = [];
-    const redToCorner = [];
-    const redArms = [];
-    const redSpurPaths = [];
-    const mcbFeedOrigin = new THREE.Vector3(mcbX, mcbY, powerCableZ);
-
-    function pdu2FeedGeom(rackName) {
-      const sockInfo = industrialSocketByKey.get(`${rackName}|PDU2`);
-      const rack = racks.find((r) => r.group.name === rackName)?.group;
-      if (!sockInfo || !rack) return null;
-      const rotY = rack.rotation.y;
-      const cos = Math.cos(rotY);
-      const sin = Math.sin(rotY);
-      const localX = -PDU_LOCAL_X; // PDU2 on rear-view right
-      const junction = new THREE.Vector3(sockInfo.x, CPT_Y, sockInfo.z);
-      const sockFace = new THREE.Vector3(sockInfo.x, sockInfo.y, sockInfo.z);
-      const pduTop = new THREE.Vector3(
-        rack.position.x + localX * cos - pduLocalZ * sin,
-        pduTopY + 0.4,
-        rack.position.z + localX * sin + pduLocalZ * cos
-      );
-      return { junction, sockFace, pduTop };
-    }
-
-    function pushRedPoint(arr, p) {
-      const last = arr[arr.length - 1];
-      const c = p.clone().add(RED_TRUNK_OFF);
-      if (!last || last.distanceTo(c) > 0.5) {
-        arr.push(c);
-        redPowerPathPoints.push(c.clone());
-      }
-    }
-
-    // MCB → MCB–trunk conduit → up outbound trunk → ceiling feeder → U corner
-    pushRedPoint(redToCorner, mcbFeedOrigin);
-    pushRedPoint(redToCorner, new THREE.Vector3(trunkX, mcbY, trunkZ));
-    pushRedPoint(redToCorner, new THREE.Vector3(trunkX, CPT_Y, trunkZ));
-    pushRedPoint(redToCorner, new THREE.Vector3(cptXMax, CPT_Y, trunkZ));
-    pushRedPoint(redToCorner, uCorner);
-
-    function buildRedArm(rackNames, leadPts) {
-      const arm = { legs: [], spurs: [] };
-      let leg = [];
-      (leadPts || []).forEach((p) => pushRedPoint(leg, p));
-      rackNames.forEach((rackName) => {
-        const g = pdu2FeedGeom(rackName);
-        if (!g) return;
-        pushRedPoint(leg, g.junction);
-        arm.legs.push(leg);
-        // Spur leaves the offset trunk lane and ends on the real socket / PDU
-        const jOff = leg[leg.length - 1];
-        const spur = [jOff.clone(), g.sockFace.clone(), g.pduTop.clone()];
-        arm.spurs.push(spur);
-        redSpurPaths.push(spur);
-        spur.forEach((p) => redPowerPathPoints.push(p.clone()));
-        leg = [jOff.clone()];
-      });
-      redArms.push(arm);
-      return arm;
-    }
-
-    buildRedArm(["Rack1", "Rack2", "Rack3"], [uCorner]);
-    buildRedArm(
-      ["Rack4", "Rack5", "Rack6"],
-      [uCorner, new THREE.Vector3(cptXMax, CPT_Y, cptZB)]
-    );
-
-    function addRedXrayPolyline(points) {
-      buildPolyline(points).segs.forEach(({ a, b }) => {
-        const seg = cylinderBetween(a, b, 1.265, matRedXray);
-        if (seg) redPowerCableGroup.add(seg);
-      });
-    }
-    {
-      addRedXrayPolyline(redToCorner);
-      redArms.forEach((arm) => {
-        const spine = [];
-        arm.legs.forEach((leg, i) => {
-          leg.forEach((p, j) => {
-            if (i > 0 && j === 0) return;
-            const last = spine[spine.length - 1];
-            if (!last || last.distanceTo(p) > 0.5) spine.push(p);
-          });
-        });
-        addRedXrayPolyline(spine);
-        arm.spurs.forEach((spur) => addRedXrayPolyline(spur));
-      });
-    }
-    redPowerCableGroup.visible = false;
-    redPowerCableGroup.renderOrder = 20;
-    redPowerCableGroup.frustumCulled = false;
-    roomPower.add(redPowerCableGroup);
-
-    const matRedPulse = new THREE.MeshBasicMaterial({
-      color: 0xffb0b0,
-      transparent: true,
-      opacity: 1,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const redPulseGroup = new THREE.Group();
-    redPulseGroup.name = "PowerPulsesMcbToPdu2";
-    redPulseGroup.visible = false;
-    roomPower.add(redPulseGroup);
-
-    function makeRedPulseMesh() {
-      const g = new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(2.585, 16, 12), matRedPulse));
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.705, 1.705, 8.25, 12), matRedPulse));
-      g.visible = false;
-      g.renderOrder = 21;
-      g.frustumCulled = false;
-      g.userData.busy = false;
-      redPulseGroup.add(g);
-      return g;
-    }
-    const redPulsePool = Array.from({ length: 10 }, makeRedPulseMesh);
-    const RED_PULSE_SPEED = 165;
-    const RED_WAVE_RESTART_MS = 450;
-    const activeRedPulses = [];
-    let redArrivedCount = 0;
-    let redWaveRestartAt = 0;
-
-    function releaseRedPulse(mesh) {
-      mesh.visible = false;
-      mesh.userData.busy = false;
-    }
-
-    function acquireRedPulse() {
-      const mesh = redPulsePool.find((m) => !m.userData.busy) || makeRedPulseMesh();
-      mesh.userData.busy = true;
-      mesh.visible = true;
-      return mesh;
-    }
-
-    function clearRedPulses() {
-      activeRedPulses.length = 0;
-      redPulsePool.forEach(releaseRedPulse);
-      redArrivedCount = 0;
-      redWaveRestartAt = 0;
-    }
-
-    function spawnRedPulse(points, onArrive) {
-      if (!points || points.length < 2) {
-        onArrive?.();
-        return;
-      }
-      const path = buildPolyline(points);
-      if (path.total < 1e-3) {
-        onArrive?.();
-        return;
-      }
-      const mesh = acquireRedPulse();
-      mesh.position.copy(points[0]);
-      activeRedPulses.push({ mesh, path, traveled: 0, onArrive });
-    }
-
-    function onRedPduArrived() {
-      redArrivedCount += 1;
-      if (redArrivedCount >= redSpurPaths.length) {
-        redWaveRestartAt = performance.now() + RED_WAVE_RESTART_MS;
-      }
-    }
-
-    function onRedReachedArmJunction(arm, index) {
-      spawnRedPulse(arm.spurs[index], onRedPduArrived);
-      if (index + 1 < arm.legs.length) {
-        spawnRedPulse(arm.legs[index + 1], () => onRedReachedArmJunction(arm, index + 1));
-      }
-    }
-
-    function onRedReachedUCorner() {
-      redArms.forEach((arm) => {
-        if (!arm.legs.length) return;
-        spawnRedPulse(arm.legs[0], () => onRedReachedArmJunction(arm, 0));
-      });
-    }
-
-    function startRedFeedWave() {
-      clearRedPulses();
-      if (redToCorner.length < 2 || !redArms.length) return;
-      spawnRedPulse(redToCorner, onRedReachedUCorner);
-    }
-
-    function updateRedPulses(dt) {
-      if (redWaveRestartAt && performance.now() >= redWaveRestartAt) {
-        startRedFeedWave();
-        return;
-      }
-      for (let i = activeRedPulses.length - 1; i >= 0; i--) {
-        const pulse = activeRedPulses[i];
-        pulse.traveled += RED_PULSE_SPEED * dt;
-        if (pulse.traveled >= pulse.path.total) {
-          const cb = pulse.onArrive;
-          releaseRedPulse(pulse.mesh);
-          activeRedPulses.splice(i, 1);
-          cb?.();
-          continue;
-        }
-        const t = pulse.traveled / pulse.path.total;
-        const p = pulse.path.getPointAt(t);
-        pulse.mesh.position.copy(p);
-        const p2 = pulse.path.getPointAt(Math.min(1, t + 0.02));
-        const dir = new THREE.Vector3().subVectors(p2, p);
-        if (dir.lengthSq() > 1e-6) {
-          pulse.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-        }
-      }
-      matRedPulse.opacity = 0.88 + 0.12 * Math.sin(clock.elapsedTime * 3.2);
-    }
-
-    powerHighlights.push(redPowerCableGroup, redPulseGroup);
+    const {
+      matBlueXray,
+      matRedXray,
+      updateBluePulses,
+      updateRedPulses,
+      startBlueFeedWave,
+      startRedFeedWave,
+      clearBluePulses,
+      clearRedPulses,
+      highlightGroups: blueRedHighlightGroups,
+    } = blueRedPower;
+    powerHighlights.push(...blueRedHighlightGroups);
 
     // Door / power controls (+ drop-up menu)
     const doorState = {
@@ -9297,56 +8880,17 @@
       setCalloutGroupVisible(coreDistCallouts, on);
     }
 
-    function pickInteractive(clientX, clientY) {
-      const rect = canvas.getBoundingClientRect();
-      pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointerNdc, camera);
-      // Include side panels so they occlude gear when they block the view
-      const hits = raycaster.intersectObjects(
-        pickBlockers.length ? pickBlockers.concat(interactiveItems) : interactiveItems,
-        true
-      );
-      for (const hit of hits) {
-        if (hit.object.userData && hit.object.userData.blocksPick) return null;
-        const root = findInteractiveRoot(hit.object);
-        if (root) return root;
-      }
-      return null;
-    }
-
-    canvas.addEventListener("pointerdown", (e) => {
-      if (e.button != null && e.button !== 0) return;
-      pressPtr.x = e.clientX;
-      pressPtr.y = e.clientY;
-      pressPtr.down = true;
-      pressPtr.moved = false;
-    });
-
-    canvas.addEventListener("pointermove", (e) => {
-      if (pressPtr.down) {
-        if (Math.hypot(e.clientX - pressPtr.x, e.clientY - pressPtr.y) > 10) {
-          pressPtr.moved = true;
-        }
-      }
-      // Desktop hover cursor when over equipment
-      const hit = pickInteractive(e.clientX, e.clientY);
-      canvas.style.cursor = hit ? "pointer" : "";
-    });
-
-    canvas.addEventListener("pointerup", (e) => {
-      if (!pressPtr.down) return;
-      const wasTap = !pressPtr.moved;
-      pressPtr.down = false;
-      if (!wasTap) return;
-      const root = pickInteractive(e.clientX, e.clientY);
-      if (root) triggerPressFeedback(root);
-      else hideInfoPanel();
-    });
-
-    canvas.addEventListener("pointerleave", () => {
-      pressPtr.down = false;
-      canvas.style.cursor = "";
+    attachPointerInteractions({
+      canvas,
+      camera,
+      raycaster,
+      pointerNdc,
+      pickBlockers,
+      interactiveItems,
+      findInteractiveRoot,
+      pressPtr,
+      triggerPressFeedback,
+      hideInfoPanel,
     });
 
     const clock = new THREE.Clock();

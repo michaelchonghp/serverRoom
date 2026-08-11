@@ -193,4 +193,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - First modular JS cut is implemented:
   - UI DOM selector wiring moved into `src/modules/ui-elements.js` via `getUiElements()`.
   - `src/main.js` imports and destructures that module instead of declaring all control-element selectors inline.
+- Additional restrained splits (without over-fragmenting files):
+  - Blue/red power lane + pulse subsystem extracted to `src/modules/power-blue-red.js` (`initBlueRedPowerSystem()`).
+  - Pointer/tap picking event wiring extracted to `src/modules/interaction.js` (`attachPointerInteractions()`).
+  - `src/main.js` now orchestrates these modules while retaining scene assembly logic in one place.
 - Future modular cuts should continue by domain (power logic, callouts, equipment factories) while passing shared state/context explicitly.
