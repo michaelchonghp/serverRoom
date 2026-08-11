@@ -202,5 +202,4 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
   - On 26F: hide 25F-heavy groups (`bay`, `raisedFloor`, `roomPower`).
   - On 25F: hide 26F groups (`bay26`, `raisedFloor26`).
   - Floor switches also close the info callout panel to avoid stale overlays.
-  - Additional 26F culling: for racks in `bay26`, children flagged `userData.interactive` (mounted gear/PDUs) are hidden on 26F so mostly cabinet shells remain.
 - Future modular cuts should continue by domain (power logic, callouts, equipment factories) while passing shared state/context explicitly.

@@ -7842,15 +7842,6 @@
       roomPower.visible = on25;
       bay26.visible = !on25;
       raisedFloor26.visible = !on25;
-
-      // 26F performance mode: keep cabinet shells visible, hide mounted rack gear/details.
-      // Equipment units and vertical PDUs are flagged interactive under each rack group.
-      for (const { group } of racks) {
-        if (group.parent !== bay26) continue;
-        for (const child of group.children) {
-          if (child.userData?.interactive) child.visible = on25;
-        }
-      }
     }
 
     function setFloor(floor, { frame = true } = {}) {
