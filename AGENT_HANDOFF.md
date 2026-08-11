@@ -178,10 +178,10 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 ### Cat6 cabling inside trunk (latest state)
 
 - Initial single cable implementation replaced with bundled implementation.
-- Current logical bundle is **24 cables** in row profile **4/5/6/5/4** (top to bottom), matching CBOT24K-inspired packing intent.
+- Current setup is **4 parallel bundles**, each bundle being **24 cables** in row profile **4/5/6/5/4** (top to bottom), matching CBOT24K-inspired packing intent.
 - Added tie-band rings along run so it reads as a bundled loom.
-- Because true 6.6mm OD is barely visible at normal scene camera scale, a temporary **visibility scale** is applied to cable draw diameter so bundle structure is perceptible in view.
-- If strict physical realism is required later, reduce/remove `bundleVizScale` and rely on close-up/cutaway views for inspection.
+- Cables are rendered at true Cat6 OD (**6.6mm**, no visualization scale-up).
+- Cable color currently set to **blue**.
 
 ### Codebase split status (2026-08-11)
 

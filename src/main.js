@@ -7183,12 +7183,12 @@
       // Cat6 bundle (24 cables) laid through full trunk length, CBOT24K-style row pack:
       // top→bottom row counts = 4 / 5 / 6 / 5 / 4
       const cat6Mat = new THREE.MeshStandardMaterial({
-        color: 0xf0d000,
+        color: 0x2f7dff,
         metalness: 0.08,
         roughness: 0.52,
       });
-      const cat6Bundle = new THREE.Group();
-      cat6Bundle.name = "Cat6Bundle24";
+      const cat6BundleGroup = new THREE.Group();
+      cat6BundleGroup.name = "Cat6BundleGroup";
       const rowCountsTop = [4, 5, 6, 5, 4];
       const rowCountsBottom = [...rowCountsTop].reverse(); // placement starts at bottom row
       const cableDiaVis = CAT6_DIA;
@@ -7198,18 +7198,6 @@
       const bundleBottomY = -CAT6_H / 2 + CAT6_WALL_T + cableDiaVis / 2 + 0.02;
 
       const cableGeo = new THREE.CylinderGeometry(cableDiaVis / 2, cableDiaVis / 2, cat6Len, 14);
-      rowCountsBottom.forEach((count, row) => {
-        const y = bundleBottomY + row * vPitch;
-        const z0 = -((count - 1) * hPitch) / 2;
-        for (let i = 0; i < count; i++) {
-          const cable = new THREE.Mesh(cableGeo, cat6Mat);
-          cable.rotation.z = Math.PI / 2; // cylinder axis Y -> trunk X
-          cable.position.set(0, y, z0 + i * hPitch);
-          cable.castShadow = true;
-          cable.receiveShadow = true;
-          cat6Bundle.add(cable);
-        }
-      });
 
       // A few black tie bands to read as a bundled loom.
       const bundleTopY = bundleBottomY + bundleH - cableDiaVis;
@@ -7220,13 +7208,32 @@
       const tieRadius = Math.max(bundleHalfW, bundleHalfH) + 0.3;
       const tieMat = new THREE.MeshStandardMaterial({ color: 0x111317, metalness: 0.2, roughness: 0.72 });
       const tieGeo = new THREE.TorusGeometry(tieRadius, Math.max(0.1, cableDiaVis * 0.08), 8, 28);
-      [-cat6Len * 0.32, 0, cat6Len * 0.32].forEach((x) => {
-        const tie = new THREE.Mesh(tieGeo, tieMat);
-        tie.rotation.y = Math.PI / 2; // ring normal along trunk axis (X)
-        tie.position.set(x, bundleMidY, 0);
-        cat6Bundle.add(tie);
+      const bundlePitchZ = bundleHalfW * 2 + 1.8;
+      const bundleOffsetsZ = [-1.5, -0.5, 0.5, 1.5].map((m) => m * bundlePitchZ);
+      bundleOffsetsZ.forEach((bundleOffsetZ, bundleIdx) => {
+        const cat6Bundle = new THREE.Group();
+        cat6Bundle.name = `Cat6Bundle24-${bundleIdx + 1}`;
+        rowCountsBottom.forEach((count, row) => {
+          const y = bundleBottomY + row * vPitch;
+          const z0 = -((count - 1) * hPitch) / 2 + bundleOffsetZ;
+          for (let i = 0; i < count; i++) {
+            const cable = new THREE.Mesh(cableGeo, cat6Mat);
+            cable.rotation.z = Math.PI / 2; // cylinder axis Y -> trunk X
+            cable.position.set(0, y, z0 + i * hPitch);
+            cable.castShadow = true;
+            cable.receiveShadow = true;
+            cat6Bundle.add(cable);
+          }
+        });
+        [-cat6Len * 0.32, 0, cat6Len * 0.32].forEach((x) => {
+          const tie = new THREE.Mesh(tieGeo, tieMat);
+          tie.rotation.y = Math.PI / 2; // ring normal along trunk axis (X)
+          tie.position.set(x, bundleMidY, bundleOffsetZ);
+          cat6Bundle.add(tie);
+        });
+        cat6BundleGroup.add(cat6Bundle);
       });
-      cat6Trunk.add(cat6Bundle);
+      cat6Trunk.add(cat6BundleGroup);
 
       // Hovering size callouts (as requested): true width 400 mm and true height 200 mm
       const dimMat = new THREE.MeshBasicMaterial({
