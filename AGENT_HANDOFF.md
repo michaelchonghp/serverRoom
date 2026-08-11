@@ -182,3 +182,15 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 - Added tie-band rings along run so it reads as a bundled loom.
 - Because true 6.6mm OD is barely visible at normal scene camera scale, a temporary **visibility scale** is applied to cable draw diameter so bundle structure is perceptible in view.
 - If strict physical realism is required later, reduce/remove `bundleVizScale` and rely on close-up/cutaway views for inspection.
+
+### Codebase split status (2026-08-11)
+
+- Phase 1 split is now in place:
+  - `index.html` is reduced to document markup + import map + module/bootstrap tags.
+  - CSS moved to `styles/main.css`.
+  - Main JS moved to `src/main.js`.
+- `index.html` now includes explicit split comments near `<head>`/script bootstrapping to guide future agents.
+- First modular JS cut is implemented:
+  - UI DOM selector wiring moved into `src/modules/ui-elements.js` via `getUiElements()`.
+  - `src/main.js` imports and destructures that module instead of declaring all control-element selectors inline.
+- Future modular cuts should continue by domain (power logic, callouts, equipment factories) while passing shared state/context explicitly.

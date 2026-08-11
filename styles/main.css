@@ -1,0 +1,867 @@
+    :root {
+      --ink: #12151a;
+      --steel: #5c6674;
+      --mist: #f4f7fb;
+      --signal: #1f9d62;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--mist);
+      color: var(--ink);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background:
+        radial-gradient(ellipse 90% 60% at 50% 12%, #ffffff 0%, transparent 55%),
+        radial-gradient(ellipse 70% 50% at 80% 85%, #d9e6f2 0%, transparent 50%),
+        linear-gradient(165deg, #eef3f8 0%, #e2eaf2 48%, #d7e2ec 100%);
+    }
+
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      padding: clamp(1rem, 3vw, 2.5rem);
+      padding-top: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-top));
+      padding-bottom: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .brand { justify-self: start; animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+    .brand .maker {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--steel);
+      margin-bottom: 0.35rem;
+    }
+
+    .brand h1 {
+      font-family: "Archivo Black", sans-serif;
+      font-size: clamp(2.2rem, 8vw, 5.5rem);
+      line-height: 0.9;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+      text-transform: uppercase;
+    }
+
+    .brand p {
+      margin-top: 0.65rem;
+      max-width: 36ch;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      color: var(--steel);
+    }
+
+    .brand .credit {
+      margin-top: 0.85rem;
+      font-size: 0.62rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--steel) 78%, var(--ink));
+    }
+
+    .brand .credit strong {
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: none;
+      color: var(--ink);
+    }
+
+    .meta {
+      align-self: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.75rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--steel);
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+    }
+
+    .meta span { display: inline-flex; align-items: center; gap: 0.55rem; }
+
+    .meta i {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--signal) 55%, transparent);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    .power-legend {
+      position: fixed;
+      top: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-top));
+      right: clamp(1rem, 3vw, 2.5rem);
+      z-index: 3;
+      pointer-events: none;
+      display: none;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      padding: 0.5rem 0.8rem;
+      background: color-mix(in srgb, #0e141a 78%, transparent);
+      border: 1px solid color-mix(in srgb, #3dff9a 22%, color-mix(in srgb, #4da3ff 22%, #ff5c5c 22%));
+      color: #e8f5ee;
+      font-size: 0.68rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+      max-width: min(96vw, 48rem);
+      justify-content: flex-end;
+    }
+
+    .power-legend.visible { display: flex; }
+
+    .power-legend .item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+
+    .power-legend .swatch {
+      width: 1.15rem;
+      height: 0.26rem;
+      flex-shrink: 0;
+    }
+
+    .power-legend .swatch.green {
+      background: #3dff9a;
+      box-shadow: 0 0 10px color-mix(in srgb, #3dff9a 70%, transparent);
+    }
+
+    .power-legend .swatch.blue {
+      background: #4da3ff;
+      box-shadow: 0 0 10px color-mix(in srgb, #4da3ff 70%, transparent);
+    }
+
+    .power-legend .swatch.red {
+      background: #ff5c5c;
+      box-shadow: 0 0 10px color-mix(in srgb, #ff5c5c 70%, transparent);
+    }
+
+    .power-legend .swatch.lan {
+      background: #3b82f6;
+      box-shadow: 0 0 10px color-mix(in srgb, #3b82f6 70%, transparent);
+    }
+
+    .power-legend .swatch.wifi {
+      background: #14b8a6;
+      box-shadow: 0 0 10px color-mix(in srgb, #14b8a6 70%, transparent);
+    }
+
+    .power-legend .swatch.security {
+      background: #f04343;
+      box-shadow: 0 0 10px color-mix(in srgb, #f04343 70%, transparent);
+    }
+
+    .power-legend .title.green { font-weight: 500; color: #3dff9a; }
+    .power-legend .title.blue { font-weight: 500; color: #4da3ff; }
+    .power-legend .title.red { font-weight: 500; color: #ff5c5c; }
+    .power-legend .title.lan { font-weight: 500; color: #3b82f6; }
+    .power-legend .title.wifi { font-weight: 500; color: #14b8a6; }
+    .power-legend .title.security { font-weight: 500; color: #f04343; }
+
+    .power-legend .sub {
+      color: color-mix(in srgb, #e8f5ee 72%, transparent);
+      letter-spacing: 0.03em;
+      text-transform: none;
+      font-size: 0.64rem;
+    }
+
+    .power-legend .sep {
+      color: color-mix(in srgb, #e8f5ee 35%, transparent);
+      font-weight: 500;
+    }
+
+    /* UPS power legend — keys left, flow diagram right */
+    .power-legend.power-legend--flow {
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.55rem 0.9rem;
+      padding: 0.38rem 0.7rem;
+      max-width: min(96vw, 32rem);
+      line-height: 1.1;
+    }
+
+    .power-legend--flow .power-keys {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 0.22rem;
+      flex-shrink: 0;
+    }
+
+    .power-legend--flow .power-keys .item {
+      gap: 0.38rem;
+    }
+
+    .power-legend--flow .power-keys .title {
+      font-size: 0.62rem;
+    }
+
+    .power-legend--flow .power-flow {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    .power-legend--flow .power-flow svg {
+      width: 100%;
+      height: auto;
+      max-height: 4.1rem;
+      display: block;
+      overflow: visible;
+    }
+
+    .power-legend--flow .flow-node {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 11.4px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .hint {
+      position: fixed;
+      right: clamp(1rem, 3vw, 2.5rem);
+      top: max(clamp(1rem, 3vw, 2.5rem), env(safe-area-inset-top));
+      z-index: 2;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--steel) 80%, transparent);
+      pointer-events: none;
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+    }
+
+    .door-controls {
+      position: fixed;
+      left: 50%;
+      bottom: max(clamp(0.65rem, 2vw, 1.25rem), env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      z-index: 3;
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: stretch;
+      gap: 0.3rem;
+      max-width: min(98vw, 56rem);
+      pointer-events: auto;
+      animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+    }
+
+    .door-controls button {
+      appearance: none;
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+      background: color-mix(in srgb, #ffffff 88%, transparent);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.58rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.45rem 0.5rem;
+      min-width: 3.6rem;
+      flex: 0 0 auto;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    }
+
+    .door-controls button:hover {
+      background: #fff;
+      border-color: color-mix(in srgb, var(--ink) 28%, transparent);
+    }
+
+    .door-controls button:active { transform: scale(0.98); }
+
+    .door-controls button.open {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .door-controls button .label {
+      display: block;
+      font-size: 0.5rem;
+      letter-spacing: 0.1em;
+      opacity: 0.55;
+      margin-bottom: 0.1rem;
+    }
+
+    .door-controls button.open .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
+    .door-controls button .action {
+      display: block;
+      font-weight: 500;
+      font-size: 0.62rem;
+    }
+
+    .door-controls button.rack-btn {
+      min-width: 2.15rem;
+      padding: 0.45rem 0.55rem;
+      font-family: "Archivo Black", sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0;
+      line-height: 1.1;
+    }
+
+    .door-controls .rack-group {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.25rem;
+      flex: 0 0 auto;
+    }
+
+    .door-controls button:disabled,
+    .door-controls button.is-disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+      filter: grayscale(0.35);
+      pointer-events: none;
+    }
+
+    /* 26F is access-layer only — Core / Dist never appear in that menu */
+    .door-controls[data-floor="26"] .ctrl-25-only {
+      display: none !important;
+    }
+
+    .door-controls button.rack-btn.active {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    /* Side chips float outside a menu row (don’t widen the popup) */
+    .ctrl-extra-row {
+      position: relative;
+      display: block;
+      width: 100%;
+    }
+
+    .ctrl-extra-row > button[role="menuitem"] {
+      width: 100%;
+    }
+
+    .ctrl-extra-chips {
+      position: absolute;
+      left: calc(100% + 0.35rem);
+      top: 0;
+      bottom: 0;
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      gap: 0.2rem;
+      z-index: 5;
+      pointer-events: auto;
+    }
+
+    .ctrl-extra-chips[hidden] {
+      display: none;
+    }
+
+    .ctrl-menu-panel .ctrl-extra-chips button {
+      width: auto;
+      min-width: 2.35rem;
+      height: 100%;
+      padding: 0.35rem 0.35rem;
+      text-align: center;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border-width: 1.5px;
+      color: #fff;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .ctrl-extra-chips button .action {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.55rem;
+      font-weight: 800;
+    }
+
+    .ctrl-extra-chips button .label {
+      display: none;
+    }
+
+    .ctrl-extra-chips button.role-lan {
+      background: color-mix(in srgb, #3b82f6 78%, #fff);
+      border-color: #2563eb;
+    }
+    .ctrl-extra-chips button.role-wifi {
+      background: color-mix(in srgb, #14b8a6 78%, #fff);
+      border-color: #0d9488;
+    }
+    .ctrl-extra-chips button.role-security {
+      background: color-mix(in srgb, #f04343 78%, #fff);
+      border-color: #dc2626;
+    }
+    .ctrl-extra-chips button.chip-info {
+      background: color-mix(in srgb, #3dff9a 55%, #0a1a12);
+      border-color: #2bd47a;
+      color: #e8fff2;
+    }
+
+    .ctrl-extra-chips button.open.role-lan {
+      background: #3b82f6;
+      border-color: #1d4ed8;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #3b82f6 55%, transparent),
+        0 0 14px color-mix(in srgb, #3b82f6 45%, transparent);
+    }
+    .ctrl-extra-chips button.open.role-wifi {
+      background: #14b8a6;
+      border-color: #0f766e;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #14b8a6 55%, transparent),
+        0 0 14px color-mix(in srgb, #14b8a6 45%, transparent);
+    }
+    .ctrl-extra-chips button.open.role-security {
+      background: #f04343;
+      border-color: #b91c1c;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #f04343 55%, transparent),
+        0 0 14px color-mix(in srgb, #f04343 45%, transparent);
+    }
+    .ctrl-extra-chips button.open.chip-info {
+      background: #1a8f55;
+      border-color: #3dff9a;
+      color: #e8fff2;
+      box-shadow: 0 0 0 1px color-mix(in srgb, #3dff9a 45%, transparent),
+        0 0 14px color-mix(in srgb, #3dff9a 40%, transparent);
+    }
+
+    .ctrl-extra-chips button:not(.open) {
+      opacity: 0.42;
+      filter: grayscale(0.25);
+      box-shadow: none;
+    }
+
+    /* Drop-up control menu (Front / Rear / Show Power …) */
+    .ctrl-menu {
+      position: relative;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      overflow: visible;
+    }
+
+    .ctrl-menu-panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 0.35rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      min-width: 7.5rem;
+      width: auto;
+      overflow: visible;
+      padding: 0.35rem;
+      background: color-mix(in srgb, #ffffff 92%, transparent);
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 -8px 28px rgba(20, 24, 30, 0.12);
+      z-index: 4;
+    }
+
+    .ctrl-menu-panel[hidden] { display: none; }
+
+    .ctrl-menu-panel button {
+      width: 100%;
+      min-width: 0;
+      text-align: left;
+      padding: 0.5rem 0.65rem;
+    }
+
+    .ctrl-menu > #btn-controls-toggle .action::after,
+    .ctrl-menu > #btn-floor-toggle .action::after {
+      content: " ▴";
+      opacity: 0.55;
+      font-size: 0.7em;
+    }
+
+    .ctrl-menu.open > #btn-controls-toggle,
+    .ctrl-menu.open > #btn-floor-toggle {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .ctrl-menu.open > #btn-controls-toggle .label,
+    .ctrl-menu.open > #btn-floor-toggle .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
+    .floor-menu .ctrl-menu-panel {
+      min-width: 4.8rem;
+    }
+
+    .floor-menu .ctrl-menu-panel button.floor-opt.active {
+      background: var(--ink);
+      color: #f4f7fb;
+      border-color: var(--ink);
+    }
+
+    .floor-menu .ctrl-menu-panel button.floor-opt.active .label {
+      opacity: 0.7;
+      color: #c5ccd6;
+    }
+
+    /* Sci-fi equipment info callout */
+    :root {
+      --scan: #3dff9a;
+      --scan-dim: rgba(61, 255, 154, 0.22);
+      --scan-bg: rgba(6, 18, 14, 0.88);
+    }
+
+    .info-leader {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 4;
+      overflow: visible;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.14s ease, visibility 0.14s ease;
+    }
+
+    .info-leader.show {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.1s ease;
+    }
+
+    .info-leader line {
+      stroke: var(--scan);
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 5px var(--scan));
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      transition: stroke-dashoffset 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .info-leader.show line {
+      stroke-dashoffset: 0;
+    }
+
+    .info-leader .anchor-dot {
+      fill: var(--scan);
+      filter: drop-shadow(0 0 6px var(--scan));
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+
+    .info-leader.show .anchor-dot { opacity: 1; }
+
+    .info-panel {
+      position: fixed;
+      z-index: 5;
+      width: min(18.5rem, calc(100vw - 1.5rem));
+      padding: 0.85rem 0.95rem 0.95rem;
+      border: 1px solid var(--scan);
+      background: var(--scan-bg);
+      box-shadow:
+        0 0 0 1px var(--scan-dim) inset,
+        0 0 24px var(--scan-dim),
+        0 12px 40px rgba(0, 0, 0, 0.35);
+      color: var(--scan);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      pointer-events: auto;
+      transform-origin: left center;
+      opacity: 0;
+      transform: scaleX(0.08) scaleY(0.35);
+      clip-path: inset(0 100% 0 0);
+      /* Dismiss: collapse immediately (no delay) — reverse of open */
+      transition:
+        opacity 0.2s ease,
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        clip-path 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .info-panel.show {
+      opacity: 1;
+      transform: scaleX(1) scaleY(1);
+      clip-path: inset(0 0 0 0);
+      /* Appear: wait for leader line, then expand */
+      transition:
+        opacity 0.18s ease 0.26s,
+        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s,
+        clip-path 0.38s cubic-bezier(0.22, 1, 0.36, 1) 0.26s;
+    }
+
+    .info-panel.from-right {
+      transform-origin: right center;
+      clip-path: inset(0 0 0 100%);
+    }
+
+    .info-panel.from-right.show {
+      clip-path: inset(0 0 0 0);
+    }
+
+    .info-panel[hidden] { display: none; }
+
+    /* Sticky Core overlay — compact green label (not full equipment panel) */
+    .core-sticky {
+      position: fixed;
+      z-index: 5;
+      padding: 0.315rem 0.49rem 0.35rem;
+      border: 1px solid var(--scan);
+      background: var(--scan-bg);
+      box-shadow:
+        0 0 0 1px var(--scan-dim) inset,
+        0 0 16px var(--scan-dim),
+        0 8px 24px rgba(0, 0, 0, 0.3);
+      color: var(--scan);
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.92);
+      transform-origin: center bottom;
+      transition:
+        opacity 0.18s ease 0.2s,
+        transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.2s;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      white-space: nowrap;
+      line-height: 1.35;
+    }
+
+    .core-sticky.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .core-sticky[hidden] { display: none; }
+
+    /* Hidden while the Dist/Core switch (or linked cluster) is outside the camera frustum */
+    .core-sticky.off-frustum {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transition: none;
+    }
+    .info-leader.off-frustum {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transition: none;
+    }
+
+    .core-sticky .core-title {
+      font-size: 0.546rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .core-sticky .core-ports {
+      font-size: 0.434rem;
+      opacity: 0.85;
+      margin-top: 0.084rem;
+    }
+
+    /* SM callout — equal-weight rows, no bold title */
+    .core-sticky .core-row {
+      font-size: 0.49rem;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+    .core-sticky .core-row + .core-row {
+      margin-top: 0.084rem;
+    }
+
+    .core-sticky.below {
+      transform-origin: center top;
+    }
+
+    .info-panel .info-close {
+      position: absolute;
+      top: 0.35rem;
+      right: 0.4rem;
+      appearance: none;
+      border: 1px solid var(--scan-dim);
+      background: transparent;
+      color: var(--scan);
+      width: 1.6rem;
+      height: 1.6rem;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .info-panel .eyebrow {
+      font-size: 0.58rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 0.25rem;
+    }
+
+    .info-panel h2 {
+      font-family: "Archivo Black", sans-serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+      color: #e8fff2;
+      line-height: 1.15;
+      margin: 0 1.5rem 0.15rem 0;
+      text-transform: none;
+    }
+
+    .info-panel .model {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.7rem;
+      color: var(--scan);
+    }
+
+    .info-panel .rating {
+      display: inline-block;
+      border: 1px solid var(--scan);
+      padding: 0.2rem 0.45rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.75rem;
+      color: #e8fff2;
+      box-shadow: 0 0 12px var(--scan-dim);
+    }
+
+    .info-panel dl {
+      display: grid;
+      gap: 0.55rem;
+      margin: 0;
+    }
+
+    .info-panel .block {
+      border-top: 1px solid var(--scan-dim);
+      padding-top: 0.45rem;
+    }
+
+    .info-panel dt {
+      font-size: 0.55rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.65;
+      margin-bottom: 0.2rem;
+    }
+
+    .info-panel dd {
+      margin: 0;
+      font-size: 0.68rem;
+      line-height: 1.4;
+      color: #d7ffe9;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.25); }
+    }
+
+    @media (max-width: 640px) {
+      .brand h1 { font-size: clamp(1.8rem, 11vw, 2.8rem); }
+      .brand p { max-width: 32ch; font-size: 0.7rem; }
+      .meta { display: none; }
+      .hint { display: none; }
+      .power-legend {
+        top: auto;
+        bottom: max(4.8rem, calc(env(safe-area-inset-bottom) + 4.2rem));
+        right: clamp(0.5rem, 2vw, 1rem);
+        left: clamp(0.5rem, 2vw, 1rem);
+        width: auto;
+        justify-content: center;
+        font-size: 0.62rem;
+        padding: 0.45rem 0.7rem;
+      }
+      .power-legend.power-legend--flow {
+        gap: 0.4rem 0.55rem;
+        padding: 0.32rem 0.55rem;
+        max-width: none;
+      }
+      .power-legend--flow .power-flow svg {
+        max-height: 3.6rem;
+      }
+      .door-controls {
+        left: clamp(0.35rem, 1.5vw, 0.75rem);
+        right: clamp(0.35rem, 1.5vw, 0.75rem);
+        transform: none;
+        width: auto;
+        gap: 0.22rem;
+        max-width: none;
+      }
+      .door-controls button {
+        flex: 0 0 auto;
+        min-width: 2.7rem;
+        padding: 0.35rem 0.28rem;
+        font-size: 0.5rem;
+      }
+      .door-controls button .label {
+        font-size: 0.42rem;
+        letter-spacing: 0.06em;
+      }
+      .door-controls button .action {
+        font-size: 0.55rem;
+      }
+      .door-controls button.rack-btn {
+        min-width: 1.55rem;
+        padding: 0.35rem 0.28rem;
+        font-size: 0.78rem;
+      }
+      .door-controls .rack-group {
+        gap: 0.18rem;
+      }
+      .ctrl-menu-panel .ctrl-extra-chips button {
+        min-width: 2rem;
+        padding: 0.3rem 0.25rem;
+      }
+      .ctrl-extra-chips button .action {
+        font-size: 0.48rem;
+      }
+      .ctrl-menu-panel {
+        min-width: 6.8rem;
+        padding: 0.28rem;
+      }
+      .info-panel {
+        width: min(17.25rem, calc(100vw - 1.25rem));
+        padding: 0.7rem 0.8rem 0.8rem;
+        max-height: min(42vh, 320px);
+        overflow: auto;
+      }
+      .info-panel h2 { font-size: 0.95rem; }
+      .info-panel .model { margin-bottom: 0.45rem; }
+      .info-panel .rating { margin-bottom: 0.5rem; }
+      .info-panel dd { font-size: 0.62rem; }
+    }
