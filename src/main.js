@@ -7191,9 +7191,7 @@
       cat6Bundle.name = "Cat6Bundle24";
       const rowCountsTop = [4, 5, 6, 5, 4];
       const rowCountsBottom = [...rowCountsTop].reverse(); // placement starts at bottom row
-      // Real Cat6 OD is 6.6 mm; use a visibility scale so the 24-cable bundle reads clearly in this zoom level.
-      const bundleVizScale = 4.0;
-      const cableDiaVis = CAT6_DIA * bundleVizScale;
+      const cableDiaVis = CAT6_DIA;
       const hPitch = cableDiaVis * 1.08;
       const vPitch = cableDiaVis * 0.93;
       const bundleH = (rowCountsBottom.length - 1) * vPitch + cableDiaVis;
