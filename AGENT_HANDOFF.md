@@ -203,3 +203,4 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
 
 - Requested one-off UX rule: while `26F` is selected in floor controls, hide the **25F Rack1 Dell server** (`srv-poweredge-r750`) only.
 - Implemented via `unit.userData.hideOn26F = true` at rack equipment placement time and `syncFloorConditionalVisibility()` called during init + `setFloor()`.
+- Hardened implementation: tracked explicit refs in `hideOn26FUnits[]` and re-applied visibility in `animate()` each frame, preventing later code paths from re-showing the Dell while on 26F.

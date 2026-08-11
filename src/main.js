@@ -5563,6 +5563,7 @@
         unit.position.set(0, y, railFrontFaceZ - mountZ);
         if (name === "Rack1" && type === "srv-poweredge-r750") {
           unit.userData.hideOn26F = true;
+          hideOn26FUnits.push(unit);
         }
         rack.add(unit);
         if (unit.userData.interactive) interactiveItems.push(unit);
@@ -6052,6 +6053,7 @@
     scene.add(bay26);
 
     const racks = [];
+    const hideOn26FUnits = [];
 
     function placeRow(names, z, rotY, xShift = 0, extrasByName = {}, equipmentByName = {}) {
       names.forEach((name, i) => {
@@ -7839,11 +7841,7 @@
     // Targeted floor rule: hide Rack1's Dell server while 26F is selected.
     function syncFloorConditionalVisibility() {
       const showDellOn25 = currentFloor === 25;
-      for (const { group } of racks) {
-        for (const child of group.children) {
-          if (child.userData?.hideOn26F) child.visible = showDellOn25;
-        }
-      }
+      for (const unit of hideOn26FUnits) unit.visible = showDellOn25;
     }
 
     function setFloor(floor, { frame = true } = {}) {
@@ -8923,6 +8921,7 @@
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
       const ease = 1 - Math.exp(-dt * 7);
+      syncFloorConditionalVisibility();
 
       racks.forEach(({ frontDoor, rearLeft, rearRight }) => {
         frontDoor.rotation.y += (doorState.frontTarget - frontDoor.rotation.y) * ease;
