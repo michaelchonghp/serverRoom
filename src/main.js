@@ -5561,6 +5561,9 @@
         const y = BASE_H + startU * U + eh / 2 + 0.05;
         const mountZ = unit.userData.mountZ ?? 0;
         unit.position.set(0, y, railFrontFaceZ - mountZ);
+        if (name === "Rack1" && type === "srv-poweredge-r750") {
+          unit.userData.hideOn26F = true;
+        }
         rack.add(unit);
         if (unit.userData.interactive) interactiveItems.push(unit);
       });
@@ -7833,10 +7836,21 @@
       syncRackButtons();
     }
 
+    // Targeted floor rule: hide Rack1's Dell server while 26F is selected.
+    function syncFloorConditionalVisibility() {
+      const showDellOn25 = currentFloor === 25;
+      for (const { group } of racks) {
+        for (const child of group.children) {
+          if (child.userData?.hideOn26F) child.visible = showDellOn25;
+        }
+      }
+    }
+
     function setFloor(floor, { frame = true } = {}) {
       const next = Number(floor);
       if (next !== 25 && next !== 26) return;
       if (currentFloor === next && !frame) {
+        syncFloorConditionalVisibility();
         syncFloorChrome();
         return;
       }
@@ -7853,6 +7867,7 @@
         if (showAccess) setShowAccess(false);
       }
 
+      syncFloorConditionalVisibility();
       syncFloorChrome();
       if (frame) frameScene(true);
       nudgeIdle();
@@ -8296,6 +8311,7 @@
     syncDoorButton(btnRear, true, "rear doors");
     syncPowerButton();
     syncCoreButton();
+    syncFloorConditionalVisibility();
     syncFloorChrome();
     syncRackButtons();
 

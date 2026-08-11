@@ -198,3 +198,8 @@ Living notes for the next chat/agent. **Update this file** when a decision or ma
   - Pointer/tap picking event wiring extracted to `src/modules/interaction.js` (`attachPointerInteractions()`).
   - `src/main.js` now orchestrates these modules while retaining scene assembly logic in one place.
 - Future modular cuts should continue by domain (power logic, callouts, equipment factories) while passing shared state/context explicitly.
+
+### Floor-specific one-off behavior
+
+- Requested one-off UX rule: while `26F` is selected in floor controls, hide the **25F Rack1 Dell server** (`srv-poweredge-r750`) only.
+- Implemented via `unit.userData.hideOn26F = true` at rack equipment placement time and `syncFloorConditionalVisibility()` called during init + `setFloor()`.
