@@ -7183,7 +7183,7 @@
       // Cat6 bundle (24 cables) laid through full trunk length, CBOT24K-style row pack:
       // top→bottom row counts = 4 / 5 / 6 / 5 / 4
       const cat6Mat = new THREE.MeshStandardMaterial({
-        color: 0x2f7dff,
+        color: 0xf0d000,
         metalness: 0.08,
         roughness: 0.52,
       });
